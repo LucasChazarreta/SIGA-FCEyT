@@ -39,6 +39,8 @@ public class InventarioFrame extends JFrame {
         JButton btnEditar = new JButton("Editar");
         JButton btnBaja = new JButton("Baja lógica");
         JButton btnRefresh = new JButton("Refrescar");
+        JButton btnMov = new JButton("Movimiento");
+        actions.add(btnMov);
         actions.add(btnNuevo);
         actions.add(btnEditar);
         actions.add(btnBaja);
@@ -101,6 +103,25 @@ public class InventarioFrame extends JFrame {
                 try {
                     service.bajaLogica(sel.getId());
                     loadData();
+                } catch (Exception ex) {
+                    showError(ex);
+                }
+            }
+        });
+        
+        // Acción del botón Movimiento:
+        btnMov.addActionListener(e -> {
+            int row = table.getSelectedRow();
+            if (row < 0) { JOptionPane.showMessageDialog(this, "Seleccioná un insumo"); return; }
+            var sel = tableModel.getAt(row);
+
+            var dlg = new MovimientoDialog(this);
+            dlg.setVisible(true);
+            if (dlg.isAccepted()) {
+                try {
+                    service.registrarMovimiento(sel.getId(), dlg.getTipo(), dlg.getCantidad(), dlg.getDestinoFuente());
+                    loadData();
+                    JOptionPane.showMessageDialog(this, "Movimiento registrado");
                 } catch (Exception ex) {
                     showError(ex);
                 }
