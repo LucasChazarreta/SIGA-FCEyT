@@ -19,6 +19,11 @@ import java.util.List;
 
 import static ar.edu.unse.siga.persistence.DataSourceFactory.getConnection;
 
+import ar.edu.unse.siga.common.CsvExporter;
+import java.nio.file.Path;
+import java.text.SimpleDateFormat;
+import java.util.Date;
+
 public class InventarioFrame extends JFrame {
     private final InventarioService service;
     private final InsTableModel tableModel = new InsTableModel();
@@ -33,6 +38,15 @@ public class InventarioFrame extends JFrame {
         // Tabla
         add(new JScrollPane(table), BorderLayout.CENTER);
 
+        JSpinner spDesde = new JSpinner(new SpinnerDateModel(new Date(), null, null, java.util.Calendar.DAY_OF_MONTH));
+        JSpinner spHasta = new JSpinner(new SpinnerDateModel(new Date(), null, null, java.util.Calendar.DAY_OF_MONTH));
+        JPanel dates = new JPanel(new FlowLayout(FlowLayout.RIGHT));
+        spDesde.setEditor(new JSpinner.DateEditor(spDesde, "yyyy-MM-dd"));
+        spHasta.setEditor(new JSpinner.DateEditor(spHasta, "yyyy-MM-dd"));
+        dates.add(new JLabel("Desde:")); dates.add(spDesde);
+        dates.add(new JLabel("Hasta:")); dates.add(spHasta);
+        add(dates, BorderLayout.SOUTH);
+        
         // Botones
         JPanel actions = new JPanel(new FlowLayout(FlowLayout.LEFT));
         JButton btnNuevo = new JButton("Nuevo");
@@ -40,6 +54,8 @@ public class InventarioFrame extends JFrame {
         JButton btnBaja = new JButton("Baja lógica");
         JButton btnRefresh = new JButton("Refrescar");
         JButton btnMov = new JButton("Movimiento");
+        JButton btnCsv = new JButton("Exportar CSV");
+        actions.add(btnCsv);
         actions.add(btnMov);
         actions.add(btnNuevo);
         actions.add(btnEditar);
@@ -128,6 +144,57 @@ public class InventarioFrame extends JFrame {
             }
         });
 
+        btnCsv.addActionListener(e -> {
+            try {
+                Date d1 = (Date) spDesde.getValue();
+                Date d2 = (Date) spHasta.getValue();
+                var sdf = new SimpleDateFormat("yyyy-MM-dd");
+                String f1 = sdf.format(d1) + " 00:00:00";
+                String f2 = sdf.format(d2) + " 23:59:59";
+
+                String sql = """
+                    SELECT m.id, i.codigo, i.descripcion, m.tipo, m.cantidad, m.destino_fuente, m.fecha
+                    FROM movimiento m JOIN insumo i ON i.id = m.insumo_id
+                    WHERE m.fecha BETWEEN ? AND ?
+                    ORDER BY m.fecha DESC
+                """;
+
+                java.util.List<String[]> rows = new java.util.ArrayList<>();
+                rows.add(new String[]{"ID","CODIGO","DESCRIPCION","TIPO","CANTIDAD","DESTINO_FUENTE","FECHA"});
+
+                try (var cn = getConnection(); var ps = cn.prepareStatement(sql)) {
+                    ps.setString(1, f1);
+                    ps.setString(2, f2);
+                    try (var rs = ps.executeQuery()) {
+                        while (rs.next()) {
+                            rows.add(new String[]{
+                                String.valueOf(rs.getLong("id")),
+                                rs.getString("codigo"),
+                                rs.getString("descripcion"),
+                                rs.getString("tipo"),
+                                String.valueOf(rs.getInt("cantidad")),
+                                rs.getString("destino_fuente"),
+                                String.valueOf(rs.getTimestamp("fecha"))
+                            });
+                        }
+                    }
+                }
+
+                var chooser = new javax.swing.JFileChooser();
+                chooser.setDialogTitle("Guardar reporte CSV");
+                chooser.setSelectedFile(new java.io.File("reporte_movimientos.csv"));
+                int resp = chooser.showSaveDialog(this);
+                if (resp == javax.swing.JFileChooser.APPROVE_OPTION) {
+                    Path path = chooser.getSelectedFile().toPath();
+                    CsvExporter.write(path, rows);
+                    JOptionPane.showMessageDialog(this, "CSV exportado en:\n" + path);
+                }
+            } catch (Exception ex) {
+                showError(ex);
+            }
+        });
+
+        
         // Inicial
         setSize(900, 500);
         setLocationRelativeTo(null);
