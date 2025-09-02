@@ -6,7 +6,8 @@ import ar.edu.unse.siga.persistence.DataSourceFactory;
 import ar.edu.unse.siga.persistence.dao.InsumoDao;
 import org.junit.jupiter.api.*;
 
-import java.sql.ResultSet;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -16,28 +17,15 @@ class JdbcInsumoDaoTest {
 
     private final InsumoDao dao = new JdbcInsumoDao();
 
-    // Busca un id de categoria existente, o crea una por si acaso
-    private int ensureCategoriaId() throws Exception {
-        try (var cn = DataSourceFactory.getConnection();
-             var st = cn.createStatement()) {
-            try (ResultSet rs = st.executeQuery("SELECT id FROM categoria ORDER BY id LIMIT 1")) {
-                if (rs.next()) return rs.getInt(1);
-            }
-            // Si no había, creamos una default
-            st.executeUpdate("INSERT INTO categoria(nombre) VALUES ('Temporal')");
-            try (ResultSet rs2 = st.executeQuery("SELECT id FROM categoria WHERE nombre='Temporal'")) {
-                rs2.next();
-                return rs2.getInt(1);
-            }
-        }
-    }
+    // 👉 Código ÚNICO por corrida (evita choque con UNIQUE)
+    private static final String COD = "A4-001-" + System.currentTimeMillis();
 
-    private Insumo nuevoInsumo(String codigo, int categoriaId) {
+    private Insumo nuevoInsumo(String codigo) {
         Insumo i = new Insumo();
         i.setCodigo(codigo);
         i.setDescripcion("Resma A4 80gr");
         Categoria c = new Categoria();
-        c.setId(categoriaId);
+        c.setId(1); // asumimos que existe una categoría con id=1 (semilla)
         i.setCategoria(c);
         i.setStockMinimo(10);
         i.setUbicacion("Depósito 1");
@@ -45,38 +33,44 @@ class JdbcInsumoDaoTest {
         return i;
     }
 
+    // 👉 Limpieza dura antes de empezar (por si quedó algo de otra corrida)
+    @BeforeAll
+    static void cleanup() throws Exception {
+        try (Connection cn = DataSourceFactory.getConnection();
+             PreparedStatement ps = cn.prepareStatement("DELETE FROM insumo WHERE codigo = ?")) {
+            ps.setString(1, COD);
+            ps.executeUpdate();
+        }
+    }
+
     @Test @Order(1)
-    void createAndFindByCodigo() throws Exception {
-        int catId = ensureCategoriaId();
-        String cod = "A4-001";
-        dao.findByCodigo(cod).ifPresent(i -> dao.softDelete(i.getId())); // limpieza
-        Long id = dao.create(nuevoInsumo(cod, catId));
+    void createAndFindByCodigo() {
+        Long id = dao.create(nuevoInsumo(COD));
         assertNotNull(id);
 
-        Optional<Insumo> opt = dao.findByCodigo(cod);
+        Optional<Insumo> opt = dao.findByCodigo(COD);
         assertTrue(opt.isPresent());
-        assertEquals(cod, opt.get().getCodigo());
+        assertEquals(COD, opt.get().getCodigo());
         assertEquals("ACTIVO", opt.get().getEstado());
     }
 
     @Test @Order(2)
-    void update() throws Exception {
-        String cod = "A4-001";
-        Insumo i = dao.findByCodigo(cod).orElseThrow();
+    void update() {
+        Insumo i = dao.findByCodigo(COD).orElseThrow();
         i.setDescripcion("Resma A4 80gr premium");
         dao.update(i);
 
-        Insumo j = dao.findByCodigo(cod).orElseThrow();
+        Insumo j = dao.findByCodigo(COD).orElseThrow();
         assertEquals("Resma A4 80gr premium", j.getDescripcion());
     }
 
     @Test @Order(3)
-    void softDelete() throws Exception {
-        String cod = "A4-001";
-        Insumo i = dao.findByCodigo(cod).orElseThrow();
+    void softDelete() {
+        Insumo i = dao.findByCodigo(COD).orElseThrow();
         dao.softDelete(i.getId());
 
-        Insumo j = dao.findByCodigo(cod).orElseThrow();
+        Insumo j = dao.findByCodigo(COD).orElseThrow();
         assertEquals("INACTIVO", j.getEstado());
     }
 }
+
