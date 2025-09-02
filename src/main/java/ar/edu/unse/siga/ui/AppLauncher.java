@@ -5,24 +5,34 @@
 package ar.edu.unse.siga.ui;
 
 import ar.edu.unse.siga.persistence.dao.InsumoDao;
+import ar.edu.unse.siga.persistence.dao.MovimientoDao;
+import ar.edu.unse.siga.persistence.dao.UsuarioDao;
 import ar.edu.unse.siga.persistence.jdbc.JdbcInsumoDao;
+import ar.edu.unse.siga.persistence.jdbc.JdbcMovimientoDao;
+import ar.edu.unse.siga.persistence.jdbc.JdbcUsuarioDao;
+import ar.edu.unse.siga.service.AuthService;
 import ar.edu.unse.siga.service.InventarioService;
 
 import javax.swing.*;
 
-import ar.edu.unse.siga.persistence.dao.MovimientoDao;
-import ar.edu.unse.siga.persistence.jdbc.JdbcMovimientoDao;
-
 public class AppLauncher {
     public static void main(String[] args) {
         SwingUtilities.invokeLater(() -> {
-            // Wiring simple
+            // DAOs
             InsumoDao insumoDao = new JdbcInsumoDao();
             MovimientoDao movimientoDao = new JdbcMovimientoDao();
-            InventarioService service = new InventarioService(insumoDao);
+            UsuarioDao usuarioDao = new JdbcUsuarioDao();
 
+            // Servicios
+            AuthService auth = new AuthService(usuarioDao);
+            InventarioService service = new InventarioService(insumoDao);
             service.setMovimientoDao(movimientoDao);
-            
+
+            // Login
+            LoginDialog login = new LoginDialog(null, auth);
+            login.setVisible(true);
+
+            // Si loguea, abrimos la app
             InventarioFrame frame = new InventarioFrame(service);
             frame.setVisible(true);
         });
