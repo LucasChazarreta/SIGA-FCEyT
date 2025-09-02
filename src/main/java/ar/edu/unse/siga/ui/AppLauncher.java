@@ -13,6 +13,10 @@ import javax.swing.*;
 import ar.edu.unse.siga.persistence.dao.MovimientoDao;
 import ar.edu.unse.siga.persistence.jdbc.JdbcMovimientoDao;
 
+import ar.edu.unse.siga.persistence.dao.TramiteDao;
+import ar.edu.unse.siga.persistence.jdbc.JdbcTramiteDao;
+import ar.edu.unse.siga.service.TramiteService;
+
 public class AppLauncher {
     public static void main(String[] args) {
         SwingUtilities.invokeLater(() -> {
@@ -20,12 +24,32 @@ public class AppLauncher {
             InsumoDao insumoDao = new JdbcInsumoDao();
             MovimientoDao movimientoDao = new JdbcMovimientoDao();
             InventarioService service = new InventarioService(insumoDao);
-
+            TramiteDao tramiteDao = new JdbcTramiteDao();
+            TramiteService tramiteService = new TramiteService(tramiteDao);
             service.setMovimientoDao(movimientoDao);
             
             InventarioFrame frame = new InventarioFrame(service);
             frame.setVisible(true);
+            JMenuBar bar = new JMenuBar();
+            JMenu mod = new JMenu("Módulos");
+            JMenuItem miInventario = new JMenuItem("Inventario");
+            JMenuItem miTramites = new JMenuItem("Trámites");
+            mod.add(miInventario);
+            mod.add(miTramites);
+            bar.add(mod);
+            frame.setJMenuBar(bar);
+
+            // Abrir Inventario (re-usa la ventana ya creada)
+            miInventario.addActionListener(ev -> frame.setVisible(true));
+
+            // Abrir Trámites (crea y muestra la ventana de trámites)
+            miTramites.addActionListener(ev -> {
+                TramiteFrame tf = new TramiteFrame(tramiteService);
+                tf.setVisible(true);
+            });
+
         });
     }
+    
 }
 
