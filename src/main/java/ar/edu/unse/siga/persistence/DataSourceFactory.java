@@ -16,7 +16,7 @@ import java.sql.DriverManager;
 import java.sql.SQLException;
 import java.util.Properties;
 
-public class DataSourceFactory {
+public final class DataSourceFactory {
     private static final Properties PROPS = new Properties();
     
     static {

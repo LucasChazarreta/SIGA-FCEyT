@@ -1,13 +1,14 @@
-/*
- * Click nbfs://nbhost/SystemFileSystem/Templates/Licenses/license-default.txt to change this license
- * Click nbfs://nbhost/SystemFileSystem/Templates/Classes/Class.java to edit this template
- */
 package ar.edu.unse.siga.persistence.dao;
 
-/**
- *
- * @author Luca
- */
-public class InsumoDao {
-    
+import ar.edu.unse.siga.domain.Insumo;
+import java.util.List;
+import java.util.Optional;
+
+public interface InsumoDao {
+    Long create(Insumo insumo);
+    void update(Insumo insumo);
+    void softDelete(Long id);
+    Optional<Insumo> findByCodigo(String codigo);
+    List<Insumo> listAll();
 }
+

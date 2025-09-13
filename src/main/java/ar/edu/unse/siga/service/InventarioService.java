@@ -9,6 +9,9 @@ import java.util.Optional;
 import ar.edu.unse.siga.domain.Movimiento;
 import ar.edu.unse.siga.persistence.dao.MovimientoDao;
 
+import ar.edu.unse.siga.common.CurrentSession;
+import ar.edu.unse.siga.domain.Usuario;
+
 public class InventarioService {
     private final InsumoDao insumoDao;
     private MovimientoDao movimientoDao; // inyectable
@@ -40,11 +43,16 @@ public class InventarioService {
                 .filter(i -> i.getId().equals(insumoId))
                 .findFirst()
                 .orElseThrow(() -> new IllegalArgumentException("Insumo no encontrado id=" + insumoId));
+
         Movimiento m = new Movimiento();
         m.setInsumo(insumo);
         m.setTipo(tipo);
         m.setCantidad(cantidad);
         m.setDestinoFuente(destinoFuente);
+
+        Usuario u = CurrentSession.getUser();
+        if (u != null) m.setUsuario(u);
+
         return movimientoDao.registrar(m);
     }
     

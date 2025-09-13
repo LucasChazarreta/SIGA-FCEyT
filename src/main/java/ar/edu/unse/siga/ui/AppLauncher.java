@@ -1,35 +1,44 @@
-/* main para arrancar la app
- aqui tenemos presente la Regla de oro: UI → Service → DAO (nunca UI→DAO directo).
- lo que hacemos es creaar un ensamblador simple para inyectar JdbcInsumoDao al InventarioService y lanzar la UI.*/
-
 package ar.edu.unse.siga.ui;
 
 import ar.edu.unse.siga.persistence.dao.InsumoDao;
+import ar.edu.unse.siga.persistence.dao.MovimientoDao;
+import ar.edu.unse.siga.persistence.dao.UsuarioDao;
+import ar.edu.unse.siga.persistence.dao.TramiteDao;
+
 import ar.edu.unse.siga.persistence.jdbc.JdbcInsumoDao;
+import ar.edu.unse.siga.persistence.jdbc.JdbcMovimientoDao;
+import ar.edu.unse.siga.persistence.jdbc.JdbcUsuarioDao;
+import ar.edu.unse.siga.persistence.jdbc.JdbcTramiteDao;
+
+import ar.edu.unse.siga.service.AuthService;
 import ar.edu.unse.siga.service.InventarioService;
+import ar.edu.unse.siga.service.TramiteService;
 
 import javax.swing.*;
-
-import ar.edu.unse.siga.persistence.dao.MovimientoDao;
-import ar.edu.unse.siga.persistence.jdbc.JdbcMovimientoDao;
-
-import ar.edu.unse.siga.persistence.dao.TramiteDao;
-import ar.edu.unse.siga.persistence.jdbc.JdbcTramiteDao;
-import ar.edu.unse.siga.service.TramiteService;
 
 public class AppLauncher {
     public static void main(String[] args) {
         SwingUtilities.invokeLater(() -> {
-            // Wiring simple
+            // DAOs
             InsumoDao insumoDao = new JdbcInsumoDao();
             MovimientoDao movimientoDao = new JdbcMovimientoDao();
-            InventarioService service = new InventarioService(insumoDao);
+            UsuarioDao usuarioDao = new JdbcUsuarioDao();
             TramiteDao tramiteDao = new JdbcTramiteDao();
-            TramiteService tramiteService = new TramiteService(tramiteDao);
+
+            // Servicios
+            AuthService auth = new AuthService(usuarioDao);
+            InventarioService service = new InventarioService(insumoDao);
             service.setMovimientoDao(movimientoDao);
-            
+            TramiteService tramiteService = new TramiteService(tramiteDao);
+
+            // Login
+            LoginDialog login = new LoginDialog(null, auth);
+            login.setVisible(true);
+
+            // Ventana principal: Inventario
             InventarioFrame frame = new InventarioFrame(service);
-            frame.setVisible(true);
+
+            // Menú Módulos
             JMenuBar bar = new JMenuBar();
             JMenu mod = new JMenu("Módulos");
             JMenuItem miInventario = new JMenuItem("Inventario");
@@ -48,8 +57,7 @@ public class AppLauncher {
                 tf.setVisible(true);
             });
 
+            frame.setVisible(true);
         });
     }
-    
 }
-
