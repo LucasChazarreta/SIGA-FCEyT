@@ -17,7 +17,7 @@ public class TramiteFrame extends JFrame {
         setDefaultCloseOperation(DISPOSE_ON_CLOSE);
         setLayout(new BorderLayout(10, 10));
 
-        // Tabla
+        // Tabla.a
         add(new JScrollPane(table), BorderLayout.CENTER);
 
         // Botonera
