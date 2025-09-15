@@ -25,5 +25,7 @@ public class Categoria {
     }
     @Override public int hashCode() { return Objects.hash(id, nombre); }
     @Override public String toString() { return "Categoria{id=" + id + ", nombre='" + nombre + "'}"; }
+    
+    //aqui enzo tenia los getter y setter pero aqui no estan
 }
 
