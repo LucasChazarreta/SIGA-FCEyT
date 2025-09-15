@@ -13,7 +13,7 @@ public class AppLauncher {
 
     public static void launch() {
         ar.edu.unse.siga.ui.base.ThemeManager.installDefaults();
-        
+
         // DAOs
         InsumoDao insumoDao = new JdbcInsumoDao();
         MovimientoDao movDao = new JdbcMovimientoDao();
@@ -37,9 +37,9 @@ public class AppLauncher {
         }
         CurrentSession.setUser(user);
 
-        var main = new MainFrame(inv, tra, auth);
+        var main = new ar.edu.unse.siga.ui.shell.ShellFrame(inv, tra, auth);
         main.setVisible(true);
-        
+
     }
 
     public static void main(String[] args) {
