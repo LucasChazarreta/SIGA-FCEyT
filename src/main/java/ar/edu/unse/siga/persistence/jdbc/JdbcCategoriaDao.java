@@ -10,79 +10,68 @@ import java.util.*;
 public class JdbcCategoriaDao implements CategoriaDao {
 
     @Override
-    public List<Categoria> findAll() {
-        String sql = "SELECT id, nombre FROM categoria ORDER BY nombre";
-        List<Categoria> result = new ArrayList<>();
+    public void create(Categoria categoria) {
+        String sql = "INSERT INTO categoria(nombre) VALUES(?)";
         try (Connection conn = DataSourceFactory.getConnection();
-             Statement st = conn.createStatement();
-             ResultSet rs = st.executeQuery(sql)) {
-            while (rs.next()) {
-                result.add(new Categoria(rs.getInt("id"), rs.getString("nombre")));
+             PreparedStatement ps = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
+            ps.setString(1, categoria.getNombre());
+            ps.executeUpdate();
+
+            try (ResultSet rs = ps.getGeneratedKeys()) {
+                if (rs.next()) categoria.setId(rs.getInt(1));
             }
         } catch (SQLException e) {
-            throw new RuntimeException("Error en findAll", e);
+            throw new RuntimeException("Error creando categoría", e);
         }
-        return result;
     }
 
     @Override
     public Optional<Categoria> findById(int id) {
-        String sql = "SELECT id, nombre FROM categoria WHERE id=?";
+        String sql = "SELECT * FROM categoria WHERE id=?";
         try (Connection conn = DataSourceFactory.getConnection();
              PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setInt(1, id);
-            ResultSet rs = ps.executeQuery();
-            if (rs.next()) {
-                return Optional.of(new Categoria(rs.getInt("id"), rs.getString("nombre")));
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) {
+                    return Optional.of(new Categoria(rs.getInt("id"), rs.getString("nombre")));
+                }
             }
         } catch (SQLException e) {
-            throw new RuntimeException("Error en findById", e);
+            throw new RuntimeException("Error buscando categoría", e);
         }
         return Optional.empty();
     }
 
     @Override
     public Optional<Categoria> findByNombre(String nombre) {
-        String sql = "SELECT id, nombre FROM categoria WHERE nombre=?";
+        String sql = "SELECT * FROM categoria WHERE nombre=?";
         try (Connection conn = DataSourceFactory.getConnection();
              PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setString(1, nombre);
-            ResultSet rs = ps.executeQuery();
-            if (rs.next()) {
-                return Optional.of(new Categoria(rs.getInt("id"), rs.getString("nombre")));
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) {
+                    return Optional.of(new Categoria(rs.getInt("id"), rs.getString("nombre")));
+                }
             }
         } catch (SQLException e) {
-            throw new RuntimeException("Error en findByNombre", e);
+            throw new RuntimeException("Error buscando categoría", e);
         }
         return Optional.empty();
     }
 
     @Override
-    public Categoria create(Categoria categoria) {
-        String sql = "INSERT INTO categoria(nombre) VALUES (?)";
+    public List<Categoria> listAll() {
+        String sql = "SELECT * FROM categoria ORDER BY nombre";
+        List<Categoria> result = new ArrayList<>();
         try (Connection conn = DataSourceFactory.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
-            ps.setString(1, categoria.getNombre());
-            ps.executeUpdate();
-            ResultSet keys = ps.getGeneratedKeys();
-            if (keys.next()) {
-                categoria.setId(keys.getInt(1));
+             PreparedStatement ps = conn.prepareStatement(sql);
+             ResultSet rs = ps.executeQuery()) {
+            while (rs.next()) {
+                result.add(new Categoria(rs.getInt("id"), rs.getString("nombre")));
             }
-            return categoria;
         } catch (SQLException e) {
-            throw new RuntimeException("Error en create", e);
+            throw new RuntimeException("Error listando categorías", e);
         }
-    }
-
-    @Override
-    public void delete(int id) {
-        String sql = "DELETE FROM categoria WHERE id=?";
-        try (Connection conn = DataSourceFactory.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setInt(1, id);
-            ps.executeUpdate();
-        } catch (SQLException e) {
-            throw new RuntimeException("Error en delete", e);
-        }
+        return result;
     }
 }
