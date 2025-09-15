@@ -9,4 +9,11 @@ public interface CategoriaDao {
     Optional<Categoria> findById(int id);
     Optional<Categoria> findByNombre(String nombre);
     List<Categoria> listAll();
+    
+    void update(Categoria categoria);
+
+    boolean deleteIfOrphan(int id);   // true si borró, false si tenía insumos asociados
+
+    int countUsos(int id);            // cuántos insumos referencian esta categoría
+
 }
