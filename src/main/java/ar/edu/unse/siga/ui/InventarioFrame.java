@@ -24,6 +24,8 @@ import java.nio.file.Path;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 
+import ar.edu.unse.siga.ui.inventario.MovimientoDialog;
+
 public class InventarioFrame extends JFrame {
     private final InventarioService service;
     private final InsTableModel tableModel = new InsTableModel();
