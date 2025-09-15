@@ -5,9 +5,8 @@ import java.util.List;
 import java.util.Optional;
 
 public interface CategoriaDao {
-    List<Categoria> findAll();
+    void create(Categoria categoria);
     Optional<Categoria> findById(int id);
     Optional<Categoria> findByNombre(String nombre);
-    Categoria create(Categoria categoria);
-    void delete(int id);
+    List<Categoria> listAll();
 }

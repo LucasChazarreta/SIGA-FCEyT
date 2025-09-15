@@ -55,6 +55,7 @@ public class InventarioFrame extends JFrame {
         JButton btnRefresh = new JButton("Refrescar");
         JButton btnMov = new JButton("Movimiento");
         JButton btnCsv = new JButton("Exportar CSV");
+        
         actions.add(btnCsv);
         actions.add(btnMov);
         actions.add(btnNuevo);
@@ -62,6 +63,7 @@ public class InventarioFrame extends JFrame {
         actions.add(btnBaja);
         actions.add(btnRefresh);
         add(actions, BorderLayout.NORTH);
+        
 
         // Acciones
         btnRefresh.addActionListener(e -> loadData());
