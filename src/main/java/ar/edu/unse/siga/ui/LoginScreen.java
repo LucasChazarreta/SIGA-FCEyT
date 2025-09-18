@@ -171,7 +171,8 @@ public class LoginScreen extends JDialog {
         header.setOpaque(false);
 
 // Cargar SIEMPRE PNG (evitamos FlatSVGIcon acá)
-        JLabel logo = loadLogoPng("branding/logo.png", 400, 350);
+        JLabel logo = loadLogoPng("branding/logo_siga.png", 320, 102);
+        //JLabel logo = loadLogoPng("branding/logo_siga.png", 572, 191);
         header.add(logo);
 
         // form centrado vertical
