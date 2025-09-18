@@ -14,6 +14,8 @@ import javax.swing.*;
 import java.awt.*;
 import java.time.format.DateTimeFormatter;
 
+import ar.edu.unse.siga.ui.pages.HomePage;
+
 public class ShellFrame extends JFrame {
     private final JPanel cards = new CardLayoutPanel();
     private final JLabel lblTitle = new JLabel("Inicio");
@@ -61,7 +63,7 @@ public class ShellFrame extends JFrame {
         root.add(cardHolder, BorderLayout.CENTER);
 
         // Páginas
-        addPage("home", new JLabel("Seleccioná una opción a la izquierda"));
+        addPage("home", new HomePage()); 
         addPage("inventario", new InventoryPage(inventarioService));
         addPage("tramites", new TramiteEntradaPage(tramiteService));
         // Reportes y Usuarios los agregamos en el siguiente paso

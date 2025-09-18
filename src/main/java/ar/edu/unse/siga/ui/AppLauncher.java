@@ -26,17 +26,16 @@ public class AppLauncher {
         inv.setMovimientoDao(movDao);
         TramiteService tra = new TramiteService(tramiteDao);
 
-        // Login
-        var login = new LoginDialog(null, auth);
-        login.setVisible(true);
-
-        var user = login.getLogged();
+        // Login (nueva pantalla)
+        var login = new LoginScreen(null, auth);
+        var user = login.showDialog();
         if (user == null) {
             System.exit(0);
             return;
         }
-        CurrentSession.setUser(user);
+        ar.edu.unse.siga.common.CurrentSession.setUser(user);
 
+        // Shell principal
         var main = new ar.edu.unse.siga.ui.shell.ShellFrame(inv, tra, auth);
         main.setVisible(true);
 
