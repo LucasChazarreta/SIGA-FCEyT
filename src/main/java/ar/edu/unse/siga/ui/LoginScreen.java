@@ -68,30 +68,29 @@ public class LoginScreen extends JDialog {
 
     private final JTextField txtUser = new JTextField(24);
     private final JPasswordField txtPass = new JPasswordField(24);
-    private final JCheckBox chkRemember = new JCheckBox("Recordar contraseña");
+    private final JCheckBox chkRemember = new JCheckBox("Recordar usuario");
     private final JButton btnLogin = new JButton("INGRESAR");
 
     // prefs (guardamos SOLO usuario)
     private final Preferences prefs = Preferences.userRoot().node("ar.edu.unse.siga.ui.LoginScreen");
 
     private JLabel loadLogoPng(String pngPath, int w, int h) {
-    java.net.URL url = getClass().getClassLoader().getResource(pngPath);
-    if (url == null) {
-        System.err.println("[PNG] No se encontró en el classpath: " + pngPath);
-        JLabel fallback = new JLabel("SIGA");
-        fallback.setFont(new Font("Segoe UI", Font.BOLD, 28));
-        return fallback;
+        java.net.URL url = getClass().getClassLoader().getResource(pngPath);
+        if (url == null) {
+            System.err.println("[PNG] No se encontró en el classpath: " + pngPath);
+            JLabel fallback = new JLabel("SIGA");
+            fallback.setFont(new Font("Segoe UI", Font.BOLD, 28));
+            return fallback;
+        }
+        // imprimimos la URL real para depurar
+        System.out.println("[PNG] Cargando desde: " + url);
+
+        ImageIcon base = new ImageIcon(url);
+        // escalado suave al tamaño pedido
+        Image scaled = base.getImage().getScaledInstance(w, h, Image.SCALE_SMOOTH);
+        return new JLabel(new ImageIcon(scaled));
     }
-    // imprimimos la URL real para depurar
-    System.out.println("[PNG] Cargando desde: " + url);
 
-    ImageIcon base = new ImageIcon(url);
-    // escalado suave al tamaño pedido
-    Image scaled = base.getImage().getScaledInstance(w, h, Image.SCALE_SMOOTH);
-    return new JLabel(new ImageIcon(scaled));
-}
-
-    
     public LoginScreen(Window owner, AuthService auth) {
         super(owner, "Ingresar", ModalityType.APPLICATION_MODAL);
         this.auth = auth;
@@ -163,70 +162,31 @@ public class LoginScreen extends JDialog {
     }
 
     private JComponent buildRight() {
-        var right = new JPanel(new BorderLayout());
+        JPanel right = new JPanel(new GridBagLayout());
         right.setBackground(Color.WHITE);
+        right.setPreferredSize(new Dimension(520, getHeight()));
 
-        // LOGO centrado (con fallback si la ruta falla)
-        var header = new JPanel(new FlowLayout(FlowLayout.CENTER, 0, 28));
-        header.setOpaque(false);
+        GridBagConstraints gc = new GridBagConstraints();
+        gc.gridx = 0;
+        gc.fill = GridBagConstraints.NONE;
+        gc.anchor = GridBagConstraints.CENTER;
+        gc.weightx = 1.0;
+        gc.weighty = 1.0; // <- hace que se centre verticalmente
 
-// Cargar SIEMPRE PNG (evitamos FlatSVGIcon acá)
-        JLabel logo = loadLogoPng("branding/logo_siga.png", 320, 102);
-        //JLabel logo = loadLogoPng("branding/logo_siga.png", 572, 191);
-        header.add(logo);
+        JPanel col = new JPanel();
+        col.setOpaque(false);
+        col.setLayout(new BoxLayout(col, BoxLayout.Y_AXIS));
+        col.setAlignmentX(Component.CENTER_ALIGNMENT);
 
-        // form centrado vertical
-        var centerWrap = new JPanel(new GridBagLayout());
-        centerWrap.setOpaque(false);
+        JLabel logo = loadLogoPng("branding/logo_sigav2.png", 260, 84);
+        logo.setAlignmentX(Component.CENTER_ALIGNMENT);
 
-        var form = new JPanel();
-        form.setOpaque(false);
-        form.setLayout(new BoxLayout(form, BoxLayout.Y_AXIS));
-        form.setBorder(BorderFactory.createEmptyBorder(10, 50, 10, 50));
-        form.setMaximumSize(new Dimension(420, Integer.MAX_VALUE));
+        col.add(logo);
+        col.add(Box.createVerticalStrut(20));
+        col.add(buildForm());
 
-        form.add(labelSmall("USUARIO"));
-        form.add(fieldWithIcon(txtUser, "icons/mdi_user-key.svg", false));
+        right.add(col, gc);
 
-        form.add(Box.createVerticalStrut(12));
-        form.add(labelSmall("CONTRASEÑA"));
-        form.add(fieldWithIcon(txtPass, "icons/mdi_password.svg", true));
-
-        form.add(Box.createVerticalStrut(10));
-        form.add(chkRemember);
-
-        form.add(Box.createVerticalStrut(16));
-        // botón centrado
-        btnLogin.setPreferredSize(new Dimension(220, 40));
-        btnLogin.setFocusPainted(false);
-        btnLogin.setBackground(new Color(40, 40, 40));
-        btnLogin.setForeground(Color.WHITE);
-        btnLogin.putClientProperty("JButton.buttonType", "roundRect");
-        var btnWrap = new JPanel(new FlowLayout(FlowLayout.CENTER, 0, 0));
-        btnWrap.setOpaque(false);
-        btnWrap.add(btnLogin);
-        form.add(btnWrap);
-
-        // link centrado
-        form.add(Box.createVerticalStrut(10));
-        var forgot = new JLabel("<html><a href='#'>¿Olvidaste tu contraseña?</a></html>");
-        forgot.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
-        forgot.setForeground(new Color(60, 60, 60));
-        forgot.setAlignmentX(Component.CENTER_ALIGNMENT);
-        forgot.addMouseListener(new java.awt.event.MouseAdapter() {
-            @Override
-            public void mouseClicked(java.awt.event.MouseEvent e) {
-                JOptionPane.showMessageDialog(LoginScreen.this,
-                        "Pedí el reseteo al administrador del sistema.",
-                        "Recuperar contraseña", JOptionPane.INFORMATION_MESSAGE);
-            }
-        });
-        form.add(forgot);
-
-        centerWrap.add(form, new GridBagConstraints());
-
-        right.add(header, BorderLayout.NORTH);
-        right.add(centerWrap, BorderLayout.CENTER);
         return right;
     }
 
@@ -235,6 +195,7 @@ public class LoginScreen extends JDialog {
         l.setFont(new Font("Segoe UI", Font.PLAIN, 12));
         l.setForeground(new Color(110, 110, 110));
         l.setBorder(BorderFactory.createEmptyBorder(8, 4, 4, 4));
+        l.setAlignmentX(Component.LEFT_ALIGNMENT);  // <--- clave
         return l;
     }
 
@@ -242,47 +203,138 @@ public class LoginScreen extends JDialog {
      * Campo con icono a la izquierda y (si es password) “ojo” a la derecha
      */
     private JComponent fieldWithIcon(JTextField field, String iconPath, boolean isPassword) {
-        JPanel p = new JPanel(new BorderLayout());
-        p.setOpaque(false);
+        // Contenedor con borde del campo completo
+        JPanel wrap = new JPanel(new GridBagLayout());
+        wrap.setOpaque(false);
+        wrap.setAlignmentX(Component.LEFT_ALIGNMENT); // <--- alinear con la etiqueta
 
-        // izquierda: icono
-        JLabel icon = new JLabel(svgIcon(iconPath, 20, 20));
-        icon.setBorder(BorderFactory.createEmptyBorder(0, 10, 0, 6));
-        JPanel left = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 8));
-        left.setOpaque(false);
-        left.add(icon);
-
-        // campo
-        field.putClientProperty("JComponent.minimumHeight", 38);
-        field.setBorder(BorderFactory.createCompoundBorder(
+        // Borde y padding unificados (para que el ojo quede dentro)
+        wrap.setBorder(BorderFactory.createCompoundBorder(
                 BorderFactory.createLineBorder(new Color(180, 180, 180)),
-                BorderFactory.createEmptyBorder(8, 10, 8, 10)
+                BorderFactory.createEmptyBorder(6, 8, 6, 8)
         ));
-        field.putClientProperty("JComponent.roundRect", true);
+
+        // Forzamos mismo alto/ancho para ambos campos
+        Dimension fieldSize = new Dimension(360, 40); // ajustá 360 si querés más ancho
+        wrap.setPreferredSize(fieldSize);
+        wrap.setMaximumSize(fieldSize);
+        wrap.setMinimumSize(fieldSize);
+
+        // Icono izquierdo
+        JLabel icon = new JLabel(svgIcon(iconPath, 20, 20));
+
+        // El propio JTextField/JPasswordField sin borde (lo tiene el wrap)
+        field.putClientProperty("JComponent.minimumHeight", 38);
+        field.setBorder(BorderFactory.createEmptyBorder(4, 6, 4, 6)); // padding interno
         field.putClientProperty("JTextField.placeholderText",
                 iconPath.contains("password") ? "admin123" : "admin");
-
-        p.add(left, BorderLayout.WEST);
-        p.add(field, BorderLayout.CENTER);
-
-        // derecha: “ojo” si es password
-        if (isPassword && field instanceof JPasswordField pwd) {
-            JToggleButton eye = new JToggleButton(svgIcon("icons/Vector.svg", 18, 18));
-            eye.setToolTipText("Mostrar/ocultar contraseña");
-            eye.setBorder(BorderFactory.createEmptyBorder(0, 8, 0, 10));
-            eye.setContentAreaFilled(false);
-            eye.setFocusPainted(false);
-            char bullet = '\u2022';
-            pwd.setEchoChar(bullet);
-            eye.addActionListener(e -> pwd.setEchoChar(eye.isSelected() ? (char) 0 : bullet));
-
-            JPanel right = new JPanel(new FlowLayout(FlowLayout.RIGHT, 0, 6));
-            right.setOpaque(false);
-            right.add(eye);
-            p.add(right, BorderLayout.EAST);
+        if (field instanceof JPasswordField) {
+            ((JPasswordField) field).setEchoChar('\u2022'); // •
         }
 
-        return p;
+        // Ojo (si corresponde)
+        AbstractButton eye = null;
+        if (isPassword && field instanceof JPasswordField pwd) {
+            eye = new JToggleButton(svgIcon("icons/Vector.svg", 18, 18));
+            eye.setToolTipText("Mostrar/ocultar contraseña");
+            eye.setBorder(BorderFactory.createEmptyBorder());
+            eye.setContentAreaFilled(false);
+            eye.setFocusPainted(false);
+            eye.addActionListener(e -> {
+                boolean show = ((JToggleButton) e.getSource()).isSelected();
+                pwd.setEchoChar(show ? (char) 0 : '\u2022');
+            });
+        }
+
+        // Layout en 3 columnas: [icono] [campo (expande)] [ojo]
+        GridBagConstraints c = new GridBagConstraints();
+        c.gridy = 0;
+        c.insets = new Insets(0, 0, 0, 0);
+        c.anchor = GridBagConstraints.CENTER;
+
+        // Col 0: icono
+        c.gridx = 0;
+        c.weightx = 0;
+        c.fill = GridBagConstraints.NONE;
+        wrap.add(icon, c);
+
+        // Col 1: campo (se expande)
+        c.gridx = 1;
+        c.weightx = 1;
+        c.fill = GridBagConstraints.HORIZONTAL;
+        wrap.add(field, c);
+
+        // Col 2: ojo (opcional)
+        if (eye != null) {
+            c.gridx = 2;
+            c.weightx = 0;
+            c.fill = GridBagConstraints.NONE;
+            wrap.add(eye, c);
+        }
+
+        return wrap;
+    }
+
+    private JPanel buildForm() {
+        final int FIELD_WIDTH = 360; // mismo ancho visual que los campos
+        JPanel form = new JPanel();
+        form.setOpaque(false);
+        form.setLayout(new BoxLayout(form, BoxLayout.Y_AXIS));
+        form.setAlignmentX(Component.CENTER_ALIGNMENT);
+
+        // USUARIO
+        form.add(labelSmall("USUARIO"));
+        form.add(fieldWithIcon(txtUser, "icons/mdi_user-key.svg", false));
+
+        // CONTRASEÑA
+        form.add(Box.createVerticalStrut(12));
+        form.add(labelSmall("CONTRASEÑA"));
+        form.add(fieldWithIcon(txtPass, "icons/mdi_password.svg", true));
+
+        // --- Fila: [ Recordar usuario ]........................[ ¿Olvidaste tu contraseña? ] ---
+        form.add(Box.createVerticalStrut(10));
+
+        JPanel rememberRow = new JPanel(new BorderLayout());
+        rememberRow.setOpaque(false);
+        rememberRow.setAlignmentX(Component.LEFT_ALIGNMENT);
+        rememberRow.setMaximumSize(new Dimension(FIELD_WIDTH, 26)); // alinear bordes con el campo
+
+        chkRemember.setText("Recordar usuario");
+        chkRemember.setOpaque(false);
+        rememberRow.add(chkRemember, BorderLayout.WEST);
+
+        JLabel forgot = new JLabel("<html><a href='#'>¿Olvidaste tu contraseña?</a></html>");
+        forgot.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        forgot.setForeground(new Color(60, 60, 60));
+        forgot.setOpaque(false);
+        forgot.addMouseListener(new java.awt.event.MouseAdapter() {
+            @Override
+            public void mouseClicked(java.awt.event.MouseEvent e) {
+                JOptionPane.showMessageDialog(LoginScreen.this,
+                        "Pedí el reseteo al administrador del sistema.",
+                        "Recuperar contraseña", JOptionPane.INFORMATION_MESSAGE);
+            }
+        });
+        rememberRow.add(forgot, BorderLayout.EAST);
+
+        form.add(rememberRow);
+
+        // Botón
+        form.add(Box.createVerticalStrut(12));
+        btnLogin.setPreferredSize(new Dimension(220, 40));
+        btnLogin.setFocusPainted(false);
+        btnLogin.setBackground(new Color(40, 40, 40));
+        btnLogin.setForeground(Color.WHITE);
+        btnLogin.putClientProperty("JButton.buttonType", "roundRect");
+
+        JPanel btnWrap = new JPanel(new FlowLayout(FlowLayout.CENTER, 0, 0));
+        btnWrap.setOpaque(false);
+        btnWrap.add(btnLogin);
+        form.add(btnWrap);
+
+        form.add(Box.createVerticalStrut(20)); // aire inferior
+
+        return form;
     }
 
     private void tryLogin() {

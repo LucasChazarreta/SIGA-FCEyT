@@ -14,7 +14,10 @@ public class Usuario {
     private Rol rol;
 
     public Usuario() {}
-
+  
+    public String getUsuario() {
+        return this.username;
+    }
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
     public String getUsername() { return username; }
@@ -36,4 +39,6 @@ public class Usuario {
     }
     @Override public int hashCode() { return Objects.hash(id, username); }
     @Override public String toString() { return "Usuario{id=" + id + ", username='" + username + "'}"; }
+
+  
 }
