@@ -326,6 +326,11 @@ public class LoginScreen extends JDialog {
         btnLogin.setBackground(new Color(40, 40, 40));
         btnLogin.setForeground(Color.WHITE);
         btnLogin.putClientProperty("JButton.buttonType", "roundRect");
+        btnLogin.setBackground(new java.awt.Color(71, 115, 252));
+        btnLogin.setForeground(java.awt.Color.WHITE);
+        btnLogin.setOpaque(true);
+        btnLogin.setFocusPainted(false);
+        btnLogin.putClientProperty("JButton.buttonType", "roundRect");
 
         JPanel btnWrap = new JPanel(new FlowLayout(FlowLayout.CENTER, 0, 0));
         btnWrap.setOpaque(false);
