@@ -1,9 +1,14 @@
 package ar.edu.unse.siga.ui.base;
 
+import ar.edu.unse.siga.ui.inventario.ModificarInsumoPanel;
 import javax.swing.*;
 import java.awt.*;
 
 public final class Ui {
+
+    public static void warn(ModificarInsumoPanel aThis, String primero_buscá_un_insumo) {
+        throw new UnsupportedOperationException("Not supported yet."); // Generated from nbfs://nbhost/SystemFileSystem/Templates/Classes/Code/GeneratedMethodBody
+    }
     private Ui(){}
 
     public static void centerAndShow(Window w, Window owner) {

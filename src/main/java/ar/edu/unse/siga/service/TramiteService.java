@@ -8,6 +8,7 @@ import java.util.List;
 import java.util.Optional;
 
 public class TramiteService {
+
     private final TramiteDao tramiteDao;
 
     public TramiteService(TramiteDao tramiteDao) {
@@ -15,8 +16,12 @@ public class TramiteService {
     }
 
     public Long registrarTramite(String nro, String asunto, String solicitante) {
-        if (nro == null || nro.isBlank()) throw new IllegalArgumentException("Número obligatorio");
-        if (asunto == null || asunto.isBlank()) throw new IllegalArgumentException("Asunto obligatorio");
+        if (nro == null || nro.isBlank()) {
+            throw new IllegalArgumentException("Número obligatorio");
+        }
+        if (asunto == null || asunto.isBlank()) {
+            throw new IllegalArgumentException("Asunto obligatorio");
+        }
         Tramite t = new Tramite();
         t.setNro(nro);
         t.setAsunto(asunto);
@@ -27,12 +32,28 @@ public class TramiteService {
     }
 
     public void cambiarEstado(Long id, String nuevoEstado) {
-        if (nuevoEstado==null || nuevoEstado.isBlank()) throw new IllegalArgumentException("Estado inválido");
+        if (nuevoEstado == null || nuevoEstado.isBlank()) {
+            throw new IllegalArgumentException("Estado inválido");
+        }
         tramiteDao.updateEstado(id, nuevoEstado);
     }
 
-    public Optional<Tramite> buscarPorNro(String nro) { return tramiteDao.findByNro(nro); }
+    public Optional<Tramite> buscarPorNro(String nro) {
+        return tramiteDao.findByNro(nro);
+    }
 
-    public List<Tramite> listarTodos() { return tramiteDao.listAll(); }
+    public List<Tramite> listarTodos() {
+        return tramiteDao.listAll();
+    }
+
+    public int totalTramites() {
+        return listarTodos().size();
+    }
+
+    public int totalPendientes() {
+        return (int) listarTodos().stream()
+                .filter(t -> t.getEstado() != null && t.getEstado().equalsIgnoreCase("PENDIENTE"))
+                .count();
+    }
+
 }
-
