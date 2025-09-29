@@ -1,45 +1,84 @@
 package ar.edu.unse.siga.config;
 
-// DAOs concretos (usa el paquete que realmente tengas en tu repo)
+import ar.edu.unse.siga.persistence.DataSourceFactory;
+
+// Inventario / Trámite (ya existen en tu proyecto)
 import ar.edu.unse.siga.persistence.jdbc.JdbcInsumoDao;
 import ar.edu.unse.siga.persistence.jdbc.JdbcMovimientoDao;
 import ar.edu.unse.siga.persistence.jdbc.JdbcTramiteDao;
-
 import ar.edu.unse.siga.service.InventarioService;
 import ar.edu.unse.siga.service.TramiteService;
 
-public final class AppServices {
+// Usuarios / Auth
+import ar.edu.unse.siga.persistence.dao.UsuarioDao;
+import ar.edu.unse.siga.persistence.jdbc.JdbcUsuarioDao;
+import ar.edu.unse.siga.service.AuthService;
 
-    private static InventarioService inventarioService;
-    private static TramiteService tramiteService;
+// Finanzas (nuevo)
+import ar.edu.unse.siga.persistence.dao.FinanzaDao;
+import ar.edu.unse.siga.persistence.jdbc.JdbcFinanzaDao;
+import ar.edu.unse.siga.service.FinanzasService;
+
+import javax.sql.DataSource;
+
+public class AppServices {
+
+    private static AppServices INSTANCE;
+
+    private DataSource dataSource;
+
+    private InventarioService inventarioService;
+    private TramiteService tramiteService;
+
+    private UsuarioDao usuarioDao;
+    private AuthService authService;
+
+    private FinanzaDao finanzaDao;
+    private FinanzasService finanzasService;
 
     private AppServices() {}
 
-    public static void init() {
-        // Tus DAOs tienen constructor sin argumentos según el error previo.
-        var insumoDao = new JdbcInsumoDao();
+    public static AppServices init() {
+        if (INSTANCE == null) {
+            INSTANCE = new AppServices();
+            INSTANCE.bootstrap();
+        }
+        return INSTANCE;
+    }
+
+    private void bootstrap() {
+        // Usa TU DataSourceFactory existente (paquete ar.edu.unse.siga.persistence)
+        this.dataSource = DataSourceFactory.createDataSource();
+
+        // Inventario
+        var insumoDao = new JdbcInsumoDao();     // tus DAOs ya manejan la conexión internamente
         var movDao    = new JdbcMovimientoDao();
-        var tramDao   = new JdbcTramiteDao();
+        this.inventarioService = new InventarioService(insumoDao);
+        this.inventarioService.setMovimientoDao(movDao);
 
-        // InventarioService: inyectar solo InsumoDao por constructor...
-        inventarioService = new InventarioService(insumoDao);
-        // ...y luego el MovimientoDao por setter:
-        inventarioService.setMovimientoDao(movDao);
+        // Trámites
+        var tramDao = new JdbcTramiteDao();
+        this.tramiteService = new TramiteService(tramDao);
 
-        // TramiteService: asumo que su constructor recibe TramiteDao.
-        // Si tu TramiteService usa otro patrón, pegame su clase y lo ajusto.
-        tramiteService = new TramiteService(tramDao);
+        // Usuario/Auth
+        this.usuarioDao = new JdbcUsuarioDao(dataSource);  // este sí recibe DataSource
+        this.authService = new AuthService(usuarioDao);
+
+        // Finanzas
+        this.finanzaDao = new JdbcFinanzaDao(dataSource); // el que hicimos nuevo
+        this.finanzasService = new FinanzasService(finanzaDao);
     }
 
-    public static InventarioService inventario() {
-        if (inventarioService == null)
-            throw new IllegalStateException("AppServices.init() no fue llamado");
-        return inventarioService;
-    }
+    public static AppServices get() { return init(); }
 
-    public static TramiteService tramite() {
-        if (tramiteService == null)
-            throw new IllegalStateException("AppServices.init() no fue llamado");
-        return tramiteService;
-    }
+    public DataSource getDataSource() { return dataSource; }
+
+    public InventarioService inventario() { return inventarioService; }
+    public TramiteService tramite() { return tramiteService; }
+
+    public UsuarioDao getUsuarioDao() { return usuarioDao; }
+    public AuthService getAuthService() { return authService; }
+
+    public FinanzaDao getFinanzaDao() { return finanzaDao; }
+    public FinanzasService getFinanzasService() { return finanzasService; }
 }

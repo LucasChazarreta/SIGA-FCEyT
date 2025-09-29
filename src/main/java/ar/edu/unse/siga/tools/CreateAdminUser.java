@@ -1,27 +1,20 @@
 package ar.edu.unse.siga.tools;
 
-import ar.edu.unse.siga.common.PasswordUtil;
-import ar.edu.unse.siga.domain.Rol;
+import ar.edu.unse.siga.config.AppServices;
 import ar.edu.unse.siga.domain.Usuario;
 import ar.edu.unse.siga.persistence.dao.UsuarioDao;
-import ar.edu.unse.siga.persistence.jdbc.JdbcUsuarioDao;
+import ar.edu.unse.siga.security.PasswordUtil;
 
 public class CreateAdminUser {
     public static void main(String[] args) {
-        try {
-            UsuarioDao dao = new JdbcUsuarioDao();
-            Usuario u = new Usuario();
-            u.setUsername("admin");
-            u.setPasswordHash(PasswordUtil.hash("admin123"));
-            u.setEmail("admin@siga.local");
-            u.setEstado("ACTIVO");
-            Rol r = new Rol(); r.setId(1); r.setNombre("ADMIN"); // asumiendo rol 1=ADMIN
-            u.setRol(r);
-            Long id = dao.create(u);
-            System.out.println("Admin creado con id=" + id + " (user=admin / pass=admin123)");
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
+        AppServices.init();
+        UsuarioDao usuarioDao = AppServices.get().getUsuarioDao();
+
+        String username = args.length > 0 ? args[0] : "admin";
+        String rawPass  = args.length > 1 ? args[1] : "admin123";
+
+        Usuario u = new Usuario(null, username, PasswordUtil.hash(rawPass), true);
+        Long id = usuarioDao.insert(u);
+        System.out.println("Usuario admin creado. id=" + id + ", username=" + username);
     }
 }
-

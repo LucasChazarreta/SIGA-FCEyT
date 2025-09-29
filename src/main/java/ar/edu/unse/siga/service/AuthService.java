@@ -1,33 +1,28 @@
 package ar.edu.unse.siga.service;
 
-import ar.edu.unse.siga.common.CurrentSession;
-import ar.edu.unse.siga.common.PasswordUtil;
 import ar.edu.unse.siga.domain.Usuario;
 import ar.edu.unse.siga.persistence.dao.UsuarioDao;
+import ar.edu.unse.siga.security.PasswordUtil;
+
+import java.util.Objects;
 
 public class AuthService {
+
     private final UsuarioDao usuarioDao;
 
     public AuthService(UsuarioDao usuarioDao) {
-        this.usuarioDao = usuarioDao;
+        this.usuarioDao = Objects.requireNonNull(usuarioDao);
     }
 
-    public Usuario login(String username, String plainPassword) {
-        var opt = usuarioDao.findByUsername(username);
-        if (opt.isEmpty()) throw new IllegalArgumentException("Usuario/contraseña inválidos");
-
-        var u = opt.get();
-        if (!"ACTIVO".equalsIgnoreCase(u.getEstado())) {
+    public Usuario login(String username, String rawPassword) {
+        Usuario u = usuarioDao.findByUsername(username)
+                .orElseThrow(() -> new IllegalArgumentException("Usuario o contraseña inválidos"));
+        if (!u.isActivo()) {
             throw new IllegalStateException("Usuario inactivo");
         }
-        if (!PasswordUtil.check(plainPassword, u.getPasswordHash())) {
-            throw new IllegalArgumentException("Usuario/contraseña inválidos");
+        if (!PasswordUtil.check(rawPassword, u.getPasswordHash())) {
+            throw new IllegalArgumentException("Usuario o contraseña inválidos");
         }
-        CurrentSession.setUser(u);
         return u;
-    }
-
-    public void logout() {
-        CurrentSession.clear();
     }
 }

@@ -14,7 +14,7 @@ import javax.swing.*;
 import java.awt.*;
 import java.time.format.DateTimeFormatter;
 
-import ar.edu.unse.siga.ui.pages.HomePage;
+//import ar.edu.unse.siga.ui.pages.HomePage;
 
 public class ShellFrame extends JFrame {
     private final JPanel cards = new CardLayoutPanel();
@@ -63,7 +63,7 @@ public class ShellFrame extends JFrame {
         root.add(cardHolder, BorderLayout.CENTER);
 
         // Páginas
-        addPage("home", new HomePage()); 
+        //addPage("home", new HomePage()); 
         addPage("inventario", new InventoryPage(inventarioService));
         addPage("tramites", new TramiteEntradaPage(tramiteService));
         // Reportes y Usuarios los agregamos en el siguiente paso
@@ -124,7 +124,7 @@ public class ShellFrame extends JFrame {
         btnLogout.addActionListener(e -> {
             ar.edu.unse.siga.common.CurrentSession.clear();
             dispose();
-            ar.edu.unse.siga.ui.AppLauncher.launch(); // volver al login
+            //ar.edu.unse.siga.ui.AppLauncher.launch(); // volver al login
         });
         btnLogout.setBorder(BorderFactory.createEmptyBorder(10,16,10,12));
         south.add(btnLogout, BorderLayout.SOUTH);
