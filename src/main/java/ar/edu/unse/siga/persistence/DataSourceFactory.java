@@ -1,21 +1,13 @@
-/*
- * Click nbfs://nbhost/SystemFileSystem/Templates/Licenses/license-default.txt to change this license
- * Click nbfs://nbhost/SystemFileSystem/Templates/Classes/Class.java to edit this template
- */
 package ar.edu.unse.siga.persistence;
 
-/**
- *
- * @author Luca
- */
 import com.mysql.cj.jdbc.MysqlDataSource;
+
+import javax.sql.DataSource;
 import java.io.IOException;
 import java.io.InputStream;
 import java.sql.Connection;
-import java.sql.DriverManager;
 import java.sql.SQLException;
 import java.util.Properties;
-import javax.sql.DataSource;
 
 public final class DataSourceFactory {
 
@@ -29,36 +21,45 @@ public final class DataSourceFactory {
                 throw new IllegalStateException("No se encontró application.properties en src/main/resources");
             }
             PROPS.load(in);
-            // Registra el driver de MySQL
             Class.forName("com.mysql.cj.jdbc.Driver");
         } catch (IOException | ClassNotFoundException e) {
             throw new RuntimeException("Error inicializando DataSourceFactory", e);
         }
     }
 
-    private DataSourceFactory() {
+    private DataSourceFactory() {}
+
+    /** DataSource único (usa application.properties) */
+    public static DataSource createDataSource() {
+        if (dataSource == null) {
+            String url  = required("db.url");
+            String user = required("db.user");
+            String pass = required("db.password");
+
+            MysqlDataSource ds = new MysqlDataSource();
+            ds.setURL(url);
+            ds.setUser(user);
+            ds.setPassword(pass);
+            dataSource = ds;
+        }
+        return dataSource;
     }
 
+    /** Atajo si algún código quiere una Connection directamente */
     public static Connection getConnection() throws SQLException {
-        String url = PROPS.getProperty("db.url");
-        String user = PROPS.getProperty("db.user");
-        String pass = PROPS.getProperty("db.password");
-        return DriverManager.getConnection(url, user, pass);
+        return createDataSource().getConnection();
     }
 
-    // Para tests que no abren conexión todavía
+    /** Para tests utilitarios */
     public static String getConfig(String key) {
         return PROPS.getProperty(key);
     }
 
-    public static DataSource createDataSource() {
-        if (dataSource == null) {
-            MysqlDataSource ds = new MysqlDataSource();
-            ds.setURL("jdbc:mysql://localhost:3306/siga"); // ajusta con tu DB
-            ds.setUser("root");
-            ds.setPassword("root"); // cambia según tu config
-            dataSource = ds;
+    private static String required(String key) {
+        String v = PROPS.getProperty(key);
+        if (v == null || v.isBlank()) {
+            throw new IllegalStateException("Falta propiedad: " + key);
         }
-        return dataSource;
+        return v.trim();
     }
 }
