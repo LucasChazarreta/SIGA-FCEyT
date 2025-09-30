@@ -112,16 +112,31 @@ public class ShellFrame extends JFrame {
         ButtonGroup grp = new ButtonGroup();
         NavButton bHome = nav("Inicio", "ui/icons/home.svg", "home");
         NavButton bInv = nav("Inventario", "ui/icons/inventory.svg", "inventario");
-        NavButton bMov = nav("Movimientos", "ui/icons/movements.svg", "movimientos");
+        NavButton bMov = nav("Movimientos", "ui/icons/movements.svg", "movimientos", 1);
         NavButton bInf = nav("Informes", "ui/icons/reports.svg", "reportes");
         NavButton bTra = nav("Trámites", "ui/icons/tramites.svg", "tramites");
         NavButton bFin = nav("Finanzas", "ui/icons/finanzas.svg", "finanzas");
 
-        for (NavButton b : new NavButton[]{bHome, bInv, bMov, bInf, bTra, bFin}) {
-            grp.add(b);
-            menu.add(b);
-            menu.add(Box.createVerticalStrut(8));
-        }
+        grp.add(bHome);
+        grp.add(bInv);
+        grp.add(bMov);
+        grp.add(bInf);
+        grp.add(bTra);
+        grp.add(bFin);
+
+        menu.add(bHome);
+        menu.add(Box.createVerticalStrut(8));
+        menu.add(bInv);
+        menu.add(Box.createVerticalStrut(4));
+        menu.add(bMov);
+        menu.add(Box.createVerticalStrut(12));
+        menu.add(bInf);
+        menu.add(Box.createVerticalStrut(8));
+        menu.add(bTra);
+        menu.add(Box.createVerticalStrut(8));
+        menu.add(bFin);
+        menu.add(Box.createVerticalGlue());
+
         bHome.setSelected(true);
         side.add(menu, BorderLayout.CENTER);
 
@@ -142,7 +157,11 @@ public class ShellFrame extends JFrame {
     }
 
     private NavButton nav(String text, String icon, String key) {
-        NavButton btn = new NavButton(text, icon);
+        return nav(text, icon, key, 0);
+    }
+
+    private NavButton nav(String text, String icon, String key, int level) {
+        NavButton btn = new NavButton(text, icon, level);
         btn.addActionListener(e -> {
             lblTitle.setText(text);
             cardLayout.show(cards, key);
