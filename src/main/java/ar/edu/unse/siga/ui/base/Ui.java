@@ -10,7 +10,11 @@ public final class Ui {
         throw new UnsupportedOperationException("Not supported yet."); // Generated from nbfs://nbhost/SystemFileSystem/Templates/Classes/Code/GeneratedMethodBody
     }
     private Ui(){}
-
+  
+    // ✅ Arreglo: firma genérica y sin excepción
+    public static void warn(Component parent, String msg) {
+        JOptionPane.showMessageDialog(parent, msg, "Atención", JOptionPane.WARNING_MESSAGE);
+    }
     public static void centerAndShow(Window w, Window owner) {
         w.setLocationRelativeTo(owner);
         w.setVisible(true);
