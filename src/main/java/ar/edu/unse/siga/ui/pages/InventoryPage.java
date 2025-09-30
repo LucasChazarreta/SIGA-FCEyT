@@ -1,133 +1,179 @@
 package ar.edu.unse.siga.ui.pages;
 
-import ar.edu.unse.siga.domain.Categoria;
-import ar.edu.unse.siga.domain.Insumo;
-import ar.edu.unse.siga.persistence.DataSourceFactory;
 import ar.edu.unse.siga.service.InventarioService;
-import ar.edu.unse.siga.ui.base.Ui;
+import ar.edu.unse.siga.ui.base.CardPanel;
 
 import javax.swing.*;
 import java.awt.*;
-import java.sql.ResultSet;
-import java.util.ArrayList;
-import java.util.List;
 
 public class InventoryPage extends JPanel {
-    private final InventarioService service;
-
-    private final JComboBox<Categoria> cbCategoria = new JComboBox<>();
-    private final JTextField txtNombre = new JTextField(30); // mapea a descripcion
-    private final JSpinner spCantidad = new JSpinner(new SpinnerNumberModel(0,0,1_000_000,1));
-    private final JComboBox<String> cbEstado = new JComboBox<>(new String[]{"ACTIVO","INACTIVO"});
-    private final JTextField txtUbicacion = new JTextField(25);
+    private final CardLayout cardLayout = new CardLayout();
+    private final JPanel cards = new JPanel(cardLayout);
 
     public InventoryPage(InventarioService service) {
-        this.service = service;
         setOpaque(false);
-        setLayout(new BorderLayout());
-        add(buildForm(), BorderLayout.NORTH);
-        loadCategorias();
+        setLayout(new BorderLayout(16, 16));
+
+        add(buildHeader(), BorderLayout.NORTH);
+        add(buildCardHolder(), BorderLayout.CENTER);
     }
 
-    private JComponent buildForm() {
-        JPanel p = new JPanel();
+    private JComponent buildHeader() {
+        JPanel header = new JPanel(new BorderLayout(12, 12));
+        header.setOpaque(false);
+
+        JLabel title = new JLabel("Gestión de inventario");
+        title.setForeground(new Color(24, 63, 150));
+        title.setFont(title.getFont().deriveFont(Font.BOLD, 28f));
+        header.add(title, BorderLayout.WEST);
+
+        return header;
+    }
+
+    private JComponent buildCardHolder() {
+        JPanel wrapper = new JPanel(new BorderLayout(16, 24));
+        wrapper.setOpaque(false);
+
+        ButtonGroup group = new ButtonGroup();
+        var bar = new JPanel(new FlowLayout(FlowLayout.LEFT, 12, 0));
+        bar.setOpaque(false);
+
+        JToggleButton btnRegistrar = pillButton("Cargar");
+        JToggleButton btnModificar = pillButton("Modificar");
+        JToggleButton btnEliminar = pillButton("Eliminar");
+        JToggleButton btnMovimiento = pillButton("Registrar movimiento");
+
+        group.add(btnRegistrar); group.add(btnModificar); group.add(btnEliminar); group.add(btnMovimiento);
+        btnRegistrar.setSelected(true);
+
+        bar.add(btnRegistrar);
+        bar.add(btnModificar);
+        bar.add(btnEliminar);
+        bar.add(btnMovimiento);
+
+        wrapper.add(bar, BorderLayout.NORTH);
+
+        cards.setOpaque(false);
+        cards.add(buildRegistroCard(), "reg");
+        cards.add(buildModificarCard(), "mod");
+        cards.add(buildEliminarCard(), "del");
+        cards.add(buildMovimientoCard(), "mov");
+
+        btnRegistrar.addActionListener(e -> cardLayout.show(cards, "reg"));
+        btnModificar.addActionListener(e -> cardLayout.show(cards, "mod"));
+        btnEliminar.addActionListener(e -> cardLayout.show(cards, "del"));
+        btnMovimiento.addActionListener(e -> cardLayout.show(cards, "mov"));
+
+        wrapper.add(cards, BorderLayout.CENTER);
+        cardLayout.show(cards, "reg");
+
+        return wrapper;
+    }
+
+    private CardPanel buildRegistroCard() {
+        return buildForm("Registro de inventario", new String[][]{
+                {"Código", "Ej: INS001"},
+                {"Descripción", "Descripción..."},
+                {"Categoría", "Seleccioná una categoría"},
+                {"Stock mínimo", "0"}
+        });
+    }
+
+    private CardPanel buildModificarCard() {
+        return buildForm("Modificación de inventario", new String[][]{
+                {"Estado", "Activo/Inactivo"},
+                {"Descripción", "Descripción..."},
+                {"Categoría", "Categoría..."},
+                {"Stock mínimo", "0"}
+        });
+    }
+
+    private CardPanel buildEliminarCard() {
+        return buildForm("Eliminación de inventario", new String[][]{
+                {"Código", "Código..."},
+                {"Descripción", "Descripción..."},
+                {"Categoría", "Categoría..."},
+                {"Stock mínimo", "0"}
+        });
+    }
+
+    private CardPanel buildMovimientoCard() {
+        return buildForm("Registro de un movimiento", new String[][]{
+                {"Código", "Código..."},
+                {"Descripción", "Descripción..."},
+                {"Categoría", "Categoría..."},
+                {"Stock mínimo", "0"}
+        });
+    }
+
+    private CardPanel buildForm(String title, String[][] fields) {
+        CardPanel card = new CardPanel();
+        card.setLayout(new BorderLayout(12, 16));
+
+        JLabel lbl = new JLabel(title.toUpperCase());
+        lbl.setFont(lbl.getFont().deriveFont(Font.BOLD, 16f));
+        lbl.setForeground(new Color(70, 96, 180));
+        card.add(lbl, BorderLayout.NORTH);
+
+        JPanel form = new JPanel(new GridLayout(0, 2, 18, 18));
+        form.setOpaque(false);
+
+        for (String[] field : fields) {
+            form.add(fieldPanel(field[0], field[1]));
+        }
+
+        card.add(form, BorderLayout.CENTER);
+
+        JButton btn = new JButton("Aceptar");
+        btn.setPreferredSize(new Dimension(160, 40));
+        btn.setBackground(new Color(58, 96, 224));
+        btn.setForeground(Color.WHITE);
+        btn.setFocusPainted(false);
+
+        JPanel south = new JPanel(new FlowLayout(FlowLayout.CENTER));
+        south.setOpaque(false);
+        south.add(btn);
+        card.add(south, BorderLayout.SOUTH);
+
+        return card;
+    }
+
+    private JPanel fieldPanel(String label, String placeholder) {
+        JPanel p = new JPanel(new BorderLayout(6, 6));
         p.setOpaque(false);
-        p.setLayout(new GridBagLayout());
-        GridBagConstraints gc = new GridBagConstraints();
-        gc.insets = new Insets(8,8,8,8);
-        gc.fill = GridBagConstraints.HORIZONTAL;
-        gc.weightx = 1;
-
-        JLabel title = new JLabel("Gestión de Inventario");
-        title.setFont(title.getFont().deriveFont(Font.BOLD, 22f));
-        gc.gridx=0; gc.gridy=0; gc.gridwidth=4;
-        p.add(title, gc);
-
-        gc.gridwidth=1;
-        gc.gridy++;
-
-        // Fila 1
-        addRow(p, gc, 0, "Categoría", cbCategoria);
-        addRow(p, gc, 2, "Nombre", txtNombre);
-
-        // Fila 2
-        gc.gridy++;
-        addRow(p, gc, 0, "Cantidad", spCantidad);
-        addRow(p, gc, 2, "Ubicación", txtUbicacion);
-
-        // Fila 3
-        gc.gridy++;
-        addRow(p, gc, 0, "Estado", cbEstado);
-
-        // Botón guardar
-        gc.gridy++;
-        gc.gridx=0; gc.gridwidth=4; gc.anchor=GridBagConstraints.CENTER;
-        JButton btn = new JButton("Guardar");
-        btn.addActionListener(e -> onSave());
-        btn.setPreferredSize(new Dimension(160,36));
-        p.add(btn, gc);
-
+        JLabel lbl = new JLabel(label.toUpperCase());
+        lbl.setFont(lbl.getFont().deriveFont(Font.PLAIN, 12f));
+        p.add(lbl, BorderLayout.NORTH);
+        JTextField txt = new JTextField();
+        txt.putClientProperty("JTextField.placeholderText", placeholder);
+        txt.putClientProperty("JComponent.roundRect", true);
+        txt.setPreferredSize(new Dimension(200, 40));
+        p.add(txt, BorderLayout.CENTER);
         return p;
     }
 
-    private void addRow(JPanel p, GridBagConstraints gc, int col, String label, JComponent input) {
-        gc.gridx = col;
-        gc.weightx = 0.2;
-        p.add(new JLabel(label), gc);
-        gc.gridx = col+1;
-        gc.weightx = 0.8;
-        p.add(input, gc);
-    }
-
-    private void loadCategorias() {
-        List<Categoria> list = new ArrayList<>();
-        try (var cn = DataSourceFactory.getConnection();
-             var ps = cn.prepareStatement("SELECT id, nombre FROM categoria ORDER BY nombre");
-             ResultSet rs = ps.executeQuery()) {
-            while (rs.next()) list.add(new Categoria(rs.getInt("id"), rs.getString("nombre")));
-        } catch(Exception e) { e.printStackTrace(); }
-
-        DefaultComboBoxModel<Categoria> model = new DefaultComboBoxModel<>();
-        list.forEach(model::addElement);
-        cbCategoria.setModel(model);
-    }
-
-    private void onSave() {
-        try {
-            String nombre = txtNombre.getText().trim();
-            if (nombre.isEmpty()) throw new IllegalArgumentException("El nombre es obligatorio");
-
-            var cat = (Categoria) cbCategoria.getSelectedItem();
-            int cant = ((Number) spCantidad.getValue()).intValue();
-            String estado = (String) cbEstado.getSelectedItem();
-            String ubic = txtUbicacion.getText().trim();
-
-            // Generamos un código a partir del nombre (si no querés “auto”, agregá un campo Código)
-            String codigo = "AUTO-" + nombre.toUpperCase().replaceAll("[^A-Z0-9]+","-")
-                    + "-" + System.currentTimeMillis();
-
-            Insumo i = new Insumo();
-            i.setCodigo(codigo);
-            i.setDescripcion(nombre);
-            i.setCategoria(cat);
-            i.setStockMinimo(0);
-            i.setUbicacion(ubic);
-            i.setEstado(estado);
-
-            Long id = service.registrarInsumo(i);
-
-            if (cant > 0) {
-                // Registramos una ENTRADA inicial, como en el mockup
-                service.registrarMovimiento(id, "ENTRADA", cant, "Alta inicial");
+    private JToggleButton pillButton(String text) {
+        JToggleButton b = new JToggleButton(text.toUpperCase());
+        b.setFocusPainted(false);
+        b.setFont(b.getFont().deriveFont(Font.BOLD, 12f));
+        b.setOpaque(true);
+        b.setBackground(Color.WHITE);
+        b.setForeground(new Color(66, 100, 189));
+        b.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createLineBorder(new Color(211, 222, 255)),
+                BorderFactory.createEmptyBorder(10, 22, 10, 22)
+        ));
+        b.putClientProperty("JComponent.minimumWidth", 140);
+        b.putClientProperty("JComponent.minimumHeight", 38);
+        b.addChangeListener(e -> {
+            if (b.isSelected()) {
+                b.setBackground(new Color(58, 96, 224));
+                b.setForeground(Color.WHITE);
+            } else {
+                b.setBackground(Color.WHITE);
+                b.setForeground(new Color(66, 100, 189));
             }
-            Ui.info(this, "Insumo guardado correctamente.");
-            // Limpiar
-            txtNombre.setText("");
-            spCantidad.setValue(0);
-            txtUbicacion.setText("");
-            cbEstado.setSelectedItem("ACTIVO");
-        } catch(Exception e) {
-            Ui.error(this, e);
-        }
+        });
+        return b;
     }
 }
