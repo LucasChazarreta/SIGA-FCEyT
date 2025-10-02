@@ -117,6 +117,7 @@ public class InventoryPage extends JPanel {
 
         // Stock mínimo
         JSpinner spStockMin = new JSpinner(new SpinnerNumberModel(0, 0, 999999, 1));
+        tuneNumericSpinner(spStockMin, 0, 999999);
 
         JPanel form = new JPanel(new GridLayout(0, 2, 18, 18));
         form.setOpaque(false);
@@ -140,7 +141,13 @@ public class InventoryPage extends JPanel {
                 String desc = txtDescripcion.getText().trim();
                 Categoria cat = (Categoria) cbCategoria.getSelectedItem();
                 String ubic = txtUbicacion.getText().trim();
-                int stockMin = (Integer) spStockMin.getValue();
+                //int stockMin = (Integer) spStockMin.getValue();
+                Object v = spStockMin.getValue();
+                if (!(v instanceof Number)) {
+                    Ui.warn(this, "El stock mínimo debe ser numérico.");
+                    return;
+                }
+                int stockMin = ((Number) v).intValue();
 
                 if (codigo.isEmpty() || desc.isEmpty()) {
                     throw new IllegalArgumentException("Código y descripción son obligatorios.");
@@ -181,6 +188,26 @@ public class InventoryPage extends JPanel {
 
         return card;
     }
+// --- Helper para spinners numéricos (solo dígitos, 0..999999)
+
+    private static void tuneNumericSpinner(JSpinner spinner, int min, int max) {
+        // Asegurar modelo numérico
+        if (!(spinner.getModel() instanceof SpinnerNumberModel)) {
+            spinner.setModel(new SpinnerNumberModel(0, min, max, 1));
+        }
+        // Editor numérico
+        JSpinner.NumberEditor editor = new JSpinner.NumberEditor(spinner, "#");
+        spinner.setEditor(editor);
+
+        // Forzamos validación de solo números y límites
+        JFormattedTextField tf = editor.getTextField();
+        if (tf.getFormatter() instanceof javax.swing.text.NumberFormatter nf) {
+            nf.setAllowsInvalid(false);        // bloquea letras u otros símbolos
+            nf.setCommitsOnValidEdit(true);    // actualiza el valor al volverse válido
+            nf.setMinimum(min);
+            nf.setMaximum(max);
+        }
+    }
 
     private CardPanel buildEliminarCard() {
         CardPanel card = new CardPanel();
@@ -202,7 +229,7 @@ public class InventoryPage extends JPanel {
         top.add(btnBuscar);
         card.add(top, BorderLayout.PAGE_START);
 
-        // ---- Campos solo lectura para mostrar el insumo encontrado
+        // ---- Campos solo lectura
         JTextField txtCodigo = new JTextField();
         txtCodigo.setEditable(false);
         JTextField txtDescripcion = new JTextField();
@@ -216,7 +243,6 @@ public class InventoryPage extends JPanel {
         JComboBox<String> cbEstado = new JComboBox<>(new String[]{"ACTIVO", "INACTIVO"});
         cbEstado.setEnabled(false);
 
-        // cargar categorías para visualizar nombre
         for (Categoria c : new JdbcCategoriaDao().listAll()) {
             cbCategoria.addItem(c);
         }
@@ -237,9 +263,18 @@ public class InventoryPage extends JPanel {
         // Mantener el insumo hallado
         final Insumo[] current = new Insumo[1];
 
+        // ---- Botón Eliminar (lo declaramos ANTES para habilitar/deshabilitar desde Buscar)
+        final JButton btnEliminar = new JButton("Eliminar");
+        btnEliminar.setPreferredSize(new Dimension(140, 40));
+        btnEliminar.setBackground(new Color(200, 60, 60));
+        btnEliminar.setForeground(Color.WHITE);
+        btnEliminar.setFocusPainted(false);
+        btnEliminar.setEnabled(false); // ⛔ arranca deshabilitado
+
         // Buscar
         btnBuscar.addActionListener(e -> {
             try {
+                btnEliminar.setEnabled(false); // por defecto
                 String codigo = txtBuscarCodigo.getText().trim();
                 if (codigo.isEmpty()) {
                     Ui.warn(InventoryPage.this, "Ingresá un código para buscar.");
@@ -260,8 +295,27 @@ public class InventoryPage extends JPanel {
                     cbEstado.setSelectedIndex(0);
                     return;
                 }
-                // cargar datos en pantalla
+
+                // cargar datos
                 current[0] = opt.get();
+                String estado = current[0].getEstado() == null ? "ACTIVO" : current[0].getEstado();
+
+                if (!"ACTIVO".equalsIgnoreCase(estado)) {
+                    // Si está INACTIVO, NO permitimos dar de baja
+                    Ui.warn(InventoryPage.this, "El insumo " + codigo + " ya está INACTIVO; no se puede dar de baja.");
+                    current[0] = null;
+                    txtCodigo.setText("");
+                    txtDescripcion.setText("");
+                    txtUbicacion.setText("");
+                    spStockMin.setValue(0);
+                    if (cbCategoria.getItemCount() > 0) {
+                        cbCategoria.setSelectedIndex(0);
+                    }
+                    cbEstado.setSelectedIndex(1); // INACTIVO visualmente, pero sin permitir acciones
+                    return;
+                }
+
+                // Es ACTIVO → mostrar datos y habilitar Eliminar
                 txtCodigo.setText(current[0].getCodigo());
                 txtDescripcion.setText(current[0].getDescripcion() == null ? "" : current[0].getDescripcion());
                 txtUbicacion.setText(current[0].getUbicacion() == null ? "" : current[0].getUbicacion());
@@ -277,23 +331,23 @@ public class InventoryPage extends JPanel {
                         }
                     }
                 }
-                cbEstado.setSelectedItem(current[0].getEstado() == null ? "ACTIVO" : current[0].getEstado());
+                cbEstado.setSelectedItem(estado);
+                btnEliminar.setEnabled(true); // ✅ solo si está ACTIVO
             } catch (Exception ex) {
                 Ui.error(InventoryPage.this, ex);
             }
         });
 
-        // ---- Botón Eliminar (baja lógica)
-        JButton btnEliminar = new JButton("Eliminar");
-        btnEliminar.setPreferredSize(new Dimension(140, 40));
-        btnEliminar.setBackground(new Color(200, 60, 60));
-        btnEliminar.setForeground(Color.WHITE);
-        btnEliminar.setFocusPainted(false);
-
+        // Accion Eliminar (baja lógica)
         btnEliminar.addActionListener(e -> {
             try {
                 if (current[0] == null) {
                     Ui.warn(InventoryPage.this, "Primero buscá un insumo por código.");
+                    return;
+                }
+                String estado = current[0].getEstado() == null ? "ACTIVO" : current[0].getEstado();
+                if (!"ACTIVO".equalsIgnoreCase(estado)) {
+                    Ui.warn(InventoryPage.this, "El insumo ya está INACTIVO.");
                     return;
                 }
                 String cod = current[0].getCodigo();
@@ -314,6 +368,7 @@ public class InventoryPage extends JPanel {
                 }
                 cbEstado.setSelectedIndex(0);
                 txtBuscarCodigo.setText("");
+                btnEliminar.setEnabled(false);
             } catch (Exception ex) {
                 Ui.error(InventoryPage.this, ex);
             }
@@ -336,10 +391,9 @@ public class InventoryPage extends JPanel {
         lbl.setForeground(new Color(70, 96, 180));
         card.add(lbl, BorderLayout.NORTH);
 
-        // --- Campos
+        // --- Campos (versión simple con combo de insumos)
         JComboBox<Insumo> cbInsumo = new JComboBox<>();
-        // cargar insumos desde el servicio
-        for (Insumo i : service.listarTodos()) {
+        for (Insumo i : service.listarTodos()) {   // si querés solo ACTIVO, filtrá acá
             cbInsumo.addItem(i);
         }
         if (cbInsumo.getItemCount() > 0) {
@@ -347,9 +401,14 @@ public class InventoryPage extends JPanel {
         }
 
         JComboBox<String> cbTipo = new JComboBox<>(new String[]{"ENTRADA", "SALIDA"});
+
+        // Cantidad con control de números (sin letras)
         JSpinner spCantidad = new JSpinner(new SpinnerNumberModel(1, 1, 999999, 1));
+        tuneNumericSpinner(spCantidad, 1, 999999);  // <-- bloquea letras y valores inválidos
+
         JTextField txtDestinoFuente = new JTextField(); // “destino” si SALIDA / “fuente” si ENTRADA
 
+        // --- Formulario clásico con tu helper labeled(...)
         JPanel form = new JPanel(new GridLayout(0, 2, 18, 18));
         form.setOpaque(false);
         form.add(labeled("INSUMO", cbInsumo));
@@ -373,15 +432,29 @@ public class InventoryPage extends JPanel {
                 }
                 Insumo insumo = (Insumo) cbInsumo.getSelectedItem();
                 String tipo = (String) cbTipo.getSelectedItem();
-                int cantidad = (Integer) spCantidad.getValue();
-                String destinoFuente = txtDestinoFuente.getText().trim();
 
+                // ✅ Confirmar y validar valor del spinner (evita null y letras)
+                try {
+                    spCantidad.commitEdit();
+                } catch (java.text.ParseException ignore) {
+                }
+                Object vc = spCantidad.getValue();
+                if (!(vc instanceof Number)) {
+                    Ui.warn(InventoryPage.this, "La cantidad debe ser numérica.");
+                    return;
+                }
+                int cantidad = ((Number) vc).intValue();
+                if (cantidad <= 0) {
+                    Ui.warn(InventoryPage.this, "La cantidad debe ser mayor que cero.");
+                    return;
+                }
+
+                String destinoFuente = txtDestinoFuente.getText().trim();
                 if (destinoFuente.isEmpty()) {
                     Ui.warn(InventoryPage.this, "Indicá el destino (salida) o la fuente (entrada).");
                     return;
                 }
 
-                // Lógica de negocio: valida stock si es SALIDA e inserta movimiento
                 Long id = service.registrarMovimiento(insumo.getId(), tipo, cantidad, destinoFuente);
                 Ui.info(InventoryPage.this, "Movimiento registrado. ID = " + id);
 
@@ -437,6 +510,8 @@ public class InventoryPage extends JPanel {
 
         JTextField txtUbicacion = new JTextField();
         JSpinner spStockMin = new JSpinner(new SpinnerNumberModel(0, 0, 999999, 1));
+        tuneNumericSpinner(spStockMin, 0, 999999);
+
         JComboBox<String> cbEstado = new JComboBox<>(new String[]{"ACTIVO", "INACTIVO"});
 
         JPanel form = new JPanel(new GridLayout(0, 2, 18, 18));
@@ -519,7 +594,24 @@ public class InventoryPage extends JPanel {
                 current[0].setDescripcion(txtDescripcion.getText().trim());
                 current[0].setCategoria((Categoria) cbCategoria.getSelectedItem());
                 current[0].setUbicacion(txtUbicacion.getText().trim());
-                current[0].setStockMinimo((Integer) spStockMin.getValue());
+
+                // ✅ leer/validar spinner numérico
+                try {
+                    spStockMin.commitEdit();
+                } catch (java.text.ParseException ignore) {
+                }
+                Object v = spStockMin.getValue();
+                if (!(v instanceof Number)) {
+                    Ui.warn(InventoryPage.this, "El stock mínimo debe ser numérico.");
+                    return;
+                }
+                int stockMin = ((Number) v).intValue();
+                if (stockMin < 0) {
+                    Ui.warn(InventoryPage.this, "El stock mínimo no puede ser negativo.");
+                    return;
+                }
+                current[0].setStockMinimo(stockMin);
+
                 current[0].setEstado((String) cbEstado.getSelectedItem());
 
                 new JdbcInsumoDao().update(current[0]);
@@ -589,7 +681,7 @@ public class InventoryPage extends JPanel {
         JLabel lbl = new JLabel(titulo);
         lbl.setFont(lbl.getFont().deriveFont(Font.PLAIN, 12f));
         p.add(lbl, BorderLayout.NORTH);
-        field.setPreferredSize(new Dimension(200, 40));
+        field.setPreferredSize(new Dimension(180, 28));
         p.add(field, BorderLayout.CENTER);
         return p;
     }
@@ -618,4 +710,37 @@ public class InventoryPage extends JPanel {
         });
         return b;
     }
+    //agregando para modificar tamañanos 
+    // Agrega una fila "Etiqueta | Componente" al panel con GridBagLayout, compacto.
+
+    private void addFormRow(JPanel form, int row, String label, JComponent field) {
+        GridBagConstraints gc = new GridBagConstraints();
+        gc.gridy = row;
+
+        // Etiqueta (col 0)
+        gc.gridx = 0;
+        gc.anchor = GridBagConstraints.LINE_END;
+        gc.insets = new Insets(6, 0, 6, 12); // espacios: top,left,bottom,right
+        form.add(new JLabel(label), gc);
+
+        // Campo (col 1)
+        gc.gridx = 1;
+        gc.anchor = GridBagConstraints.LINE_START;
+        gc.fill = GridBagConstraints.HORIZONTAL;
+        gc.weightx = 1.0;
+        form.add(field, gc);
+    }
+
+// Fuerza tamaño compacto para campos (ancho/alto razonables)
+    private void compactField(JComponent c) {
+        c.setFont(c.getFont().deriveFont(12f));     // tipografía un poco más chica
+        Dimension d = new Dimension(220, 26);       // alto 26 px
+        c.setPreferredSize(d);
+        c.setMinimumSize(new Dimension(120, 26));
+        c.setMaximumSize(new Dimension(Short.MAX_VALUE, 26));
+
+        // Si usás FlatLaf, esto ayuda aún más:
+        c.putClientProperty("JComponent.sizeVariant", "small");
+    }
+
 }
