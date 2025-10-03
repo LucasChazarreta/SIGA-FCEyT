@@ -12,6 +12,8 @@ import java.awt.*;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.stream.Collectors;
+import javax.swing.table.JTableHeader;
+
 
 public class InformesPanel extends JPanel {
 
@@ -93,7 +95,7 @@ public class InformesPanel extends JPanel {
     }
 
     private JComponent buildContent() {
-        JPanel wrapper = new JPanel(new BorderLayout(18, 18));
+        JPanel wrapper = new JPanel(new BorderLayout(8, 18));
         wrapper.setOpaque(false);
 
         ButtonGroup tabs = new ButtonGroup();
@@ -114,7 +116,7 @@ public class InformesPanel extends JPanel {
         split.setOpaque(false);
 
         GridBagConstraints gc = new GridBagConstraints();
-        gc.insets = new Insets(0, 0, 0, 18);
+        gc.insets = new Insets(0, 4, 0, 12);
         gc.fill = GridBagConstraints.BOTH;
         gc.weighty = 1;
 
@@ -136,6 +138,7 @@ public class InformesPanel extends JPanel {
 
     private CardPanel buildFiltrosPanel() {
         CardPanel card = new CardPanel();
+        card.setBorder(BorderFactory.createEmptyBorder(12, 8, 12, 12)); 
         card.setLayout(new BorderLayout(10, 10));
 
         JLabel title = new JLabel("Filtros".toUpperCase());
@@ -146,22 +149,49 @@ public class InformesPanel extends JPanel {
         JPanel fields = new JPanel();
         fields.setOpaque(false);
         fields.setLayout(new BoxLayout(fields, BoxLayout.Y_AXIS));
+        
+        // limitar tamaño del combo "Categoría"
+Dimension comboSize = new Dimension(220, 32); // ancho x alto (ajustá a gusto)
+cbCategoria.setPreferredSize(comboSize);
+cbCategoria.setMaximumSize(comboSize);
+cbCategoria.setAlignmentX(Component.LEFT_ALIGNMENT);
+
 
         fields.add(filterField("Categoría", cbCategoria));
         fields.add(Box.createVerticalStrut(12));
         tfDesde.putClientProperty("JTextField.placeholderText", "dd/mm/aaaa");
         tfHasta.putClientProperty("JTextField.placeholderText", "dd/mm/aaaa");
+        
+                // ajustar tamaños de los campos de fecha
+        Dimension dateFieldSize = new Dimension(120, 30); // ancho x alto
+        tfDesde.setPreferredSize(dateFieldSize);
+        tfDesde.setMaximumSize(dateFieldSize);
+
+        tfHasta.setPreferredSize(dateFieldSize);
+        tfHasta.setMaximumSize(dateFieldSize);
+
+        
         fields.add(filterField("Desde", tfDesde));
         fields.add(Box.createVerticalStrut(12));
         fields.add(filterField("Hasta", tfHasta));
 
-        JButton apply = primaryButton("Aplicar filtros");
+        JButton apply = primaryButton("APLICAR FILTROS");
         apply.addActionListener(e -> runQuery());
         apply.setAlignmentX(Component.CENTER_ALIGNMENT);
         fields.add(Box.createVerticalStrut(18));
         fields.add(apply);
 
-        card.add(fields, BorderLayout.CENTER);
+        // Limitar ancho del formulario
+int formWidth = 260; // probá 260–300 a gusto
+fields.setPreferredSize(new Dimension(formWidth, fields.getPreferredSize().height));
+fields.setMaximumSize(new Dimension(formWidth, Integer.MAX_VALUE));
+
+// Centrar horizontalmente el bloque de campos
+JPanel centerWrapper = new JPanel(new FlowLayout(FlowLayout.CENTER, 0, 0));
+centerWrapper.setOpaque(false);
+centerWrapper.add(fields);
+card.add(centerWrapper, BorderLayout.CENTER);
+
 
         JPanel tags = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 6));
         tags.setOpaque(false);
@@ -172,27 +202,58 @@ public class InformesPanel extends JPanel {
 
         return card;
     }
+    
+  
 
-    private CardPanel buildTablaPanel() {
-        CardPanel card = new CardPanel();
-        card.setLayout(new BorderLayout(10, 10));
 
-        JLabel title = new JLabel("Resultados".toUpperCase());
-        title.setFont(title.getFont().deriveFont(Font.BOLD, 14f));
-        title.setForeground(new Color(73, 103, 204));
-        card.add(title, BorderLayout.NORTH);
+private CardPanel buildTablaPanel() {
+    CardPanel card = new CardPanel();
+    card.setLayout(new BorderLayout(10, 10));
 
-        JTable table = new JTable(model);
-        table.setRowHeight(28);
-        table.setShowGrid(false);
-        table.setFillsViewportHeight(true);
-        table.getColumnModel().getColumn(2).setCellRenderer(statusRenderer());
-        JScrollPane scroll = new JScrollPane(table);
-        scroll.setBorder(BorderFactory.createEmptyBorder());
-        card.add(scroll, BorderLayout.CENTER);
+    JLabel title = new JLabel("RESULTADOS".toUpperCase());
+    title.setFont(title.getFont().deriveFont(Font.BOLD, 18f));
+    title.setForeground(new Color(73, 103, 204));
+    card.add(title, BorderLayout.NORTH);
 
-        return card;
-    }
+    JTable table = new JTable(model);
+    table.setRowHeight(38);
+    table.setIntercellSpacing(new Dimension(0, 6)); // ↩️ separa verticalmente las filas
+    table.setShowGrid(true);
+    table.setGridColor(new Color(232, 232, 232)); 
+    table.setFillsViewportHeight(true);
+    table.getColumnModel().getColumn(2).setCellRenderer(statusRenderer());
+    
+    // Pintar cabecera
+JTableHeader header = table.getTableHeader();
+header.setBackground(new Color(230, 230, 230));
+header.setFont(header.getFont().deriveFont(Font.BOLD));
+    
+    // Centrar todas las columnas
+DefaultTableCellRenderer centerRenderer = new DefaultTableCellRenderer();
+centerRenderer.setHorizontalAlignment(SwingConstants.CENTER);
+for (int i = 0; i < table.getColumnCount(); i++) {
+    // si no querés pisar el "statusRenderer" especial, salteá la columna 2
+    if (i != 2) table.getColumnModel().getColumn(i).setCellRenderer(centerRenderer);
+}
+
+
+
+
+    JScrollPane scroll = new JScrollPane(table);
+    // ⬅️ cambio: ahora el scroll tiene borde alrededor
+card.setBorder(BorderFactory.createCompoundBorder(
+        new javax.swing.border.LineBorder(new Color(232, 232, 232), 1, true), // gris claro
+        BorderFactory.createEmptyBorder(6, 6, 6, 6)
+));
+
+
+
+
+    card.add(scroll, BorderLayout.CENTER);
+
+    return card;
+}
+
 
     private DefaultTableCellRenderer statusRenderer() {
         return new DefaultTableCellRenderer() {
@@ -341,4 +402,5 @@ public class InformesPanel extends JPanel {
             throw new IllegalArgumentException("Fecha inválida: use dd/mm/aaaa");
         }
     }
+    
 }
