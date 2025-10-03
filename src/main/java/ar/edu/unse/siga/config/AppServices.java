@@ -1,6 +1,6 @@
 package ar.edu.unse.siga.config;
 
-// DAOs concretos (usa el paquete que realmente tengas en tu repo)
+import ar.edu.unse.siga.persistence.jdbc.JdbcCategoriaDao;
 import ar.edu.unse.siga.persistence.jdbc.JdbcInsumoDao;
 import ar.edu.unse.siga.persistence.jdbc.JdbcMovimientoDao;
 import ar.edu.unse.siga.persistence.jdbc.JdbcTramiteDao;
@@ -16,19 +16,15 @@ public final class AppServices {
     private AppServices() {}
 
     public static void init() {
-        // Tus DAOs tienen constructor sin argumentos según el error previo.
-        var insumoDao = new JdbcInsumoDao();
-        var movDao    = new JdbcMovimientoDao();
-        var tramDao   = new JdbcTramiteDao();
+        // DAOs concretos
+        var insumoDao    = new JdbcInsumoDao();
+        var movDao       = new JdbcMovimientoDao();
+        var categoriaDao = new JdbcCategoriaDao();
+        var tramDao      = new JdbcTramiteDao();
 
-        // InventarioService: inyectar solo InsumoDao por constructor...
-        inventarioService = new InventarioService(insumoDao);
-        // ...y luego el MovimientoDao por setter:
-        inventarioService.setMovimientoDao(movDao);
-
-        // TramiteService: asumo que su constructor recibe TramiteDao.
-        // Si tu TramiteService usa otro patrón, pegame su clase y lo ajusto.
-        tramiteService = new TramiteService(tramDao);
+        // Services (constructor con las dependencias que usa)
+        inventarioService = new InventarioService(insumoDao, movDao, categoriaDao);
+        tramiteService    = new TramiteService(tramDao);
     }
 
     public static InventarioService inventario() {
@@ -42,4 +38,5 @@ public final class AppServices {
             throw new IllegalStateException("AppServices.init() no fue llamado");
         return tramiteService;
     }
+    
 }

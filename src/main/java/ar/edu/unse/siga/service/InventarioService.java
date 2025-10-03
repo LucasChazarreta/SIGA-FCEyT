@@ -1,30 +1,38 @@
 package ar.edu.unse.siga.service;
 
+import ar.edu.unse.siga.common.CurrentSession;
+import ar.edu.unse.siga.domain.Categoria;
 import ar.edu.unse.siga.domain.Insumo;
-import ar.edu.unse.siga.persistence.dao.InsumoDao;
-
-import java.util.List;
-import java.util.Optional;
-
 import ar.edu.unse.siga.domain.Movimiento;
+import ar.edu.unse.siga.domain.Usuario;
+import ar.edu.unse.siga.persistence.dao.CategoriaDao;
+import ar.edu.unse.siga.persistence.dao.InsumoDao;
 import ar.edu.unse.siga.persistence.dao.MovimientoDao;
 
-import ar.edu.unse.siga.common.CurrentSession;
-import ar.edu.unse.siga.domain.Usuario;
+import java.time.LocalDate;
+import java.util.List;
+import java.util.Optional;
+import java.util.stream.Collectors;
 
 public class InventarioService {
 
     private final InsumoDao insumoDao;
-    private MovimientoDao movimientoDao; // inyectable
+    private final MovimientoDao movimientoDao;
+    private final CategoriaDao categoriaDao;
 
-    public InventarioService(InsumoDao insumoDao) {
+    public InventarioService(InsumoDao insumoDao, MovimientoDao movimientoDao, CategoriaDao categoriaDao) {
         this.insumoDao = insumoDao;
-    }
-
-    public void setMovimientoDao(MovimientoDao movimientoDao) {
         this.movimientoDao = movimientoDao;
+        this.categoriaDao = categoriaDao;
     }
 
+    // === Categorías ===
+    public List<Categoria> listarCategorias() {
+        // si preferís sin orden alfabético, podés usar categoriaDao.listAll()
+        return categoriaDao.findAllOrderByNombre();
+    }
+
+    // === Insumos ===
     public Long registrarInsumo(Insumo i) {
         if (i.getCodigo() == null || i.getCodigo().isBlank()) {
             throw new IllegalArgumentException("El código es obligatorio");
@@ -51,6 +59,7 @@ public class InventarioService {
         return insumoDao.listAll();
     }
 
+    // === Movimientos ===
     public Long registrarMovimiento(Long insumoId, String tipo, int cantidad, String destinoFuente) {
         var insumo = insumoDao.listAll().stream()
                 .filter(i -> i.getId().equals(insumoId))
@@ -64,9 +73,7 @@ public class InventarioService {
         m.setDestinoFuente(destinoFuente);
 
         Usuario u = CurrentSession.getUser();
-        if (u != null) {
-            m.setUsuario(u);
-        }
+        if (u != null) m.setUsuario(u);
 
         return movimientoDao.registrar(m);
     }
@@ -75,30 +82,20 @@ public class InventarioService {
         return listarTodos().size();
     }
 
-    public java.math.BigDecimal gastosMensuales(java.time.LocalDate desde, java.time.LocalDate hasta) {
-        // placeholder: implementar cuando definan el modelo de gastos/movimientos
+    public java.math.BigDecimal gastosMensuales(LocalDate desde, LocalDate hasta) {
+        // placeholder hasta definir métrica de gastos
         return java.math.BigDecimal.ZERO;
     }
 
-    public java.util.List<ar.edu.unse.siga.domain.Insumo> buscarInsumos(
-            String categoriaLike,
-            java.time.LocalDate desde,
-            java.time.LocalDate hasta
-    ) {
-        // Por ahora filtramos solo por categoría en memoria. Ignoramos fechas.
+    // Búsqueda simple (filtro local por nombre de categoría)
+    public List<Insumo> buscarInsumos(String categoriaLike, LocalDate desde, LocalDate hasta) {
         return listarTodos().stream()
                 .filter(i -> {
-                    if (categoriaLike == null || categoriaLike.isBlank()) {
-                        return true;
-                    }
+                    if (categoriaLike == null || categoriaLike.isBlank()) return true;
                     var c = i.getCategoria();
                     return c != null && c.getNombre() != null
                             && c.getNombre().toLowerCase().contains(categoriaLike.toLowerCase());
                 })
-                .toList();
+                .collect(Collectors.toList());
     }
-
 }
-
-//al hacer el swing, la UI solo hablara con este servicio, nunca con JDBC directo :D atte luka.
-

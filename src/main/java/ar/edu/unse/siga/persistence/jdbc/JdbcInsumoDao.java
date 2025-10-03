@@ -7,6 +7,7 @@ import ar.edu.unse.siga.persistence.dao.InsumoDao;
 
 import java.sql.*;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -27,15 +28,39 @@ public class JdbcInsumoDao implements InsumoDao {
         i.setStockMinimo(rs.getInt("stock_minimo"));
         i.setUbicacion(rs.getString("ubicacion"));
         i.setEstado(rs.getString("estado"));
-        Timestamp ts = rs.getTimestamp("created_at");
-        if (ts != null) i.setCreatedAt(ts.toInstant());
+
+        // 1) created_at (TIMESTAMP) -> Instant
+        Timestamp ts = safeGetTimestamp(rs, "created_at");
+        if (ts != null) {
+            i.setCreatedAt(ts.toInstant());
+            // 2) Derivo fechaAlta desde created_at si no hay columna de fecha específica
+            i.setFechaAlta(ts.toLocalDateTime().toLocalDate());
+        }
+
+        // Si tu esquema tiene una columna DATE llamada fecha_alta, la priorizamos:
+        Date fa = safeGetDate(rs, "fecha_alta");
+        if (fa != null) {
+            i.setFechaAlta(fa.toLocalDate()); // pisa lo derivado de created_at
+        }
+
         return i;
+    }
+
+    private Timestamp safeGetTimestamp(ResultSet rs, String col) {
+        try { return rs.findColumn(col) > 0 ? rs.getTimestamp(col) : null; }
+        catch (SQLException ignore) { return null; }
+    }
+
+    private Date safeGetDate(ResultSet rs, String col) {
+        try { return rs.findColumn(col) > 0 ? rs.getDate(col) : null; }
+        catch (SQLException ignore) { return null; }
     }
 
     @Override
     public Long create(Insumo insumo) {
-        final String sql = "INSERT INTO insumo(codigo, descripcion, categoria_id, stock_minimo, ubicacion, estado) " +
-                           "VALUES(?,?,?,?,?,?)";
+        final String sql =
+                "INSERT INTO insumo(codigo, descripcion, categoria_id, stock_minimo, ubicacion, estado) " +
+                "VALUES(?,?,?,?,?,?)";
         try (Connection cn = DataSourceFactory.getConnection();
              PreparedStatement ps = cn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
 
@@ -65,8 +90,9 @@ public class JdbcInsumoDao implements InsumoDao {
 
     @Override
     public void update(Insumo insumo) {
-        final String sql = "UPDATE insumo SET descripcion=?, categoria_id=?, stock_minimo=?, ubicacion=?, estado=? " +
-                           "WHERE id=?";
+        final String sql =
+                "UPDATE insumo SET descripcion=?, categoria_id=?, stock_minimo=?, ubicacion=?, estado=? " +
+                "WHERE id=?";
         try (Connection cn = DataSourceFactory.getConnection();
              PreparedStatement ps = cn.prepareStatement(sql)) {
 
@@ -97,9 +123,10 @@ public class JdbcInsumoDao implements InsumoDao {
 
     @Override
     public Optional<Insumo> findByCodigo(String codigo) {
-        final String sql = "SELECT i.*, c.nombre AS categoria_nombre " +
-                           "FROM insumo i JOIN categoria c ON c.id = i.categoria_id " +
-                           "WHERE i.codigo = ?";
+        final String sql =
+                "SELECT i.*, c.nombre AS categoria_nombre " +
+                "FROM insumo i JOIN categoria c ON c.id = i.categoria_id " +
+                "WHERE i.codigo = ?";
         try (Connection cn = DataSourceFactory.getConnection();
              PreparedStatement ps = cn.prepareStatement(sql)) {
             ps.setString(1, codigo);
@@ -114,9 +141,10 @@ public class JdbcInsumoDao implements InsumoDao {
 
     @Override
     public List<Insumo> listAll() {
-        final String sql = "SELECT i.*, c.nombre AS categoria_nombre " +
-                           "FROM insumo i JOIN categoria c ON c.id = i.categoria_id " +
-                           "ORDER BY i.id DESC";
+        final String sql =
+                "SELECT i.*, c.nombre AS categoria_nombre " +
+                "FROM insumo i JOIN categoria c ON c.id = i.categoria_id " +
+                "ORDER BY i.id DESC";
         try (Connection cn = DataSourceFactory.getConnection();
              PreparedStatement ps = cn.prepareStatement(sql);
              ResultSet rs = ps.executeQuery()) {
@@ -129,4 +157,3 @@ public class JdbcInsumoDao implements InsumoDao {
         }
     }
 }
-
