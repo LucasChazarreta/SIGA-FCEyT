@@ -56,13 +56,13 @@ public class InventoryPage extends JPanel {
         group.add(btnRegistrar);
         group.add(btnModificar);
         group.add(btnEliminar);
-        group.add(btnMovimiento);
+        //group.add(btnMovimiento);
         btnRegistrar.setSelected(true);
 
         bar.add(btnRegistrar);
         bar.add(btnModificar);
         bar.add(btnEliminar);
-        bar.add(btnMovimiento);
+        //bar.add(btnMovimiento);
 
         wrapper.add(bar, BorderLayout.NORTH);
 
@@ -70,12 +70,12 @@ public class InventoryPage extends JPanel {
         cards.add(buildRegistroCard(), "reg");
         cards.add(buildModificarCard(), "mod");
         cards.add(buildEliminarCard(), "del");
-        cards.add(buildMovimientoCard(), "mov");
+        //cards.add(buildMovimientoCard(), "mov");
 
         btnRegistrar.addActionListener(e -> cardLayout.show(cards, "reg"));
         btnModificar.addActionListener(e -> cardLayout.show(cards, "mod"));
         btnEliminar.addActionListener(e -> cardLayout.show(cards, "del"));
-        btnMovimiento.addActionListener(e -> cardLayout.show(cards, "mov"));
+        //btnMovimiento.addActionListener(e -> cardLayout.show(cards, "mov"));
 
         wrapper.add(cards, BorderLayout.CENTER);
         cardLayout.show(cards, "reg");

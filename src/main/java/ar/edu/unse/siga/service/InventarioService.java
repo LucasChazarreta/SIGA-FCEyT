@@ -98,6 +98,13 @@ public class InventarioService {
                 .toList();
     }
 
+    public java.util.List<Movimiento> ultimosMovimientos(long insumoId, int limit) {
+        if (movimientoDao == null) {
+            throw new IllegalStateException("MovimientoDao no inicializado");
+        }
+        return movimientoDao.ultimosPorInsumo(insumoId, limit);
+    }
+
 }
 
 //al hacer el swing, la UI solo hablara con este servicio, nunca con JDBC directo :D atte luka.
