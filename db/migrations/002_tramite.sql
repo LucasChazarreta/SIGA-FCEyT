@@ -5,4 +5,3 @@ CREATE TABLE tramite (
   estado VARCHAR(30) NOT NULL,
   fecha DATETIME NOT NULL,
   solicitante VARCHAR(120)
-);

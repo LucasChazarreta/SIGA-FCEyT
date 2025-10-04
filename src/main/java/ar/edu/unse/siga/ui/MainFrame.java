@@ -12,6 +12,7 @@ import ar.edu.unse.siga.ui.inventario.InsumoFrame;
 import ar.edu.unse.siga.ui.reportes.ReporteMovimientosDialog;
 import ar.edu.unse.siga.ui.tramites.TramiteFrame;
 import ar.edu.unse.siga.ui.usuarios.UsuarioFrame;
+import ar.edu.unse.siga.config.AppServices;
 
 import javax.swing.*;
 import java.awt.*;
@@ -41,6 +42,12 @@ public class MainFrame extends JFrame {
         add(desktop, BorderLayout.CENTER);
         setSize(1100, 700);
         setLocationRelativeTo(null);
+
+        InventarioService inv = AppServices.inventario();
+        TramiteService tra = AppServices.tramite();
+
+        JPanel inventario = new ar.edu.unse.siga.ui.inventario.InventarioGestionPanel(inv);
+        JPanel informes = new ar.edu.unse.siga.ui.reportes.InformesPanel(inv, tra);
     }
 
     private JToolBar buildToolbar() {

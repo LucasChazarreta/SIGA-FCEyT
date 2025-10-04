@@ -7,17 +7,21 @@ import ar.edu.unse.siga.service.TramiteService;
 import ar.edu.unse.siga.ui.base.CardPanel;
 import ar.edu.unse.siga.ui.base.GradientPanel;
 import ar.edu.unse.siga.ui.base.ThemeManager;
+import ar.edu.unse.siga.ui.base.WaveSidebarPanel;
+import ar.edu.unse.siga.ui.pages.FinanzasPage;
+import ar.edu.unse.siga.ui.pages.HomePage;
+import ar.edu.unse.siga.ui.pages.InventoryMovementsPage;
 import ar.edu.unse.siga.ui.pages.InventoryPage;
 import ar.edu.unse.siga.ui.pages.TramiteEntradaPage;
+import ar.edu.unse.siga.ui.reportes.InformesPanel;
 
 import javax.swing.*;
 import java.awt.*;
 import java.time.format.DateTimeFormatter;
 
-import ar.edu.unse.siga.ui.pages.HomePage;
-
 public class ShellFrame extends JFrame {
-    private final JPanel cards = new CardLayoutPanel();
+    private final CardLayout cardLayout = new CardLayout();
+    private final JPanel cards = new JPanel(cardLayout);
     private final JLabel lblTitle = new JLabel("Inicio");
     private final JLabel lblUser = new JLabel();
 
@@ -37,123 +41,135 @@ public class ShellFrame extends JFrame {
 
         // Fondo general con gradiente
         var root = new GradientPanel();
-        root.setLayout(new BorderLayout(16,16));
+        root.setLayout(new BorderLayout(24,24));
         setContentPane(root);
 
         // Sidebar
         var sidebar = buildSidebar();
         root.add(sidebar, BorderLayout.WEST);
 
-        // Header (título + usuario)
-        var header = new JPanel(new BorderLayout());
-        header.setOpaque(false);
-        lblTitle.setFont(lblTitle.getFont().deriveFont(Font.BOLD, 22f));
-        header.add(lblTitle, BorderLayout.WEST);
-        var u = CurrentSession.getUser();
-        lblUser.setText(" " + (u!=null? u.getUsername() : "-") + "   |   " +
-                java.time.LocalDate.now().format(DateTimeFormatter.ofPattern("dd/MM/yyyy")));
-        header.add(lblUser, BorderLayout.EAST);
-
         // Card container (cada página va adentro de una “tarjeta”)
         var cardHolder = new CardPanel();
-        cardHolder.setLayout(new BorderLayout(12,12));
-        cardHolder.add(header, BorderLayout.NORTH);
+        cardHolder.setLayout(new BorderLayout(20,20));
+        cardHolder.add(buildHeader(), BorderLayout.NORTH);
+        cards.setOpaque(false);
         cardHolder.add(cards, BorderLayout.CENTER);
 
         root.add(cardHolder, BorderLayout.CENTER);
 
         // Páginas
-        addPage("home", new HomePage()); 
+        addPage("home", new HomePage());
         addPage("inventario", new InventoryPage(inventarioService));
+        addPage("movimientos", new InventoryMovementsPage(inventarioService));
         addPage("tramites", new TramiteEntradaPage(tramiteService));
-        // Reportes y Usuarios los agregamos en el siguiente paso
+        addPage("reportes", new InformesPanel(inventarioService, tramiteService));
+        addPage("finanzas", new FinanzasPage());
 
         setSize(1200, 760);
         setLocationRelativeTo(null);
     }
 
+    private JPanel buildHeader() {
+        var header = new JPanel(new BorderLayout());
+        header.setOpaque(false);
+        lblTitle.setFont(lblTitle.getFont().deriveFont(Font.BOLD, 26f));
+        lblTitle.setForeground(new Color(30, 45, 92));
+        header.add(lblTitle, BorderLayout.WEST);
+
+        var u = CurrentSession.getUser();
+        lblUser.setText((u != null ? u.getUsername() : "-") +
+                "  |  " + java.time.LocalDate.now().format(DateTimeFormatter.ofPattern("dd/MM/yyyy")));
+        lblUser.setForeground(new Color(90, 110, 150));
+        header.add(lblUser, BorderLayout.EAST);
+        return header;
+    }
+
     private JPanel buildSidebar() {
-        var side = new JPanel();
-        side.setOpaque(true);
-        side.setBackground(new Color(19, 49, 86));
-        side.setPreferredSize(new Dimension(240, 100));
+        WaveSidebarPanel side = new WaveSidebarPanel();
+        side.setPreferredSize(new Dimension(260, 720));
         side.setLayout(new BorderLayout());
 
-        // logo + nombre
-        var brand = new JPanel(new BorderLayout());
+        JPanel brand = new JPanel();
         brand.setOpaque(false);
-        var lbl = new JLabel("  SIGA-FCEyT");
-        lbl.setForeground(Color.WHITE);
-        lbl.setFont(lbl.getFont().deriveFont(Font.BOLD, 18f));
-        brand.add(lbl, BorderLayout.WEST);
-        brand.setBorder(BorderFactory.createEmptyBorder(16, 16, 16, 16));
+        brand.setLayout(new BoxLayout(brand, BoxLayout.Y_AXIS));
+        brand.setBorder(BorderFactory.createEmptyBorder(24, 24, 24, 24));
+        JLabel name = new JLabel("SIGA-FCEyT");
+        name.setForeground(Color.WHITE);
+        name.setFont(name.getFont().deriveFont(Font.BOLD, 20f));
+        JLabel tagline = new JLabel("Sistema de gestión administrativa");
+        tagline.setForeground(new Color(235, 245, 255));
+        tagline.setFont(tagline.getFont().deriveFont(Font.PLAIN, 12f));
+        brand.add(name);
+        brand.add(Box.createVerticalStrut(4));
+        brand.add(tagline);
         side.add(brand, BorderLayout.NORTH);
 
-        // menú (toggle buttons)
-        var menu = new JPanel();
+        JPanel menu = new JPanel();
         menu.setOpaque(false);
-        menu.setLayout(new GridLayout(0,1,0,4));
+        menu.setLayout(new BoxLayout(menu, BoxLayout.Y_AXIS));
+        menu.setBorder(BorderFactory.createEmptyBorder(8, 16, 16, 16));
 
         ButtonGroup grp = new ButtonGroup();
+        NavButton bHome = nav("Inicio", "ui/icons/home.svg", "home");
+        NavButton bInv = nav("Inventario", "ui/icons/inventory.svg", "inventario");
+        NavButton bMov = nav("Movimientos", "ui/icons/movements.svg", "movimientos", 1);
+        NavButton bInf = nav("Informes", "ui/icons/reports.svg", "reportes");
+        NavButton bTra = nav("Trámites", "ui/icons/tramites.svg", "tramites");
+        NavButton bFin = nav("Finanzas", "ui/icons/finanzas.svg", "finanzas");
 
-        var bHome = new NavButton("Inicio", "icons/home.svg");
-        var bInv  = new NavButton("Inventario", "icons/box.svg");
-        var bTra  = new NavButton("Mesa de Entrada", "icons/inbox.svg");
-        var bRep  = new NavButton("Reportes", "icons/report.svg");
-        var bUsr  = new NavButton("Usuarios", "icons/users.svg");
+        grp.add(bHome);
+        grp.add(bInv);
+        grp.add(bMov);
+        grp.add(bInf);
+        grp.add(bTra);
+        grp.add(bFin);
 
-        for (var b : new JToggleButton[]{bHome,bInv,bTra,bRep,bUsr}) {
-            b.setForeground(Color.WHITE);
-            b.setBackground(new Color(19,49,86));
-            b.setOpaque(false);
-            b.addActionListener(e -> onNavClick((JToggleButton)e.getSource()));
-            grp.add(b); menu.add(b);
-        }
+        menu.add(bHome);
+        menu.add(Box.createVerticalStrut(8));
+        menu.add(bInv);
+        menu.add(Box.createVerticalStrut(4));
+        menu.add(bMov);
+        menu.add(Box.createVerticalStrut(12));
+        menu.add(bInf);
+        menu.add(Box.createVerticalStrut(8));
+        menu.add(bTra);
+        menu.add(Box.createVerticalStrut(8));
+        menu.add(bFin);
+        menu.add(Box.createVerticalGlue());
+
         bHome.setSelected(true);
+        side.add(menu, BorderLayout.CENTER);
 
-        var center = new JPanel(new BorderLayout());
-        center.setOpaque(false);
-        center.add(menu, BorderLayout.NORTH);
-        side.add(center, BorderLayout.CENTER);
-
-        // logout
-        var south = new JPanel(new BorderLayout());
-        south.setOpaque(false);
-        var btnLogout = new JButton("  Cerrar sesión", (Icon) ThemeManager.svg("icons/logout.svg",16));
+        JButton btnLogout = new JButton("  Cerrar sesión", (Icon) ThemeManager.svg("ui/icons/logout.svg", 18));
         btnLogout.setFocusPainted(false);
+        btnLogout.setForeground(Color.WHITE);
+        btnLogout.setOpaque(false);
+        btnLogout.setContentAreaFilled(false);
+        btnLogout.setBorder(BorderFactory.createEmptyBorder(12, 24, 18, 24));
         btnLogout.addActionListener(e -> {
-            ar.edu.unse.siga.common.CurrentSession.clear();
+            CurrentSession.clear();
             dispose();
-            ar.edu.unse.siga.ui.AppLauncher.launch(); // volver al login
+            ar.edu.unse.siga.ui.AppLauncher.launch();
         });
-        btnLogout.setBorder(BorderFactory.createEmptyBorder(10,16,10,12));
-        south.add(btnLogout, BorderLayout.SOUTH);
-        side.add(south, BorderLayout.SOUTH);
+        side.add(btnLogout, BorderLayout.SOUTH);
 
         return side;
     }
 
-    private void onNavClick(JToggleButton btn) {
-        String text = btn.getText().trim();
-        lblTitle.setText(text);
-        switch (text) {
-            case "Inicio" -> showPage("home");
-            case "Inventario" -> showPage("inventario");
-            case "Mesa de Entrada" -> showPage("tramites");
-            case "Reportes" -> showPage("reportes");
-            case "Usuarios" -> showPage("usuarios");
-        }
+    private NavButton nav(String text, String icon, String key) {
+        return nav(text, icon, key, 0);
+    }
+
+    private NavButton nav(String text, String icon, String key, int level) {
+        NavButton btn = new NavButton(text, icon, level);
+        btn.addActionListener(e -> {
+            lblTitle.setText(text);
+            cardLayout.show(cards, key);
+        });
+        return btn;
     }
 
     private void addPage(String key, Component c) {
         cards.add(c, key);
-    }
-    private void showPage(String key) {
-        ((CardLayout)cards.getLayout()).show(cards, key);
-    }
-
-    // panel con CardLayout
-    static class CardLayoutPanel extends JPanel {
-        CardLayoutPanel() { super(new CardLayout()); setOpaque(false); }
     }
 }
