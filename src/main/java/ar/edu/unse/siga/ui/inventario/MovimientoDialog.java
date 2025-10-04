@@ -2,10 +2,11 @@ package ar.edu.unse.siga.ui.inventario;
 
 import javax.swing.*;
 import java.awt.*;
+import java.text.ParseException;
 
 /**
- * Diálogo reutilizable para registrar un movimiento (ENTRADA / SALIDA).
- * Puede usarse desde la pestaña de Movimientos o desde Inventario.
+ * Diálogo reutilizable para registrar un movimiento (ENTRADA / SALIDA). Puede
+ * usarse desde la pestaña de Movimientos o desde Inventario.
  */
 public class MovimientoDialog extends JDialog {
 
@@ -14,6 +15,7 @@ public class MovimientoDialog extends JDialog {
     private final JSpinner spCantidad = new JSpinner(new SpinnerNumberModel(1, 1, 1_000_000, 1));
     private final JTextField txtDestino = new JTextField(25);
     private boolean accepted = false;
+    private int salidaMax = Integer.MAX_VALUE;
 
     /**
      * Constructor simple (sin contexto, arranca en ENTRADA).
@@ -24,8 +26,10 @@ public class MovimientoDialog extends JDialog {
 
     /**
      * Constructor completo para reuso.
+     *
      * @param owner ventana padre
-     * @param contexto Texto a mostrar arriba (ej. "Insumo: A4-001 · Papel A4"). Puede ser null.
+     * @param contexto Texto a mostrar arriba (ej. "Insumo: A4-001 · Papel A4").
+     * Puede ser null.
      * @param tipoInicial "ENTRADA" o "SALIDA"
      * @param destinoInicial texto inicial de destino/fuente (opcional)
      * @param cantidadInicial valor inicial de cantidad (mín. 1)
@@ -67,21 +71,54 @@ public class MovimientoDialog extends JDialog {
         add(south, BorderLayout.SOUTH);
 
         // inicialización de valores
-        if (tipoInicial != null) cbTipo.setSelectedItem(tipoInicial);
-        if (destinoInicial != null) txtDestino.setText(destinoInicial);
-        if (cantidadInicial > 0) spCantidad.setValue(cantidadInicial);
+        if (tipoInicial != null) {
+            cbTipo.setSelectedItem(tipoInicial);
+        }
+        if (destinoInicial != null) {
+            txtDestino.setText(destinoInicial);
+        }
+        if (cantidadInicial > 0) {
+            spCantidad.setValue(cantidadInicial);
+        }
 
         pack();
         setLocationRelativeTo(owner);
     }
 
+    public void setSalidaMax(int max) {
+        this.salidaMax = Math.max(0, max); // solo lo guardamos por si querés mostrarlo luego
+    }
+
     // getters
-    public boolean isAccepted() { return accepted; }
-    public String getTipo() { return (String) cbTipo.getSelectedItem(); }
-    public int getCantidad() { return ((Number) spCantidad.getValue()).intValue(); }
-    public String getDestinoFuente() { return txtDestino.getText().trim(); }
+    public boolean isAccepted() {
+        return accepted;
+    }
+
+    public String getTipo() {
+        return (String) cbTipo.getSelectedItem();
+    }
+
+    public int getCantidad() {
+        try {
+            JComponent ed = spCantidad.getEditor();
+            if (ed instanceof JSpinner.DefaultEditor de) {
+                de.commitEdit();
+            }
+        } catch (ParseException ignore) {
+        }
+        return ((Number) spCantidad.getValue()).intValue();
+    }
+
+    public String getDestinoFuente() {
+        return txtDestino.getText().trim();
+    }
 
     // setters opcionales por si querés usarlos
-    public void setContexto(String texto) { lblContexto.setText(texto); }
-    public void setCantidad(int cant) { spCantidad.setValue(Math.max(1, cant)); }
+    public void setContexto(String texto) {
+        lblContexto.setText(texto);
+    }
+
+    public void setCantidad(int cant) {
+        spCantidad.setValue(Math.max(1, cant));
+    }
 }

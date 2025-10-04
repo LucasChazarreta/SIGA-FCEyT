@@ -4,8 +4,12 @@ import ar.edu.unse.siga.domain.Movimiento;
 import java.util.List;
 
 public interface MovimientoDao {
+
     Long registrar(Movimiento movimiento);
 
-    /** Últimos movimientos de un insumo (ordenados por fecha desc). */
-    List<Movimiento> ultimosPorInsumo(long insumoId, int limit);
+    // ya lo agregamos antes:
+    java.util.List<Movimiento> ultimosPorInsumo(long insumoId, int limit);
+
+    // NUEVO: consultar stock actual de un insumo
+    int stockActual(long insumoId);
 }

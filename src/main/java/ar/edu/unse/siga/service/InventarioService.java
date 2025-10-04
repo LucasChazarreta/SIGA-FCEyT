@@ -105,6 +105,13 @@ public class InventarioService {
         return movimientoDao.ultimosPorInsumo(insumoId, limit);
     }
 
+    public int stockActual(long insumoId) {
+        if (movimientoDao == null) {
+            throw new IllegalStateException("MovimientoDao no inicializado");
+        }
+        return movimientoDao.stockActual(insumoId);
+    }
+
 }
 
 //al hacer el swing, la UI solo hablara con este servicio, nunca con JDBC directo :D atte luka.

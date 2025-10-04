@@ -43,7 +43,7 @@ public class InventoryMovementsPage extends JPanel {
         title.setForeground(new Color(28, 66, 148));
         header.add(title, BorderLayout.WEST);
 
-        var btnNuevo = new JButton("Nuevo movimiento…");
+        var btnNuevo = new JButton("Registrar Movimiento ");
         btnNuevo.addActionListener(e -> onNuevoMovimiento());
         var right = new JPanel(new FlowLayout(FlowLayout.RIGHT, 0, 0));
         right.setOpaque(false);
@@ -102,28 +102,23 @@ public class InventoryMovementsPage extends JPanel {
         north.add(sectionTitle("Seleccionar insumo"));
         north.add(Box.createVerticalStrut(8));
 
-        // --- búsqueda con botón limpiar ---
+        // --- búsqueda (solo botón Buscar + Enter) ---
         JPanel searchPanel = new JPanel(new BorderLayout(8, 0));
         searchPanel.setOpaque(false);
 
         var txtSearch = new JTextField();
         txtSearch.putClientProperty("JTextField.placeholderText", "Buscar por código/nombre");
 
+        // Permitir buscar con Enter
+        txtSearch.addActionListener(e -> loadInsumos(txtSearch.getText()));
+
         JButton btnSearch = new JButton("Buscar");
         btnSearch.setFocusPainted(false);
         btnSearch.addActionListener(e -> loadInsumos(txtSearch.getText()));
 
-        JButton btnClear = new JButton("Limpiar");
-        btnClear.setFocusPainted(false);
-        btnClear.addActionListener(e -> {
-            txtSearch.setText("");
-            loadInsumos("");
-        });
-
         var rightBtns = new JPanel(new FlowLayout(FlowLayout.RIGHT, 6, 0));
         rightBtns.setOpaque(false);
         rightBtns.add(btnSearch);
-        rightBtns.add(btnClear);
 
         searchPanel.add(txtSearch, BorderLayout.CENTER);
         searchPanel.add(rightBtns, BorderLayout.EAST);
@@ -151,11 +146,10 @@ public class InventoryMovementsPage extends JPanel {
         lstInsumos.addListSelectionListener(e -> {
             if (!e.getValueIsAdjusting()) {
                 Insumo selected = lstInsumos.getSelectedValue();
+
                 if (selected != null) {
-                    String desc = selected.getDescripcion() == null ? "-" : selected.getDescripcion();
-                    String min = selected.getStockMinimo() == null ? "-" : String.valueOf(selected.getStockMinimo());
-                    lblSeleccion.setText("#" + selected.getId() + " · " + desc + "  |  Stock mín.: " + min);
-                    refreshHistorial(selected.getId());
+                    refreshSelectedSummary();            // <<< actualiza el stock actual, mín. y descripción
+                    refreshHistorial(selected.getId());  // <<< refresca los últimos movimientos
                 } else {
                     lblSeleccion.setText("Seleccioná un insumo");
                     historialModel.clear();
@@ -170,6 +164,8 @@ public class InventoryMovementsPage extends JPanel {
     private CardPanel resumenCard() {
         CardPanel card = new CardPanel();
         card.setLayout(new BorderLayout(10, 10));
+
+        // solo el título, sin botón refrescar
         card.add(sectionTitle("Insumo seleccionado"), BorderLayout.NORTH);
 
         lblSeleccion.setFont(lblSeleccion.getFont().deriveFont(Font.BOLD, 14f));
@@ -219,12 +215,33 @@ public class InventoryMovementsPage extends JPanel {
         Insumo sel = lstInsumos.getSelectedValue();
         if (sel == null) {
             JOptionPane.showMessageDialog(this, "Seleccioná un insumo primero.", "Atención", JOptionPane.WARNING_MESSAGE);
-            return;
+            return; // <- nada más acá
         }
 
         var win = SwingUtilities.getWindowAncestor(this);
-        String ctx = "Insumo: " + sel.getCodigo() + " · " + sel.getDescripcion();
-        MovimientoDialog dlg = new MovimientoDialog(win, ctx, "SALIDA", null, 1);
+
+        // 1) Stock actual para mostrar en el diálogo y para el pre-chequeo
+        int stock = 0;
+        try {
+            stock = service.stockActual(sel.getId());
+        } catch (Exception ignored) {
+        }
+
+        // 2) Contexto visible en el diálogo (incluye stock actual)
+        String ctx = "Insumo: " + sel.getCodigo() + " · " + sel.getDescripcion()
+                + "  |  Stock actual: " + stock;
+
+        // 3) Abrimos el diálogo (por defecto en SALIDA). Cantidad inicial = 1
+        MovimientoDialog dlg = new MovimientoDialog(
+                win,
+                ctx,
+                "SALIDA",
+                null,
+                1
+        );
+
+        // (opcional) si querés, conservá esta línea, pero ver punto 2 de abajo:
+        // dlg.setSalidaMax(stock);
         dlg.setVisible(true);
         if (!dlg.isAccepted()) {
             return;
@@ -239,11 +256,33 @@ public class InventoryMovementsPage extends JPanel {
             return;
         }
 
+        // 4) Pre-chequeo UI para SALIDA > stock (con stock actualizado)
+        try {
+            stock = service.stockActual(sel.getId());
+        } catch (Exception ignored) {
+        }
+        if ("SALIDA".equalsIgnoreCase(tipo) && cantidad > stock) {
+            JOptionPane.showMessageDialog(
+                    this,
+                    String.format(
+                            "No hay suficiente stock para realizar esta salida.\n\n"
+                            + "Cantidad disponible: %d\n"
+                            + "Cantidad solicitada: %d\n\n"
+                            + "Podés registrar una cantidad menor o agregar más stock con una ENTRADA.",
+                            stock, cantidad
+                    ),
+                    "Error",
+                    JOptionPane.ERROR_MESSAGE
+            );
+            return;
+        }
+
         try {
             Long id = service.registrarMovimiento(sel.getId(), tipo, cantidad, destino);
             JOptionPane.showMessageDialog(this, tipo + " registrada (movimiento #" + id + ").",
                     "OK", JOptionPane.INFORMATION_MESSAGE);
-            refreshHistorial(sel.getId()); // << refrescamos al finalizar
+            refreshHistorial(sel.getId());
+            refreshSelectedSummary(); // <- actualiza el “Stock actual” al instante
         } catch (IllegalArgumentException | IllegalStateException ex) {
             JOptionPane.showMessageDialog(this, ex.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
         } catch (Exception ex) {
@@ -273,4 +312,27 @@ public class InventoryMovementsPage extends JPanel {
             JOptionPane.showMessageDialog(this, "No se pudieron cargar los movimientos.", "Error", JOptionPane.ERROR_MESSAGE);
         }
     }
+
+    /**
+     * Refresca el rótulo de "Insumo seleccionado" con el stock actual
+     */
+    private void refreshSelectedSummary() {
+        Insumo sel = lstInsumos.getSelectedValue();
+        if (sel == null) {
+            lblSeleccion.setText("Seleccioná un insumo");
+            return;
+        }
+        int stockAct = 0;
+        try {
+            stockAct = service.stockActual(sel.getId());
+        } catch (Exception ignored) {
+        }
+
+        String desc = sel.getDescripcion() == null ? "-" : sel.getDescripcion();
+        String min = sel.getStockMinimo() == null ? "-" : String.valueOf(sel.getStockMinimo());
+        lblSeleccion.setText("#" + sel.getId() + " · " + desc
+                + "  |  Stock mín.: " + min
+                + "  |  Stock actual: " + stockAct);
+    }
+
 }
