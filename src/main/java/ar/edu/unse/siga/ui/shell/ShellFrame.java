@@ -6,6 +6,7 @@ import ar.edu.unse.siga.service.InventarioService;
 import ar.edu.unse.siga.service.TramiteService;
 import ar.edu.unse.siga.ui.base.CardPanel;
 import ar.edu.unse.siga.ui.base.GradientPanel;
+import ar.edu.unse.siga.ui.base.NavButton;
 import ar.edu.unse.siga.ui.base.ThemeManager;
 import ar.edu.unse.siga.ui.base.WaveSidebarPanel;
 import ar.edu.unse.siga.ui.pages.FinanzasPage;
@@ -20,6 +21,7 @@ import java.awt.*;
 import java.time.format.DateTimeFormatter;
 
 public class ShellFrame extends JFrame {
+
     private final CardLayout cardLayout = new CardLayout();
     private final JPanel cards = new JPanel(cardLayout);
     private final JLabel lblTitle = new JLabel("Inicio");
@@ -41,7 +43,7 @@ public class ShellFrame extends JFrame {
 
         // Fondo general con gradiente
         var root = new GradientPanel();
-        root.setLayout(new BorderLayout(24,24));
+        root.setLayout(new BorderLayout(24, 24));
         setContentPane(root);
 
         // Sidebar
@@ -50,11 +52,10 @@ public class ShellFrame extends JFrame {
 
         // Card container (cada página va adentro de una “tarjeta”)
         var cardHolder = new CardPanel();
-        cardHolder.setLayout(new BorderLayout(20,20));
+        cardHolder.setLayout(new BorderLayout(20, 20));
         cardHolder.add(buildHeader(), BorderLayout.NORTH);
         cards.setOpaque(false);
         cardHolder.add(cards, BorderLayout.CENTER);
-
         root.add(cardHolder, BorderLayout.CENTER);
 
         // Páginas
@@ -64,6 +65,9 @@ public class ShellFrame extends JFrame {
         addPage("tramites", new TramiteEntradaPage(tramiteService));
         addPage("reportes", new InformesPanel(inventarioService, tramiteService));
         addPage("finanzas", new FinanzasPage());
+
+        // Mostrar Home al iniciar
+        cardLayout.show(cards, "home");
 
         setSize(1200, 760);
         setLocationRelativeTo(null);
@@ -77,8 +81,8 @@ public class ShellFrame extends JFrame {
         header.add(lblTitle, BorderLayout.WEST);
 
         var u = CurrentSession.getUser();
-        lblUser.setText((u != null ? u.getUsername() : "-") +
-                "  |  " + java.time.LocalDate.now().format(DateTimeFormatter.ofPattern("dd/MM/yyyy")));
+        lblUser.setText((u != null ? u.getUsername() : "-")
+                + "  |  " + java.time.LocalDate.now().format(DateTimeFormatter.ofPattern("dd/MM/yyyy")));
         lblUser.setForeground(new Color(90, 110, 150));
         header.add(lblUser, BorderLayout.EAST);
         return header;
@@ -89,6 +93,7 @@ public class ShellFrame extends JFrame {
         side.setPreferredSize(new Dimension(260, 720));
         side.setLayout(new BorderLayout());
 
+        // Marca
         JPanel brand = new JPanel();
         brand.setOpaque(false);
         brand.setLayout(new BoxLayout(brand, BoxLayout.Y_AXIS));
@@ -104,6 +109,7 @@ public class ShellFrame extends JFrame {
         brand.add(tagline);
         side.add(brand, BorderLayout.NORTH);
 
+        // Menú
         JPanel menu = new JPanel();
         menu.setOpaque(false);
         menu.setLayout(new BoxLayout(menu, BoxLayout.Y_AXIS));
@@ -112,7 +118,7 @@ public class ShellFrame extends JFrame {
         ButtonGroup grp = new ButtonGroup();
         NavButton bHome = nav("Inicio", "ui/icons/home.svg", "home");
         NavButton bInv = nav("Inventario", "ui/icons/inventory.svg", "inventario");
-        NavButton bMov = nav("Movimientos", "ui/icons/movements.svg", "movimientos", 1);
+        NavButton bMov = nav("Movimientos", "ui/icons/movements.svg", "movimientos");
         NavButton bInf = nav("Informes", "ui/icons/reports.svg", "reportes");
         NavButton bTra = nav("Trámites", "ui/icons/tramites.svg", "tramites");
         NavButton bFin = nav("Finanzas", "ui/icons/finanzas.svg", "finanzas");
@@ -127,7 +133,7 @@ public class ShellFrame extends JFrame {
         menu.add(bHome);
         menu.add(Box.createVerticalStrut(8));
         menu.add(bInv);
-        menu.add(Box.createVerticalStrut(4));
+        menu.add(Box.createVerticalStrut(8));
         menu.add(bMov);
         menu.add(Box.createVerticalStrut(12));
         menu.add(bInf);
@@ -137,9 +143,18 @@ public class ShellFrame extends JFrame {
         menu.add(bFin);
         menu.add(Box.createVerticalGlue());
 
+        // Seleccionado por defecto
         bHome.setSelected(true);
-        side.add(menu, BorderLayout.CENTER);
 
+        // Scroll para evitar cortes en pantallas chicas (opcional)
+        JScrollPane sp = new JScrollPane(menu);
+        sp.setBorder(null);
+        sp.setOpaque(false);
+        sp.getViewport().setOpaque(false);
+        sp.setHorizontalScrollBarPolicy(ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
+        side.add(sp, BorderLayout.CENTER);
+
+        // Logout
         JButton btnLogout = new JButton("  Cerrar sesión", (Icon) ThemeManager.svg("ui/icons/logout.svg", 18));
         btnLogout.setFocusPainted(false);
         btnLogout.setForeground(Color.WHITE);
@@ -157,11 +172,7 @@ public class ShellFrame extends JFrame {
     }
 
     private NavButton nav(String text, String icon, String key) {
-        return nav(text, icon, key, 0);
-    }
-
-    private NavButton nav(String text, String icon, String key, int level) {
-        NavButton btn = new NavButton(text, icon, level);
+        NavButton btn = new NavButton(text, icon);
         btn.addActionListener(e -> {
             lblTitle.setText(text);
             cardLayout.show(cards, key);

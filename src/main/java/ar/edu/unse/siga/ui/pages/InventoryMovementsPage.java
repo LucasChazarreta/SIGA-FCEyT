@@ -3,6 +3,7 @@ package ar.edu.unse.siga.ui.pages;
 import ar.edu.unse.siga.domain.Insumo;
 import ar.edu.unse.siga.domain.Movimiento;
 import ar.edu.unse.siga.service.InventarioService;
+import ar.edu.unse.siga.service.InventarioService.StockCheckResult;
 import ar.edu.unse.siga.ui.base.CardPanel;
 import ar.edu.unse.siga.ui.inventario.MovimientoDialog;
 
@@ -22,6 +23,7 @@ public class InventoryMovementsPage extends JPanel {
 
     // resumen seleccionado
     private final JTextArea taSeleccion = new JTextArea();
+    private Color resumenColorNormal;   // para poder alternar rojo/normal según stock
     private final JButton btnEntrada = new JButton("Registrar ENTRADA");
     private final JButton btnSalida = new JButton("Registrar SALIDA");
 
@@ -50,7 +52,6 @@ public class InventoryMovementsPage extends JPanel {
         title.setForeground(new Color(28, 66, 148));
         header.add(title, BorderLayout.WEST);
 
-        // ya no ponemos botón arriba: acciones van en el panel de la derecha
         return header;
     }
 
@@ -152,6 +153,10 @@ public class InventoryMovementsPage extends JPanel {
                     setActionsEnabled(false);
                     taSeleccion.setText("Seleccioná un insumo");
                     historialModel.clear();
+                    // volver a color normal
+                    if (resumenColorNormal != null) {
+                        taSeleccion.setForeground(resumenColorNormal);
+                    }
                 }
             }
         });
@@ -180,6 +185,9 @@ public class InventoryMovementsPage extends JPanel {
         scroll.getViewport().setOpaque(false);
         scroll.setPreferredSize(new Dimension(10, 90));
         card.add(scroll, BorderLayout.CENTER);
+
+        // guardar el color por defecto para poder alternar
+        resumenColorNormal = taSeleccion.getForeground();
 
         // barra de acciones contextual
         JPanel actions = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 0));
@@ -294,9 +302,24 @@ public class InventoryMovementsPage extends JPanel {
         }
 
         try {
-            Long id = service.registrarMovimiento(sel.getId(), tipo, cantidad, destino);
-            JOptionPane.showMessageDialog(this, tipo + " registrada (movimiento #" + id + ").",
+            // NUEVO: usamos el resultado de control de stock del servicio
+            StockCheckResult res = service.registrarMovimiento(sel.getId(), tipo, cantidad, destino);
+
+            // Mensaje principal
+            JOptionPane.showMessageDialog(this,
+                    String.format("%s registrada.\nStock actual: %d",
+                            tipo, res.stockActual),
                     "OK", JOptionPane.INFORMATION_MESSAGE);
+
+            // Alerta si quedó por debajo del mínimo
+            if (res.bajoMinimo) {
+                JOptionPane.showMessageDialog(this,
+                        String.format("⚠ Stock por debajo del mínimo.\nActual: %d  |  Mínimo: %s",
+                                res.stockActual,
+                                res.stockMinimo == null ? "-" : res.stockMinimo),
+                        "Alerta de reposición", JOptionPane.WARNING_MESSAGE);
+            }
+
             refreshHistorial(sel.getId());
             refreshSelectedSummary();
         } catch (IllegalArgumentException | IllegalStateException ex) {
@@ -331,12 +354,16 @@ public class InventoryMovementsPage extends JPanel {
     }
 
     /**
-     * Actualiza panel derecho con descripción y stock actual
+     * Actualiza panel derecho con descripción y stock actual y resalta en rojo
+     * si está por debajo del mínimo.
      */
     private void refreshSelectedSummary() {
         Insumo sel = lstInsumos.getSelectedValue();
         if (sel == null) {
             taSeleccion.setText("Seleccioná un insumo");
+            if (resumenColorNormal != null) {
+                taSeleccion.setForeground(resumenColorNormal);
+            }
             return;
         }
         int stockAct = 0;
@@ -355,5 +382,13 @@ public class InventoryMovementsPage extends JPanel {
         );
         taSeleccion.setCaretPosition(0);
         taSeleccion.setToolTipText(desc.length() > 40 ? desc : null); // tooltip si es largo
+
+        // Pintar en rojo si está bajo mínimo
+        boolean bajoMinimo = (sel.getStockMinimo() != null) && (stockAct < sel.getStockMinimo());
+        if (bajoMinimo) {
+            taSeleccion.setForeground(new Color(176, 0, 32)); // rojo alerta
+        } else if (resumenColorNormal != null) {
+            taSeleccion.setForeground(resumenColorNormal);
+        }
     }
 }

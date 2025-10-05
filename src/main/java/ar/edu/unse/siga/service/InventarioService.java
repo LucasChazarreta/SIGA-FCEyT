@@ -1,17 +1,22 @@
 package ar.edu.unse.siga.service;
 
+import ar.edu.unse.siga.common.CurrentSession;
 import ar.edu.unse.siga.domain.Insumo;
+import ar.edu.unse.siga.domain.Movimiento;
+import ar.edu.unse.siga.domain.Usuario;
 import ar.edu.unse.siga.persistence.dao.InsumoDao;
+import ar.edu.unse.siga.persistence.dao.MovimientoDao;
 
+import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 
-import ar.edu.unse.siga.domain.Movimiento;
-import ar.edu.unse.siga.persistence.dao.MovimientoDao;
-
-import ar.edu.unse.siga.common.CurrentSession;
-import ar.edu.unse.siga.domain.Usuario;
-
+/**
+ * Servicio de Inventario ---------------------- Es la capa intermedia entre la
+ * UI (Swing) y los DAOs (JDBC). Se encarga de validar, orquestar operaciones y
+ * aplicar reglas de negocio, como el control de stock mínimo.
+ */
 public class InventarioService {
 
     private final InsumoDao insumoDao;
@@ -25,6 +30,9 @@ public class InventarioService {
         this.movimientoDao = movimientoDao;
     }
 
+    // =====================================================
+    // === CRUD DE INSUMOS
+    // =====================================================
     public Long registrarInsumo(Insumo i) {
         if (i.getCodigo() == null || i.getCodigo().isBlank()) {
             throw new IllegalArgumentException("El código es obligatorio");
@@ -51,15 +59,46 @@ public class InventarioService {
         return insumoDao.listAll();
     }
 
-    public Long registrarMovimiento(Long insumoId, String tipo, int cantidad, String destinoFuente) {
+    // =====================================================
+    // === MOVIMIENTOS + CONTROL DE STOCK MÍNIMO
+    // =====================================================
+    /**
+     * Resultado del control de stock luego de registrar un movimiento.
+     */
+    public static class StockCheckResult {
+
+        public final long insumoId;
+        public final int stockActual;
+        public final Integer stockMinimo;
+        public final boolean bajoMinimo;
+
+        public StockCheckResult(long insumoId, int stockActual, Integer stockMinimo) {
+            this.insumoId = insumoId;
+            this.stockActual = stockActual;
+            this.stockMinimo = stockMinimo;
+            this.bajoMinimo = (stockMinimo != null) && (stockActual < stockMinimo);
+        }
+    }
+
+    /**
+     * Registra un movimiento de inventario (ENTRADA o SALIDA) y devuelve
+     * información de control de stock.
+     */
+    public StockCheckResult registrarMovimiento(Long insumoId, String tipo, int cantidad, String destinoFuente) {
+        if (movimientoDao == null) {
+            throw new IllegalStateException("MovimientoDao no inicializado");
+        }
+
+        // Buscar insumo asociado
         var insumo = insumoDao.listAll().stream()
                 .filter(i -> i.getId().equals(insumoId))
                 .findFirst()
                 .orElseThrow(() -> new IllegalArgumentException("Insumo no encontrado id=" + insumoId));
 
+        // Crear movimiento
         Movimiento m = new Movimiento();
         m.setInsumo(insumo);
-        m.setTipo(tipo);
+        m.setTipo(tipo);               // ENTRADA o SALIDA
         m.setCantidad(cantidad);
         m.setDestinoFuente(destinoFuente);
 
@@ -68,23 +107,27 @@ public class InventarioService {
             m.setUsuario(u);
         }
 
-        return movimientoDao.registrar(m);
+        // Registrar en BD
+        movimientoDao.registrar(m);
+
+        // Calcular stock actual y comparar con stock mínimo
+        int stockAct = movimientoDao.stockActual(insumoId);
+        return new StockCheckResult(insumoId, stockAct, insumo.getStockMinimo());
     }
 
+    // =====================================================
+    // === CONSULTAS
+    // =====================================================
     public int totalInsumos() {
         return listarTodos().size();
     }
 
-    public java.math.BigDecimal gastosMensuales(java.time.LocalDate desde, java.time.LocalDate hasta) {
+    public BigDecimal gastosMensuales(LocalDate desde, LocalDate hasta) {
         // placeholder: implementar cuando definan el modelo de gastos/movimientos
-        return java.math.BigDecimal.ZERO;
+        return BigDecimal.ZERO;
     }
 
-    public java.util.List<ar.edu.unse.siga.domain.Insumo> buscarInsumos(
-            String categoriaLike,
-            java.time.LocalDate desde,
-            java.time.LocalDate hasta
-    ) {
+    public List<Insumo> buscarInsumos(String categoriaLike, LocalDate desde, LocalDate hasta) {
         // Por ahora filtramos solo por categoría en memoria. Ignoramos fechas.
         return listarTodos().stream()
                 .filter(i -> {
@@ -98,7 +141,7 @@ public class InventarioService {
                 .toList();
     }
 
-    public java.util.List<Movimiento> ultimosMovimientos(long insumoId, int limit) {
+    public List<Movimiento> ultimosMovimientos(long insumoId, int limit) {
         if (movimientoDao == null) {
             throw new IllegalStateException("MovimientoDao no inicializado");
         }
@@ -111,8 +154,4 @@ public class InventarioService {
         }
         return movimientoDao.stockActual(insumoId);
     }
-
 }
-
-//al hacer el swing, la UI solo hablara con este servicio, nunca con JDBC directo :D atte luka.
-
