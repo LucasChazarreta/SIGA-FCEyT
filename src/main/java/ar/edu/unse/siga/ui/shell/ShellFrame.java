@@ -15,6 +15,7 @@ import ar.edu.unse.siga.ui.pages.InventoryMovementsPage;
 import ar.edu.unse.siga.ui.pages.InventoryPage;
 import ar.edu.unse.siga.ui.pages.TramiteEntradaPage;
 import ar.edu.unse.siga.ui.reportes.InformesPanel;
+import ar.edu.unse.siga.ui.pages.ProfilePage;
 
 import javax.swing.*;
 import java.awt.*;
@@ -59,15 +60,20 @@ public class ShellFrame extends JFrame {
         root.add(cardHolder, BorderLayout.CENTER);
 
         // Páginas
-        addPage("home", new HomePage());
+        addPage("home", new HomePage(
+                CurrentSession.getUser(), // usuario para el saludo
+                inventarioService, // métricas dinámicas (insumos críticos)
+                this::showPage // callback navegación desde Home
+        ));
         addPage("inventario", new InventoryPage(inventarioService));
         addPage("movimientos", new InventoryMovementsPage(inventarioService));
         addPage("tramites", new TramiteEntradaPage(tramiteService));
         addPage("reportes", new InformesPanel(inventarioService, tramiteService));
         addPage("finanzas", new FinanzasPage());
+        addPage("perfil", new ProfilePage(CurrentSession.getUser()));
 
         // Mostrar Home al iniciar
-        cardLayout.show(cards, "home");
+        showPage("home");
 
         setSize(1200, 760);
         setLocationRelativeTo(null);
@@ -173,14 +179,43 @@ public class ShellFrame extends JFrame {
 
     private NavButton nav(String text, String icon, String key) {
         NavButton btn = new NavButton(text, icon);
-        btn.addActionListener(e -> {
-            lblTitle.setText(text);
-            cardLayout.show(cards, key);
-        });
+        btn.addActionListener(e -> showPage(key, text));
         return btn;
     }
 
     private void addPage(String key, Component c) {
         cards.add(c, key);
+    }
+
+    /**
+     * Mostrar página y actualizar título (utilizada por el sidebar y por
+     * HomePage vía callback).
+     */
+    private void showPage(String key) {
+        // Si viene sin label, resolvemos acá el texto estándar
+        String text = switch (key) {
+            case "home" ->
+                "Inicio";
+            case "inventario" ->
+                "Inventario";
+            case "movimientos" ->
+                "Movimientos";
+            case "reportes" ->
+                "Informes";
+            case "tramites" ->
+                "Trámites";
+            case "finanzas" ->
+                "Finanzas";
+            case "perfil" ->
+                "Perfil";
+            default ->
+                key;
+        };
+        showPage(key, text);
+    }
+
+    private void showPage(String key, String titleText) {
+        lblTitle.setText(titleText);
+        cardLayout.show(cards, key);
     }
 }
