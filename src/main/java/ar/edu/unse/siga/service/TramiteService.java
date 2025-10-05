@@ -15,21 +15,35 @@ public class TramiteService {
         this.tramiteDao = tramiteDao;
     }
 
-    public Long registrarTramite(String nro, String asunto, String solicitante) {
-        if (nro == null || nro.isBlank()) {
-            throw new IllegalArgumentException("Número obligatorio");
-        }
-        if (asunto == null || asunto.isBlank()) {
-            throw new IllegalArgumentException("Asunto obligatorio");
-        }
-        Tramite t = new Tramite();
-        t.setNro(nro);
-        t.setAsunto(asunto);
-        t.setSolicitante(solicitante);
-        t.setEstado("NUEVO");
-        t.setFecha(LocalDateTime.now());
-        return tramiteDao.create(t);
+// ✅ Método principal: guarda exactamente la descripción que venga de la UI
+public Long registrarTramite(String nro, String asunto, String solicitante, String descripcion) {
+    if (nro == null || nro.isBlank()) {
+        throw new IllegalArgumentException("Número obligatorio");
     }
+    if (asunto == null || asunto.isBlank()) {
+        throw new IllegalArgumentException("Asunto obligatorio");
+    }
+
+    Tramite t = new Tramite();
+    t.setNro(nro.trim());
+    t.setAsunto(asunto.trim());
+    t.setSolicitante(solicitante != null ? solicitante.trim() : "Desconocido");
+    t.setEstado("NUEVO");
+    t.setFecha(LocalDateTime.now());
+
+    // 👉 Guardar tal cual lo ingresó el usuario (puede ser null o vacío)
+    t.setDescripcion(descripcion != null ? descripcion.trim() : null);
+
+    return tramiteDao.create(t);
+}
+
+// ✅ Overload para compatibilidad (si en algún punto todavía no pasás la descripción)
+public Long registrarTramite(String nro, String asunto, String solicitante) {
+    // no inventamos “Trámite sobre…”, simplemente delegamos con null
+    return registrarTramite(nro, asunto, solicitante, null);
+}
+
+
 
     public void cambiarEstado(Long id, String nuevoEstado) {
         if (nuevoEstado == null || nuevoEstado.isBlank()) {

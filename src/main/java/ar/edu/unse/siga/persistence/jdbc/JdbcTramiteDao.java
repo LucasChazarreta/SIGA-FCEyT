@@ -12,43 +12,53 @@ import java.util.Optional;
 
 public class JdbcTramiteDao implements TramiteDao {
 
-    private Tramite mapRow(ResultSet rs) throws SQLException {
-        Tramite t = new Tramite();
-        t.setId(rs.getLong("id"));
-        t.setNro(rs.getString("nro"));
-        t.setAsunto(rs.getString("asunto"));
-        t.setEstado(rs.getString("estado"));
-        Timestamp ts = rs.getTimestamp("fecha");
-        if (ts != null) t.setFecha(ts.toLocalDateTime());
-        t.setSolicitante(rs.getString("solicitante"));
-        return t;
+private Tramite mapRow(ResultSet rs) throws SQLException {
+    Tramite t = new Tramite();
+    t.setId(rs.getLong("id"));
+    t.setNro(rs.getString("nro"));
+    t.setAsunto(rs.getString("asunto"));
+    t.setEstado(rs.getString("estado"));
+    Timestamp ts = rs.getTimestamp("fecha");
+    if (ts != null) t.setFecha(ts.toLocalDateTime());
+    t.setSolicitante(rs.getString("solicitante"));
+
+    // 🔹 NUEVO: leer la descripción si existe en la tabla
+    try {
+        t.setDescripcion(rs.getString("descripcion"));
+    } catch (SQLException ignore) {
+        // en caso de que la columna no exista (por compatibilidad)
     }
 
-    @Override
-    public Long create(Tramite t) {
-        String sql = "INSERT INTO tramite(nro, asunto, estado, fecha, solicitante) VALUES (?,?,?,?,?)";
-        try (Connection cn = DataSourceFactory.getConnection();
-             PreparedStatement ps = cn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
+    return t;
+}
 
-            ps.setString(1, t.getNro());
-            ps.setString(2, t.getAsunto());
-            ps.setString(3, t.getEstado());
-            ps.setTimestamp(4, Timestamp.valueOf(t.getFecha()!=null? t.getFecha(): LocalDateTime.now()));
-            ps.setString(5, t.getSolicitante());
+@Override
+public Long create(Tramite t) {
+    // 🔹 Agregamos el campo descripcion
+    String sql = "INSERT INTO tramite(nro, asunto, estado, fecha, solicitante, descripcion) VALUES (?,?,?,?,?,?)";
+    try (Connection cn = DataSourceFactory.getConnection();
+         PreparedStatement ps = cn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
 
-            ps.executeUpdate();
-            try (ResultSet rs = ps.getGeneratedKeys()) {
-                if (rs.next()) {
-                    long id = rs.getLong(1);
-                    t.setId(id);
-                    return id;
-                }
-                throw new SQLException("No se obtuvo ID generado");
+        ps.setString(1, t.getNro());
+        ps.setString(2, t.getAsunto());
+        ps.setString(3, t.getEstado());
+        ps.setTimestamp(4, Timestamp.valueOf(t.getFecha() != null ? t.getFecha() : LocalDateTime.now()));
+        ps.setString(5, t.getSolicitante());
+        ps.setString(6, t.getDescripcion()); // 🔹 NUEVO
+
+        ps.executeUpdate();
+        try (ResultSet rs = ps.getGeneratedKeys()) {
+            if (rs.next()) {
+                long id = rs.getLong(1);
+                t.setId(id);
+                return id;
             }
-        } catch (SQLException e) {
-            throw new RuntimeException("Error creando trámite", e);
+            throw new SQLException("No se obtuvo ID generado");
         }
+    } catch (SQLException e) {
+        throw new RuntimeException("Error creando trámite", e);
     }
+}
 
     @Override
     public void updateEstado(Long id, String nuevoEstado) {

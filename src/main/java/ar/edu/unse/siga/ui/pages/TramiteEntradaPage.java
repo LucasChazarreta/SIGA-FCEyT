@@ -288,29 +288,37 @@ public class TramiteEntradaPage extends JPanel {
         return date.format(DateTimeFormatter.BASIC_ISO_DATE) + "-" + (int) (Math.random() * 90000 + 10000);
     }
 
-    private void onSave() {
-        try {
-            String nro = lblNumero.getText();
-            String asunto = txtAsunto.getText().trim();
-            String solicitante = txtRemitente.getText().trim();
-            if (asunto.isEmpty()) {
-                throw new IllegalArgumentException("El asunto es obligatorio");
-            }
+private void onSave() {
+    try {
+        String nro         = lblNumero.getText() != null ? lblNumero.getText().trim() : null;
+        String asunto      = txtAsunto.getText() != null ? txtAsunto.getText().trim() : "";
+        String solicitante = txtRemitente.getText() != null ? txtRemitente.getText().trim() : "";
+        String descripcion = txtDescripcion.getText() != null ? txtDescripcion.getText().trim() : null;
 
-            service.registrarTramite(nro, asunto, solicitante);
-
-            Ui.info(this, "Trámite registrado correctamente.");
-            lblNumero.setText(generateNumero(LocalDate.now()));
-            txtAsunto.setText("");
-            txtRemitente.setText("");
-            txtDescripcion.setText("");
-            txtDestino.setText("");
-            txtDestinatario.setText("");
-            loadTableData();
-        } catch (Exception e) {
-            Ui.error(this, e);
+        if (asunto.isEmpty()) {
+            throw new IllegalArgumentException("El asunto es obligatorio");
         }
+
+        // 👉 ahora pasamos también la descripción
+        service.registrarTramite(nro, asunto, solicitante, (descripcion != null && !descripcion.isBlank()) ? descripcion : null);
+
+        Ui.info(this, "Trámite registrado correctamente.");
+
+        // Reset de campos
+        lblNumero.setText(generateNumero(java.time.LocalDate.now()));
+        txtAsunto.setText("");
+        txtRemitente.setText("");
+        txtDescripcion.setText("");
+        txtDestino.setText("");
+        txtDestinatario.setText("");
+
+        // refresco de la tabla
+        loadTableData();
+    } catch (Exception e) {
+        Ui.error(this, e);
     }
+}
+
 
     private void loadTableData() {
         DefaultTableModel model = (DefaultTableModel) table.getModel();

@@ -10,9 +10,13 @@ public class Tramite {
     private String estado; // p.ej. NUEVO, EN_PROCESO, CERRADO
     private LocalDateTime fecha;
     private String solicitante;
+    private String descripcion;
+
+
 
     public Tramite() {}
-
+    public String getDescripcion() { return descripcion; }
+    public void setDescripcion(String descripcion) { this.descripcion = descripcion; }
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
     public String getNro() { return nro; }
