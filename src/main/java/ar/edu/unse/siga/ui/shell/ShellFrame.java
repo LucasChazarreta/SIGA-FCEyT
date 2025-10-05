@@ -18,8 +18,11 @@ import ar.edu.unse.siga.ui.reportes.InformesPanel;
 import javax.swing.*;
 import java.awt.*;
 import java.time.format.DateTimeFormatter;
+import java.util.HashMap;
+import java.util.Map;
 
 public class ShellFrame extends JFrame {
+
     private final CardLayout cardLayout = new CardLayout();
     private final JPanel cards = new JPanel(cardLayout);
     private final JLabel lblTitle = new JLabel("Inicio");
@@ -29,6 +32,10 @@ public class ShellFrame extends JFrame {
     private final InventarioService inventarioService;
     private final TramiteService tramiteService;
     private final AuthService authService;
+
+    // mapa de clave de tarjeta -> botón del sidebar
+    private final Map<String, NavButton> navByKey = new HashMap<>();
+    private final ButtonGroup navGroup = new ButtonGroup();
 
     public ShellFrame(InventarioService inv, TramiteService tra, AuthService auth) {
         super("SIGA-FCEyT");
@@ -41,7 +48,7 @@ public class ShellFrame extends JFrame {
 
         // Fondo general con gradiente
         var root = new GradientPanel();
-        root.setLayout(new BorderLayout(24,24));
+        root.setLayout(new BorderLayout(24, 24));
         setContentPane(root);
 
         // Sidebar
@@ -50,23 +57,25 @@ public class ShellFrame extends JFrame {
 
         // Card container (cada página va adentro de una “tarjeta”)
         var cardHolder = new CardPanel();
-        cardHolder.setLayout(new BorderLayout(20,20));
+        cardHolder.setLayout(new BorderLayout(20, 20));
         cardHolder.add(buildHeader(), BorderLayout.NORTH);
         cards.setOpaque(false);
         cardHolder.add(cards, BorderLayout.CENTER);
-
         root.add(cardHolder, BorderLayout.CENTER);
 
         // Páginas
-        addPage("home", new HomePage());
-        addPage("inventario", new InventoryPage(inventarioService));
+        addPage("home",        new HomePage());
+        addPage("inventario",  new InventoryPage(inventarioService));
         addPage("movimientos", new InventoryMovementsPage(inventarioService));
-        addPage("tramites", new TramiteEntradaPage(tramiteService));
-        addPage("reportes", new InformesPanel(inventarioService, tramiteService));
-        addPage("finanzas", new FinanzasPage());
+        addPage("tramites",    new TramiteEntradaPage(tramiteService));
+        addPage("reportes",    new InformesPanel(inventarioService, tramiteService));
+        addPage("finanzas",    new FinanzasPage());
 
         setSize(1200, 760);
         setLocationRelativeTo(null);
+
+        // Estado inicial (resalta botón activo y muestra la card)
+        showCard("home", "Inicio");
     }
 
     private JPanel buildHeader() {
@@ -89,6 +98,7 @@ public class ShellFrame extends JFrame {
         side.setPreferredSize(new Dimension(260, 720));
         side.setLayout(new BorderLayout());
 
+        // Marca / branding
         JPanel brand = new JPanel();
         brand.setOpaque(false);
         brand.setLayout(new BoxLayout(brand, BoxLayout.Y_AXIS));
@@ -104,25 +114,25 @@ public class ShellFrame extends JFrame {
         brand.add(tagline);
         side.add(brand, BorderLayout.NORTH);
 
+        // Menú
         JPanel menu = new JPanel();
         menu.setOpaque(false);
         menu.setLayout(new BoxLayout(menu, BoxLayout.Y_AXIS));
         menu.setBorder(BorderFactory.createEmptyBorder(8, 16, 16, 16));
 
-        ButtonGroup grp = new ButtonGroup();
-        NavButton bHome = nav("Inicio", "ui/icons/home.svg", "home");
-        NavButton bInv = nav("Inventario", "ui/icons/inventory.svg", "inventario");
-        NavButton bMov = nav("Movimientos", "ui/icons/movements.svg", "movimientos", 1);
-        NavButton bInf = nav("Informes", "ui/icons/reports.svg", "reportes");
-        NavButton bTra = nav("Trámites", "ui/icons/tramites.svg", "tramites");
-        NavButton bFin = nav("Finanzas", "ui/icons/finanzas.svg", "finanzas");
+        NavButton bHome = nav("Inicio",       "ui/icons/home.svg",       "home");
+        NavButton bInv  = nav("Inventario",   "ui/icons/inventory.svg",  "inventario");
+        NavButton bMov  = nav("Movimientos",  "ui/icons/movements.svg",  "movimientos", 1);
+        NavButton bInf  = nav("Informes",     "ui/icons/reports.svg",    "reportes");
+        NavButton bTra  = nav("Trámites",     "ui/icons/tramites.svg",   "tramites");
+        NavButton bFin  = nav("Finanzas",     "ui/icons/finanzas.svg",   "finanzas");
 
-        grp.add(bHome);
-        grp.add(bInv);
-        grp.add(bMov);
-        grp.add(bInf);
-        grp.add(bTra);
-        grp.add(bFin);
+        navGroup.add(bHome);
+        navGroup.add(bInv);
+        navGroup.add(bMov);
+        navGroup.add(bInf);
+        navGroup.add(bTra);
+        navGroup.add(bFin);
 
         menu.add(bHome);
         menu.add(Box.createVerticalStrut(8));
@@ -137,9 +147,9 @@ public class ShellFrame extends JFrame {
         menu.add(bFin);
         menu.add(Box.createVerticalGlue());
 
-        bHome.setSelected(true);
         side.add(menu, BorderLayout.CENTER);
 
+        // Logout
         JButton btnLogout = new JButton("  Cerrar sesión", (Icon) ThemeManager.svg("ui/icons/logout.svg", 18));
         btnLogout.setFocusPainted(false);
         btnLogout.setForeground(Color.WHITE);
@@ -156,17 +166,32 @@ public class ShellFrame extends JFrame {
         return side;
     }
 
+    /** Crea y registra un NavButton asociado a la clave de CardLayout. */
     private NavButton nav(String text, String icon, String key) {
         return nav(text, icon, key, 0);
     }
 
     private NavButton nav(String text, String icon, String key, int level) {
         NavButton btn = new NavButton(text, icon, level);
-        btn.addActionListener(e -> {
-            lblTitle.setText(text);
-            cardLayout.show(cards, key);
-        });
+        // registrar en el mapa para poder seleccionar el botón cuando cambiemos de card
+        navByKey.put(key, btn);
+
+        // SIEMPRE navegar con showCard(...) para mantener sincronía visual
+        btn.addActionListener(e -> showCard(key, text));
         return btn;
+    }
+
+    /** Muestra la card y resalta el botón activo (pastilla blanca). */
+    private void showCard(String key, String title) {
+        cardLayout.show(cards, key);
+        lblTitle.setText(title);
+
+        // marcar seleccionado el botón correspondiente
+        for (Map.Entry<String, NavButton> e : navByKey.entrySet()) {
+            NavButton b = e.getValue();
+            boolean sel = e.getKey().equals(key);
+            b.setSelected(sel);
+        }
     }
 
     private void addPage(String key, Component c) {
