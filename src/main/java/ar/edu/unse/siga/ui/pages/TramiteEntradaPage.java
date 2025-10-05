@@ -18,6 +18,8 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Locale;
+import javax.swing.table.TableColumn;
+import javax.swing.event.TableModelEvent;
 
 public class TramiteEntradaPage extends JPanel {
 
@@ -34,23 +36,30 @@ public class TramiteEntradaPage extends JPanel {
 
 
     private final JTextField filterSearch = new JTextField(18);
-    private final JComboBox<String> filterCategoria = new JComboBox<>(
-            new String[]{"Todas", "Matrículas", "Ingresos", "Suministros", "Pagos"});
+    
     private final JComboBox<String> filterEstado = new JComboBox<>(
-            new String[]{"Todos", "Completado", "En proceso", "Pendiente", "Alta"});
+            new String[]{"Estado", "Completado", "En proceso", "Pendiente", });
 
     private final CardLayout cardLayout = new CardLayout();
     private final JPanel cards = new JPanel(cardLayout);
 
     private final JTable table = new JTable(new DefaultTableModel(
-            new Object[][]{},
-            new String[]{"ID Trámite", "Asunto", "Fecha actualización", "Última actualización", "Prioridad", "Estado"}
-    )) {
+        new Object[][]{},
+        new String[]{"ID Trámite", "Asunto", "Fecha actualización", "Última actualización", "Descripción", "Estado", "ID_DB"}
+    ) {
         @Override
         public boolean isCellEditable(int row, int column) {
-            return false;
+            return column == 5; // Solo "Estado"
+        }
+    }) {
+        @Override
+        public boolean isCellEditable(int row, int column) {
+            // Delegar en el modelo para claridad
+            return ((DefaultTableModel) getModel()).isCellEditable(row, column);
         }
     };
+    
+   
 
     public TramiteEntradaPage(TramiteService service) {
         this.service = service;
@@ -387,17 +396,13 @@ public class TramiteEntradaPage extends JPanel {
         filterSearch.putClientProperty("JTextField.placeholderText", "Buscar");
         fields.add(filterSearch);
 
-        styleFilterField(filterCategoria, 160);
-        fields.add(filterCategoria);
+        
 
         styleFilterField(filterEstado, 160);
         fields.add(filterEstado);
 
         panel.add(fields, BorderLayout.CENTER);
 
-        JButton export = outlineButton("Exportar PDF");
-        export.addActionListener(e -> Ui.info(this, "Funcionalidad de exportación en desarrollo."));
-        panel.add(export, BorderLayout.EAST);
 
         return panel;
     }
@@ -413,11 +418,18 @@ public class TramiteEntradaPage extends JPanel {
         table.setFont(new Font("Segoe UI", Font.PLAIN, 13));
         table.setAutoCreateRowSorter(true);
 
+        // Editar la celda de Estados con opciones 
+        JComboBox<String> estadoEditor = new JComboBox<>(new String[]{
+                "Completado", "En proceso", "Pendiente"
+        });
+        table.getColumnModel().getColumn(5).setCellEditor(new DefaultCellEditor(estadoEditor));
+
+        
         JTableHeader header = table.getTableHeader();
         header.setPreferredSize(new Dimension(header.getPreferredSize().width, 46));
         header.setDefaultRenderer(new TableHeaderRenderer());
 
-        table.getColumnModel().getColumn(4).setCellRenderer(new BadgeRenderer(BadgeRenderer.Type.PRIORITY));
+        //  ----------- AQUI ESTAN LOS COLORES DE LA TABLA DE TRAMITES ACTIVOS----------
         table.getColumnModel().getColumn(5).setCellRenderer(new BadgeRenderer(BadgeRenderer.Type.STATUS));
 
         JScrollPane scroll = new JScrollPane(table);
@@ -428,11 +440,40 @@ public class TramiteEntradaPage extends JPanel {
 
     private void configureTable() {
         loadTableData();
+        // === Editor para columna Estado ===
+        JComboBox<String> estadoEditor = new JComboBox<>(new String[]{
+                "Completado", "En proceso", "Pendiente", "Nuevo"
+        });
+        table.getColumnModel().getColumn(5).setCellEditor(new DefaultCellEditor(estadoEditor));
+        // === Ocultar la columna ID_DB (si la agregaste) ===
+        TableColumn hiddenIdCol = table.getColumnModel().getColumn(6);
+        hiddenIdCol.setMinWidth(0);
+        hiddenIdCol.setMaxWidth(0);
+        hiddenIdCol.setPreferredWidth(0);
+        // === Listener para guardar cambios de estado ===
+        DefaultTableModel m = (DefaultTableModel) table.getModel();
+        m.addTableModelListener(e -> {
+            if (e.getType() != TableModelEvent.UPDATE) return;
+            int row = e.getFirstRow();
+            int col = e.getColumn();
+            if (row < 0 || col != 5) return; // solo si cambió "Estado"
+            Object idObj = m.getValueAt(row, 6);       // ID_DB oculto
+            Object estadoObj = m.getValueAt(row, 5);   // Estado visible
+            if (idObj == null || estadoObj == null) return;
+            try {
+                Long id = (idObj instanceof Long) ? (Long) idObj : Long.valueOf(idObj.toString());
+                String nuevoEstado = estadoObj.toString();
+                service.cambiarEstado(id, nuevoEstado);   // usa tu método existente
+                table.repaint();
+            } catch (Exception ex) {
+                Ui.error(this, ex);
+            }
+        });
+
     }
 
     private void installFilters() {
         filterSearch.getDocument().addDocumentListener(new SimpleDocumentListener(this::loadTableData));
-        filterCategoria.addActionListener(e -> loadTableData());
         filterEstado.addActionListener(e -> loadTableData());
     }
 
@@ -473,7 +514,6 @@ public class TramiteEntradaPage extends JPanel {
         model.setRowCount(0);
         try {
             String search = filterSearch.getText().trim().toLowerCase(Locale.ROOT);
-            String categoria = (String) filterCategoria.getSelectedItem();
             String estadoFiltro = (String) filterEstado.getSelectedItem();
 
             List<Tramite> tramites = service.listarTodos();
@@ -483,13 +523,12 @@ public class TramiteEntradaPage extends JPanel {
                     if (!texto.contains(search)) {
                         continue;
                     }
+                    if (!"Estado".equals(estadoFiltro) && !estadoFiltro.equalsIgnoreCase(estadoFiltro)) {
+                        continue;
+}
+
                 }
-                if (!"Todas".equalsIgnoreCase(categoria) && !matchesCategoria(t, categoria)) {
-                    continue;
-                }
-                if (!"Todos".equalsIgnoreCase(estadoFiltro) && !estadoMatches(t.getEstado(), estadoFiltro)) {
-                    continue;
-                }
+                
 
                 LocalDateTime fecha = t.getFecha();
                 String actualizacion = fecha != null
@@ -499,17 +538,20 @@ public class TramiteEntradaPage extends JPanel {
                         ? fecha.minusDays(1).format(DateTimeFormatter.ofPattern("dd/MM/yyyy"))
                         : "-";
 
-                String prioridad = prioridadDesdeEstado(t.getEstado());
+                
+                String descripcion = (t.getDescripcion() == null || t.getDescripcion().isBlank()) ? "-" : t.getDescripcion();
                 String estado = estadoFriendly(t.getEstado());
 
                 model.addRow(new Object[]{
-                        t.getNro(),
-                        t.getAsunto(),
-                        actualizacion,
-                        ultima,
-                        prioridad,
-                        estado
+                t.getNro(),
+                t.getAsunto(),
+                actualizacion,
+                ultima,
+                descripcion,
+                estado,
+                t.getId() // esta es la nueva columna oculta
                 });
+
             }
         } catch (Exception ex) {
             Ui.error(this, ex);

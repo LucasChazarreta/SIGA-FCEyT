@@ -38,6 +38,10 @@ public class TramiteService {
         t.setFecha(LocalDateTime.now());
         return tramiteDao.create(t);
     }
+    
+    
+    //----------Metodo para actualizar el campo Estado de tramite-------
+      
 
     public void cambiarEstado(Long id, String nuevoEstado) {
         if (nuevoEstado == null || nuevoEstado.isBlank()) {
