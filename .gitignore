@@ -1,0 +1,8 @@
+/target/
+*.log
+*.iml
+.nb-gradle/
+.nbproject/private/
+.idea/
+.DS_Store
+src/main/resources/application.properties
