@@ -38,8 +38,9 @@ public class TramiteEntradaPage extends JPanel {
     private final JTextField filterSearch = new JTextField(18);
     
     private final JComboBox<String> filterEstado = new JComboBox<>(
-            new String[]{"Estado", "Completado", "En proceso", "Pendiente", });
-
+            new String[]{"Completado", "En proceso", "Pendiente", }
+            );
+    
     private final CardLayout cardLayout = new CardLayout();
     private final JPanel cards = new JPanel(cardLayout);
 
@@ -523,13 +524,12 @@ public class TramiteEntradaPage extends JPanel {
                     if (!texto.contains(search)) {
                         continue;
                     }
-                    if (!"Estado".equals(estadoFiltro) && !estadoFiltro.equalsIgnoreCase(estadoFiltro)) {
+                    if (!"Estado".equals(estadoFiltro)&& !estadoFriendly(t.getEstado()).equalsIgnoreCase(estadoFiltro)) {
                         continue;
 }
 
                 }
                 
-
                 LocalDateTime fecha = t.getFecha();
                 String actualizacion = fecha != null
                         ? fecha.format(DateTimeFormatter.ofPattern("dd/MM/yyyy"))
@@ -538,7 +538,6 @@ public class TramiteEntradaPage extends JPanel {
                         ? fecha.minusDays(1).format(DateTimeFormatter.ofPattern("dd/MM/yyyy"))
                         : "-";
 
-                
                 String descripcion = (t.getDescripcion() == null || t.getDescripcion().isBlank()) ? "-" : t.getDescripcion();
                 String estado = estadoFriendly(t.getEstado());
 
@@ -599,7 +598,7 @@ public class TramiteEntradaPage extends JPanel {
         return switch (estado.toUpperCase(Locale.ROOT)) {
             case "COMPLETADO", "CERRADO" -> "Completado";
             case "EN_PROCESO" -> "En proceso";
-            case "ALTA" -> "Alta";
+            
             default -> capitalize(estado);
         };
     }
