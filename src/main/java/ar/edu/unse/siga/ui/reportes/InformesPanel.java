@@ -55,6 +55,11 @@ public class InformesPanel extends JPanel {
     private final JLabel lblPendientes = new JLabel("-");
     private final JLabel lblGastos = new JLabel("$-");
     private final JLabel lblPendientesMini = new JLabel();
+    
+    private final JTextField filterSearch = new JTextField(18);
+private final JComboBox<String> filterCategoria = new JComboBox<>(new String[]{"Todas","Matrículas","Ingresos","Suministros","Pagos"});
+private final JComboBox<String> filterEstado = new JComboBox<>(new String[]{"Todos","Completado","En proceso","Pendiente","Alta"});
+
 
     // --- INVENTARIO (como ya tenías) ---
     private final JComboBox<Categoria> cbCategoria = new JComboBox<>();
@@ -65,14 +70,16 @@ public class InformesPanel extends JPanel {
     ) { @Override public boolean isCellEditable(int r, int c) { return false; } };
 
     // --- TRÁMITES (nuevo tab “Trámites activos” dentro de Informes) ---
-    private final JTextField filterSearch = new JTextField(18);
-    private final JComboBox<String> filterCategoria = new JComboBox<>(
-            new String[]{"Todas", "Matrículas", "Ingresos", "Suministros", "Pagos"});
-    private final JComboBox<String> filterEstado = new JComboBox<>(
-            new String[]{"Todos", "Completado", "En proceso", "Pendiente", "Alta"});
-    private final DefaultTableModel modelTra = new DefaultTableModel(
-            new Object[]{"ID Trámite", "Asunto", "Fecha actualización", "Última actualización", "Prioridad", "Estado"}, 0
-    ) { @Override public boolean isCellEditable(int r, int c) { return false; } };
+
+
+    // antes tenía "Prioridad" y "Estado"
+private final DefaultTableModel modelTra = new DefaultTableModel(
+    new Object[]{"ID Trámite","Asunto","Fecha actualización","Última actualización","Descripción","Estado"}, 0
+) {
+    @Override public boolean isCellEditable(int r, int c) { return false; }
+};
+
+
 
     // UI de contenido por tabs
     private final CardLayout contentCards = new CardLayout();
@@ -121,6 +128,12 @@ public class InformesPanel extends JPanel {
         loadTableDataTramites(); // inicial
         installFiltersTramites(); // listeners filtros trámites
     }
+    
+    
+    
+
+
+
 
     // ====== Header con export ======
 private JComponent buildHeader() {
@@ -678,7 +691,7 @@ private JScrollPane buildTramitesTableScroll() {
     header.setPreferredSize(new Dimension(header.getPreferredSize().width, 46));
     header.setDefaultRenderer(new TableHeaderRenderer());
 
-    table.getColumnModel().getColumn(4).setCellRenderer(new BadgeRenderer(BadgeRenderer.Type.PRIORITY));
+    //table.getColumnModel().getColumn(4).setCellRenderer(new BadgeRenderer(BadgeRenderer.Type.PRIORITY));
     table.getColumnModel().getColumn(5).setCellRenderer(new BadgeRenderer(BadgeRenderer.Type.STATUS));
 
     JScrollPane scroll = new JScrollPane(table);
@@ -694,43 +707,26 @@ private JScrollPane buildTramitesTableScroll() {
         c.setMinimumSize(d);
     }
 
-    private void installFiltersTramites() {
-        filterSearch.getDocument().addDocumentListener(new SimpleDocumentListener(this::loadTableDataTramites));
-        filterCategoria.addActionListener(e -> loadTableDataTramites());
-        filterEstado.addActionListener(e -> loadTableDataTramites());
-    }
-
 private void loadTableDataTramites() {
     modelTra.setRowCount(0);
     try {
-        if (traService == null) {
-            JOptionPane.showMessageDialog(this,
-                    "TramiteService no fue inyectado (traService == null).",
-                    "Trámites", JOptionPane.WARNING_MESSAGE);
-            return;
-        }
-
-        String search = filterSearch.getText().trim().toLowerCase(Locale.ROOT);
+        String search = filterSearch.getText().trim().toLowerCase(java.util.Locale.ROOT);
         String categoria = (String) filterCategoria.getSelectedItem();
         String estadoFiltro = (String) filterEstado.getSelectedItem();
 
-        List<Tramite> tramites = traService.listarTodos();
-        System.out.println("[Informes] tramites.size = " + (tramites == null ? "null" : tramites.size()));
-
-        if (tramites == null || tramites.isEmpty()) {
-            // No hay datos: salir silenciosamente (deja encabezados vacíos)
-            return;
-        }
+        java.util.List<Tramite> tramites = traService.listarTodos();
+        if (tramites == null) return;
 
         for (Tramite t : tramites) {
             if (!search.isEmpty()) {
                 String texto = (String.valueOf(t.getAsunto()) + " " + String.valueOf(t.getNro()))
-                        .toLowerCase(Locale.ROOT);
+                        .toLowerCase(java.util.Locale.ROOT);
                 if (!texto.contains(search)) continue;
             }
 
+            // Categoría heurística (como tenías)
             if (!"Todas".equals(categoria)) {
-                String as = t.getAsunto() == null ? "" : t.getAsunto().toLowerCase(Locale.ROOT);
+                String as = t.getAsunto() == null ? "" : t.getAsunto().toLowerCase(java.util.Locale.ROOT);
                 boolean match =
                         ("Matrículas".equals(categoria) && as.contains("matric")) ||
                         ("Ingresos".equals(categoria)   && as.contains("ingres")) ||
@@ -744,16 +740,138 @@ private void loadTableDataTramites() {
 
             String actualizacion = t.getFecha() == null ? "-" : t.getFecha().toString();
             String ultima        = t.getFecha() == null ? "-" : t.getFecha().plusDays(1).toString(); // placeholder
-            String prioridad     = prioridadDesdeEstado(estado);
 
-            modelTra.addRow(new Object[]{ t.getNro(), t.getAsunto(), actualizacion, ultima, prioridad, estado });
+            // NUEVO: descripción (reflexión para no romper si el método se llama distinto)
+            String descripcion = extraerDescripcionTramite(t);
+
+            modelTra.addRow(new Object[]{
+                    t.getNro(),
+                    t.getAsunto(),
+                    actualizacion,
+                    ultima,
+                    descripcion,   // <--- reemplaza a “Prioridad”
+                    estado         // renderer STATUS aplicado a esta col
+            });
         }
-
     } catch (Exception ex) {
         ex.printStackTrace();
-        JOptionPane.showMessageDialog(this, ex.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
+        javax.swing.JOptionPane.showMessageDialog(this, ex.getMessage(), "Error", javax.swing.JOptionPane.ERROR_MESSAGE);
     }
 }
+
+// Conecta los filtros de la pestaña TRÁMITES para recargar la tabla
+private void installFiltersTramites() {
+    if (filterSearch != null && filterSearch.getDocument() != null) {
+        filterSearch.getDocument().addDocumentListener(new SimpleDocumentListener() {
+            @Override public void update() { loadTableDataTramites(); }
+        });
+    }
+    if (filterCategoria != null) {
+        filterCategoria.addActionListener(e -> loadTableDataTramites());
+    }
+    if (filterEstado != null) {
+        filterEstado.addActionListener(e -> loadTableDataTramites());
+    }
+}
+
+
+
+
+
+
+
+/** Devuelve la descripción REAL del trámite (si no hay, devuelve "-"). */
+private String extraerDescripcionTramite(Object t) {
+    if (t == null) return "-";
+
+    // 0) Intento directo: getDescripcion() (el caso correcto si Tramite está bien mapeado)
+    try {
+        Method m = t.getClass().getMethod("getDescripcion");
+        Object val = m.invoke(t);
+        if (val != null) {
+            String s = val.toString().trim();
+            if (!s.isEmpty()) return s;
+        }
+    } catch (NoSuchMethodException ignore) {
+        // pasamos a otros nombres
+    } catch (Throwable ignore) {}
+
+    // 1) Intentos por otros nombres comunes
+    String v = tryGetter(t,
+            "getDescripción",
+            "getDetalle", "getDetalles",
+            "getObservacion", "getObservación", "getObservaciones",
+            "getNota", "getNotas",
+            "getComentario", "getComentarios",
+            "getMotivo", "getResumen",
+            "getInfo", "getInformacion", "getInformación"
+    );
+    if (v != null && !v.isBlank()) return v.trim();
+
+    // 2) Buscar entre TODOS los getters String con nombres sugerentes
+    try {
+        for (Method m : t.getClass().getMethods()) {
+            if (m.getParameterCount() == 0 &&
+                m.getName().startsWith("get") &&
+                m.getReturnType() == String.class) {
+
+                String name = m.getName().toLowerCase(Locale.ROOT);
+                if (name.contains("desc") || name.contains("detalle") ||
+                    name.contains("observ") || name.contains("nota") ||
+                    name.contains("coment") || name.contains("motivo")) {
+                    Object val = m.invoke(t);
+                    if (val != null) {
+                        String s = val.toString().trim();
+                        if (!s.isEmpty()) return s;
+                    }
+                }
+            }
+        }
+    } catch (Throwable ignore) {}
+
+    // 3) Intento por campos (no solo getters)
+    try {
+        for (java.lang.reflect.Field f : t.getClass().getDeclaredFields()) {
+            String n = f.getName().toLowerCase(Locale.ROOT);
+            if (n.contains("desc") || n.contains("detalle") ||
+                n.contains("observ") || n.contains("nota") ||
+                n.contains("coment") || n.contains("motivo")) {
+                f.setAccessible(true);
+                Object val = f.get(t);
+                if (val != null) {
+                    String s = val.toString().trim();
+                    if (!s.isEmpty()) return s;
+                }
+            }
+        }
+    } catch (Throwable ignore) {}
+
+    // ⚠️ Sin fallback al asunto
+    return "-";
+}
+
+
+
+/** Helper: probar una lista de getters y devolver el primero no vacío. */
+private static String tryGetter(Object obj, String... getters) {
+    for (String g : getters) {
+        try {
+            Method m = obj.getClass().getMethod(g);
+            Object val = m.invoke(obj);
+            if (val != null) {
+                String s = val.toString().trim();
+                if (!s.isEmpty()) return s;
+            }
+        } catch (NoSuchMethodException ignore) {
+            // seguir probando el siguiente
+        } catch (Throwable ignore) {
+            // ignorar y seguir
+        }
+    }
+    return null;
+}
+
+
 
 
     private String estadoFriendly(String estado) {
@@ -833,9 +951,12 @@ public Component getTableCellRendererComponent(JTable t, Object v, boolean s, bo
     private void exportInventarioToPdf() {
         exportModelToPdf("INFORME DE INVENTARIO", new String[]{"Código","Descripción","Estado","Fecha"}, modelInv);
     }
-    private void exportTramitesToPdf() {
-        exportModelToPdf("INFORME DE TRÁMITES", new String[]{"ID Trámite","Asunto","Fecha actualización","Última actualización","Prioridad","Estado"}, modelTra);
-    }
+private void exportTramitesToPdf() {
+    exportModelToPdf("INFORME DE TRÁMITES",
+        new String[]{"ID Trámite","Asunto","Fecha actualización","Última actualización","Descripción","Estado"},
+        modelTra);
+}
+
     private void exportModelToPdf(String titulo, String[] headers, DefaultTableModel model) {
         JFileChooser fc = new JFileChooser();
         fc.setDialogTitle("Guardar informe en PDF");
@@ -1011,13 +1132,12 @@ public Component getTableCellRendererComponent(JTable t, Object v, boolean s, bo
         return null;
     }
 
-    // Document listener simple
-    @FunctionalInterface interface SimpleChange { void onChange(); }
-    static class SimpleDocumentListener implements javax.swing.event.DocumentListener {
-        private final SimpleChange cb;
-        SimpleDocumentListener(SimpleChange cb) { this.cb = cb; }
-        @Override public void insertUpdate(javax.swing.event.DocumentEvent e) { cb.onChange(); }
-        @Override public void removeUpdate(javax.swing.event.DocumentEvent e) { cb.onChange(); }
-        @Override public void changedUpdate(javax.swing.event.DocumentEvent e) { cb.onChange(); }
-    }
+// Listener simple para JTextField/JTextArea
+private static abstract class SimpleDocumentListener implements javax.swing.event.DocumentListener {
+    public abstract void update();
+    @Override public void insertUpdate(javax.swing.event.DocumentEvent e) { update(); }
+    @Override public void removeUpdate(javax.swing.event.DocumentEvent e) { update(); }
+    @Override public void changedUpdate(javax.swing.event.DocumentEvent e) { update(); }
+}
+
 }
