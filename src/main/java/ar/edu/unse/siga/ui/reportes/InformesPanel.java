@@ -2,14 +2,14 @@ package ar.edu.unse.siga.ui.reportes;
 
 import ar.edu.unse.siga.domain.Categoria;
 import ar.edu.unse.siga.domain.Insumo;
+import ar.edu.unse.siga.domain.Tramite;
 import ar.edu.unse.siga.service.InventarioService;
 import ar.edu.unse.siga.service.TramiteService;
 import ar.edu.unse.siga.ui.base.CardPanel;
 
 import javax.swing.*;
-import javax.swing.table.DefaultTableCellRenderer;
-import javax.swing.table.DefaultTableModel;
-import javax.swing.table.JTableHeader;
+import javax.swing.border.EmptyBorder;
+import javax.swing.table.*;
 import javax.swing.text.MaskFormatter;
 import javax.swing.filechooser.FileNameExtensionFilter;
 import java.awt.*;
@@ -18,13 +18,13 @@ import java.text.ParseException;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
+import java.util.*;
 import java.util.stream.Collectors;
-
 import java.io.File;
+import java.io.FileOutputStream;
 import java.io.PrintWriter;
+import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
-
-
 
 // OpenPDF
 import com.lowagie.text.Document;
@@ -35,11 +35,10 @@ import com.lowagie.text.Phrase;
 import com.lowagie.text.pdf.PdfPCell;
 import com.lowagie.text.pdf.PdfPTable;
 import com.lowagie.text.pdf.PdfWriter;
-import java.io.FileOutputStream;
 
 public class InformesPanel extends JPanel {
 
-    // ======= Estilos Figma =======
+    // ======= Estilos =======
     private static final Color COL_BG = new Color(0xE9,0xEB,0xEF);
     private static final Color COL_TEXT_PRIMARY = new Color(0x0B,0x0B,0x0C);
     private static final Color COL_BRAND = new Color(0x2F,0x6B,0xE4);
@@ -50,23 +49,36 @@ public class InformesPanel extends JPanel {
     private final InventarioService invService;
     private final TramiteService traService;
 
+    // Métricas
     private final JLabel lblTotalInsumos = new JLabel("-");
     private final JLabel lblTotalTramites = new JLabel("-");
     private final JLabel lblPendientes = new JLabel("-");
     private final JLabel lblGastos = new JLabel("$-");
     private final JLabel lblPendientesMini = new JLabel();
 
+    // --- INVENTARIO (como ya tenías) ---
     private final JComboBox<Categoria> cbCategoria = new JComboBox<>();
-
-    // Date fields
     private final DateField dfDesde = new DateField();
     private final DateField dfHasta = new DateField();
-
-    private final DefaultTableModel model = new DefaultTableModel(
+    private final DefaultTableModel modelInv = new DefaultTableModel(
             new Object[]{"Código","Descripción","Estado","Fecha"}, 0
-    ) {
-        @Override public boolean isCellEditable(int row, int column) { return false; }
-    };
+    ) { @Override public boolean isCellEditable(int r, int c) { return false; } };
+
+    // --- TRÁMITES (nuevo tab “Trámites activos” dentro de Informes) ---
+    private final JTextField filterSearch = new JTextField(18);
+    private final JComboBox<String> filterCategoria = new JComboBox<>(
+            new String[]{"Todas", "Matrículas", "Ingresos", "Suministros", "Pagos"});
+    private final JComboBox<String> filterEstado = new JComboBox<>(
+            new String[]{"Todos", "Completado", "En proceso", "Pendiente", "Alta"});
+    private final DefaultTableModel modelTra = new DefaultTableModel(
+            new Object[]{"ID Trámite", "Asunto", "Fecha actualización", "Última actualización", "Prioridad", "Estado"}, 0
+    ) { @Override public boolean isCellEditable(int r, int c) { return false; } };
+
+    // UI de contenido por tabs
+    private final CardLayout contentCards = new CardLayout();
+    private final JPanel content = new JPanel(contentCards);
+    private JToggleButton btnInventario;
+    private JToggleButton btnTramites;
 
     public InformesPanel(InventarioService invService, TramiteService traService) {
         this.invService = invService;
@@ -78,7 +90,7 @@ public class InformesPanel extends JPanel {
         add(buildHeader(), BorderLayout.NORTH);
         add(buildContent(), BorderLayout.CENTER);
 
-        // Ocultar “Informes” del header global
+        // Ocultar el “Informes” chico del header global
         SwingUtilities.invokeLater(() -> {
             Window w = SwingUtilities.getWindowAncestor(InformesPanel.this);
             if (w instanceof JFrame frame) {
@@ -87,15 +99,10 @@ public class InformesPanel extends JPanel {
                 if (headerTitle != null) {
                     headerTitle.setText("");
                     Container parent = headerTitle.getParent();
-                    if (parent != null) {
-                        parent.revalidate();
-                        parent.repaint();
-                    }
+                    if (parent != null) { parent.revalidate(); parent.repaint(); }
                 }
             }
         });
-
-        // Re-aplicar cuando se muestre de nuevo
         this.addHierarchyListener(e -> {
             if ((e.getChangeFlags() & java.awt.event.HierarchyEvent.SHOWING_CHANGED) != 0 && isShowing()) {
                 SwingUtilities.invokeLater(() -> {
@@ -110,182 +117,75 @@ public class InformesPanel extends JPanel {
 
         cargarCategoriasEnCombo();
         reloadMetrics();
-        runQuery();
+        runQueryInventario();
+        loadTableDataTramites(); // inicial
+        installFiltersTramites(); // listeners filtros trámites
     }
 
-    /** Wrapper de fecha: FlatDatePicker si está disponible; si no, máscara. */
-    private static class DateField {
-        private final JComponent comp;
-        private final boolean usesFlatPicker;
-        private final DateTimeFormatter fmt = DateTimeFormatter.ofPattern("dd/MM/yyyy");
+    // ====== Header con export ======
+private JComponent buildHeader() {
+    JPanel header = new JPanel(new BorderLayout());
+    header.setOpaque(false);
 
-        DateField() {
-            JComponent c;
-            boolean ok = false;
-            try {
-                Class<?> cls = Class.forName("com.formdev.flatlaf.extras.components.FlatDatePicker");
-                c = (JComponent) cls.getDeclaredConstructor().newInstance();
+    // --- Centro: TÍTULO perfectamente centrado ---
+    JLabel title = new JLabel("INFORMES", SwingConstants.CENTER);
+    title.setFont(title.getFont().deriveFont(Font.BOLD, 36f));
+    title.setForeground(new Color(24, 63, 150));
 
-                Method setFormatString = cls.getMethod("setFormatString", String.class);
-                Method setPlaceholderText = cls.getMethod("setPlaceholderText", String.class);
-                Method setEditable = cls.getMethod("setEditable", boolean.class);
+    // panel centrador para que quede EXACTO en el medio
+    JPanel center = new JPanel(new GridBagLayout());
+    center.setOpaque(false);
+    center.add(title);
 
-                setFormatString.invoke(c, "dd/MM/yyyy");
-                setPlaceholderText.invoke(c, "dd/mm/aaaa");
-                setEditable.invoke(c, false);
+    // --- Derecha: acciones (exportar) ---
+    JPanel actions = new JPanel(new FlowLayout(FlowLayout.RIGHT, 10, 0));
+    actions.setOpaque(false);
+    JButton exportPdf = primaryButton("Exportar PDF");
+    JButton exportCsv = secondaryButton("Exportar CSV");
 
-                ok = true;
-            } catch (Throwable ignore) {
-                c = createMasked();
-            }
-            this.comp = c;
-            this.usesFlatPicker = ok;
-
-            Dimension size = new Dimension(120, 30);
-            comp.setPreferredSize(size);
-            comp.setMaximumSize(size);
+    exportPdf.addActionListener(e -> {
+        if (btnTramites != null && btnTramites.isSelected()) {
+            exportTramitesToPdf();
+        } else {
+            exportInventarioToPdf();
         }
-
-        private static JFormattedTextField createMasked() {
-            try {
-                MaskFormatter mf = new MaskFormatter("##/##/####");
-                mf.setPlaceholderCharacter('_');
-                JFormattedTextField tf = new JFormattedTextField(mf);
-                tf.putClientProperty("JComponent.roundRect", true);
-                tf.putClientProperty("JTextField.placeholderText", "dd/mm/aaaa");
-                return tf;
-            } catch (ParseException e) {
-                return new JFormattedTextField();
-            }
+    });
+    exportCsv.addActionListener(e -> {
+        if (btnTramites != null && btnTramites.isSelected()) {
+            exportTramitesToCsv();
+        } else {
+            exportInventarioToCsv();
         }
+    });
 
-        LocalDate getDate() {
-            if (usesFlatPicker) {
-                try {
-                    Method getDate = comp.getClass().getMethod("getDate");
-                    Object val = getDate.invoke(comp);
-                    return (val instanceof LocalDate) ? (LocalDate) val : null;
-                } catch (Throwable ignore) { return null; }
-            } else {
-                String txt = ((JFormattedTextField) comp).getText();
-                if (txt == null) return null;
-                txt = txt.trim();
-                if (txt.isEmpty() || txt.contains("_")) return null;
-                try {
-                    return LocalDate.parse(txt, fmt);
-                } catch (Exception e) {
-                    return null;
-                }
-            }
-        }
+    actions.add(exportPdf);
+    actions.add(exportCsv);
 
-        JComponent getComponent() { return comp; }
-    }
+    // --- Izquierda: ESPACIADOR con el MISMO ancho que 'actions' para equilibrar el centro ---
+    JPanel spacer = new JPanel();
+    spacer.setOpaque(false);
+    spacer.setPreferredSize(actions.getPreferredSize());
 
-    private void cargarCategoriasEnCombo() {
-        DefaultComboBoxModel<Categoria> model = new DefaultComboBoxModel<>();
-        model.addElement(null); // "Todas"
-        try {
-            var categorias = invService.listarCategorias();
-            for (Categoria c : categorias) model.addElement(c);
-        } catch (Exception e) {
-            System.err.println("No se pudieron cargar categorías: " + e.getMessage());
-        }
-        cbCategoria.setModel(model);
+    // ----- Ensamblado -----
+    header.add(spacer, BorderLayout.WEST);
+    header.add(center, BorderLayout.CENTER);
+    header.add(actions, BorderLayout.EAST);
+    header.setBorder(BorderFactory.createEmptyBorder(10, 20, 20, 20));
+    return header;
+}
 
-        cbCategoria.setRenderer(new DefaultListCellRenderer() {
-            @Override
-            public Component getListCellRendererComponent(JList<?> list, Object value, int index,
-                                                          boolean isSelected, boolean cellHasFocus) {
-                super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus);
-                setText(value == null ? "Todas" : ((Categoria) value).getNombre());
-                return this;
-            }
-        });
-    }
 
-    private JComponent buildHeader() {
-        JPanel header = new JPanel(new BorderLayout());
-        header.setOpaque(false);
 
-        JLabel title = new JLabel("INFORMES", SwingConstants.CENTER);
-        title.setFont(title.getFont().deriveFont(Font.BOLD, 36f));
-        title.setForeground(new Color(24, 63, 150));
-        header.add(title, BorderLayout.CENTER);
 
-        JPanel actions = new JPanel(new FlowLayout(FlowLayout.RIGHT, 10, 0));
-        actions.setOpaque(false);
-        JButton exportPdf = primaryButton("Exportar PDF");
-        JButton exportCsv = secondaryButton("Exportar CSV");
-
-        // Listener para exportar a PDF y CSV
-        exportPdf.addActionListener(e -> exportToPdf());
-        exportCsv.addActionListener(e -> exportToCsv());
-
-        actions.add(exportPdf);
-        actions.add(exportCsv);
-        header.add(actions, BorderLayout.EAST);
-
-        header.setBorder(BorderFactory.createEmptyBorder(10, 20, 20, 20));
-        return header;
-    }
-
-    private JComponent buildMetrics() {
-        JPanel row = new JPanel(new GridLayout(1, 3, 24, 0));
-        row.setOpaque(false);
-        row.setBorder(BorderFactory.createEmptyBorder(10, 40, 20, 40));
-
-        CardPanel c1 = metricCard("TOTAL INSUMOS", lblTotalInsumos, COL_BRAND_SOFT, COL_TEXT_PRIMARY, false);
-        CardPanel c2 = metricCard("TRÁMITES", lblTotalTramites, COL_CARD, COL_TEXT_PRIMARY, false);
-
-        lblPendientesMini.setText(" " + lblPendientes.getText() + " PENDIENTES");
-        lblPendientesMini.setForeground(COL_BRAND);
-        lblPendientesMini.setFont(lblPendientesMini.getFont().deriveFont(Font.BOLD, 16f));
-        JPanel c2inner = (JPanel) c2.getComponent(1);
-        c2inner.add(lblPendientesMini, BorderLayout.SOUTH);
-
-        CardPanel c3 = metricCard("GASTOS MENSUALES", lblGastos, COL_BRAND, Color.WHITE, true);
-
-        row.add(c1);
-        row.add(c2);
-        row.add(c3);
-        return row;
-    }
-
-    private CardPanel metricCard(String title, JLabel value, Color bg, Color text, boolean strong) {
-        CardPanel card = new CardPanel();
-        card.setLayout(new BorderLayout());
-        card.setOpaque(true);
-        card.setBackground(bg);
-        card.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createEmptyBorder(14, 20, 14, 20),
-                BorderFactory.createMatteBorder(0, 0, 3, 0, COL_SHADOW)
-        ));
-
-        JLabel lblTitle = new JLabel(title);
-        lblTitle.setForeground(text.equals(Color.WHITE) ? Color.WHITE : new Color(0x44,0x52,0x63));
-        lblTitle.setFont(lblTitle.getFont().deriveFont(Font.BOLD, 14f));
-        lblTitle.setBorder(BorderFactory.createEmptyBorder(0, 0, 8, 0));
-
-        value.setForeground(text);
-        value.setFont(value.getFont().deriveFont(Font.BOLD, strong ? 36f : 28f));
-
-        JPanel center = new JPanel(new BorderLayout());
-        center.setOpaque(false);
-        center.add(value, BorderLayout.CENTER);
-
-        card.add(lblTitle, BorderLayout.NORTH);
-        card.add(center, BorderLayout.CENTER);
-        return card;
-    }
-
+    // ====== Contenido con tabs ======
     private JComponent buildContent() {
         JPanel wrapper = new JPanel(new BorderLayout(8, 18));
         wrapper.setOpaque(false);
 
         ButtonGroup tabs = new ButtonGroup();
-        JToggleButton btnInventario = pill("INVENTARIO");
-        JToggleButton btnTramites = pill("TRÁMITES");
+        btnInventario = pill("INVENTARIO");
+        btnTramites   = pill("TRÁMITES");
+
         btnInventario.setSelected(true);
         tabs.add(btnInventario);
         tabs.add(btnTramites);
@@ -296,6 +196,42 @@ public class InformesPanel extends JPanel {
         tabRow.add(btnTramites);
         wrapper.add(tabRow, BorderLayout.NORTH);
 
+        // Panel INVENTARIO (métricas + filtros + tabla)
+        JPanel invPanel = new JPanel(new BorderLayout());
+        invPanel.setOpaque(false);
+        invPanel.add(buildMetrics(), BorderLayout.NORTH);
+        invPanel.add(buildInventarioSplit(), BorderLayout.CENTER);
+
+        // Panel TRÁMITES (filtros + tabla estilo “activos”)
+        JPanel traPanel = new JPanel(new BorderLayout(20, 24));
+        traPanel.setOpaque(false);
+        traPanel.add(buildTramitesFilters(), BorderLayout.NORTH);
+        traPanel.add(buildTramitesTableScroll(), BorderLayout.CENTER);
+
+        content.setOpaque(false);
+        content.add(invPanel, "INV");
+        content.add(traPanel, "TRA");
+
+        wrapper.add(content, BorderLayout.CENTER);
+
+        // Listeners de tabs
+        btnInventario.addActionListener(e -> {
+    contentCards.show(content, "INV");
+    // opcional: refrescar inventario si querés
+    // runQueryInventario();
+});
+
+btnTramites.addActionListener(e -> {
+    contentCards.show(content, "TRA");
+    loadTableDataTramites();   // ← recarga al cambiar de pestaña
+});
+
+
+        return wrapper;
+    }
+
+    // ====== INVENTARIO ======
+    private JPanel buildInventarioSplit() {
         JPanel split = new JPanel(new GridBagLayout());
         split.setOpaque(false);
 
@@ -304,74 +240,96 @@ public class InformesPanel extends JPanel {
         gc.fill = GridBagConstraints.BOTH;
         gc.weighty = 1;
 
-        CardPanel filtros = buildFiltrosPanel();
+        CardPanel filtros = buildFiltrosPanelInventario();
         gc.gridx = 0; gc.weightx = 0.25;
         split.add(filtros, gc);
 
-        CardPanel tabla = buildTablaPanel();
+        CardPanel tabla = buildTablaPanelInventario();
         gc.gridx = 1; gc.weightx = 0.75; gc.insets = new Insets(0, 0, 0, 0);
         split.add(tabla, gc);
 
-        JPanel center = new JPanel(new BorderLayout());
-        center.setOpaque(false);
-        center.add(buildMetrics(), BorderLayout.NORTH);
-        center.add(split, BorderLayout.CENTER);
-
-        wrapper.add(center, BorderLayout.CENTER);
-        return wrapper;
+        return split;
     }
 
-    private CardPanel buildFiltrosPanel() {
-        CardPanel card = new CardPanel();
-        card.setBorder(BorderFactory.createEmptyBorder(12, 8, 12, 12));
-        card.setLayout(new BorderLayout(10, 10));
+ private CardPanel buildFiltrosPanelInventario() {
+    CardPanel card = new CardPanel();
+    card.setBorder(BorderFactory.createEmptyBorder(12, 8, 12, 12));
+    card.setLayout(new BorderLayout(10, 10));
 
-        JLabel title = new JLabel("FILTROS");
-        title.setFont(title.getFont().deriveFont(Font.BOLD, 14f));
-        title.setForeground(new Color(73, 103, 204));
-        card.add(title, BorderLayout.NORTH);
+    // --- Título más grande (alineado a la izquierda) ---
+    JLabel title = new JLabel("FILTROS");
+    title.setFont(title.getFont().deriveFont(Font.BOLD, 16f)); // antes 14f
+    title.setForeground(new Color(73, 103, 204));
+    card.add(title, BorderLayout.NORTH);
 
-        JPanel fields = new JPanel();
-        fields.setOpaque(false);
-        fields.setLayout(new BoxLayout(fields, BoxLayout.Y_AXIS));
+    // --- Bloque de campos centrado un poco más abajo ---
+    JPanel fields = new JPanel();
+    fields.setOpaque(false);
+    fields.setLayout(new BoxLayout(fields, BoxLayout.Y_AXIS));
 
-        Dimension comboSize = new Dimension(220, 32);
-        cbCategoria.setPreferredSize(comboSize);
-        cbCategoria.setMaximumSize(comboSize);
-        cbCategoria.setAlignmentX(Component.LEFT_ALIGNMENT);
-        fields.add(filterField("Categoría", cbCategoria));
-        fields.add(Box.createVerticalStrut(12));
+    int formWidth = 180;
+    Dimension fieldSize = new Dimension(formWidth, 34);
 
-        fields.add(filterField("Desde", dfDesde.getComponent()));
-        fields.add(Box.createVerticalStrut(12));
-        fields.add(filterField("Hasta", dfHasta.getComponent()));
+    cbCategoria.setPreferredSize(fieldSize);
+    cbCategoria.setMaximumSize(fieldSize);
+    cbCategoria.setAlignmentX(Component.LEFT_ALIGNMENT);
 
-        JButton apply = primaryButton("APLICAR FILTROS");
-        apply.addActionListener(e -> runQuery());
-        apply.setAlignmentX(Component.CENTER_ALIGNMENT);
-        fields.add(Box.createVerticalStrut(18));
-        fields.add(apply);
+    dfDesde.getComponent().setPreferredSize(fieldSize);
+    dfDesde.getComponent().setMaximumSize(fieldSize);
+    dfDesde.getComponent().setAlignmentX(Component.LEFT_ALIGNMENT);
 
-        int formWidth = 260;
-        fields.setPreferredSize(new Dimension(formWidth, fields.getPreferredSize().height));
-        fields.setMaximumSize(new Dimension(formWidth, Integer.MAX_VALUE));
+    dfHasta.getComponent().setPreferredSize(fieldSize);
+    dfHasta.getComponent().setMaximumSize(fieldSize);
+    dfHasta.getComponent().setAlignmentX(Component.LEFT_ALIGNMENT);
 
-        JPanel centerWrapper = new JPanel(new FlowLayout(FlowLayout.CENTER, 0, 0));
-        centerWrapper.setOpaque(false);
-        centerWrapper.add(fields);
-        card.add(centerWrapper, BorderLayout.CENTER);
+    JPanel pCat   = filterField("Categoría", cbCategoria);
+    JPanel pDesde = filterField("Desde", dfDesde.getComponent());
+    JPanel pHasta = filterField("Hasta", dfHasta.getComponent());
 
-        JPanel tags = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 6));
-        tags.setOpaque(false);
-        tags.add(tag("Insumos"));
-        tags.add(tag("Oficina"));
-        tags.add(tag("Bienes"));
-        card.add(tags, BorderLayout.SOUTH);
-
-        return card;
+    Dimension panelFieldSize = new Dimension(formWidth, pCat.getPreferredSize().height);
+    for (JPanel p : new JPanel[]{pCat, pDesde, pHasta}) {
+        p.setAlignmentX(Component.LEFT_ALIGNMENT);
+        p.setMaximumSize(new Dimension(formWidth, Integer.MAX_VALUE));
+        p.setPreferredSize(panelFieldSize);
     }
 
-    private CardPanel buildTablaPanel() {
+    fields.add(pCat);
+    fields.add(Box.createVerticalStrut(16));
+    fields.add(pDesde);
+    fields.add(Box.createVerticalStrut(16));
+    fields.add(pHasta);
+    fields.add(Box.createVerticalStrut(22));
+
+    JButton apply = primaryButton("APLICAR FILTROS");
+    apply.addActionListener(e -> runQueryInventario());
+    apply.setAlignmentX(Component.LEFT_ALIGNMENT);
+    apply.setPreferredSize(new Dimension(formWidth, apply.getPreferredSize().height));
+    apply.setMaximumSize(new Dimension(formWidth, apply.getPreferredSize().height));
+    fields.add(apply);
+
+    fields.setPreferredSize(new Dimension(formWidth, fields.getPreferredSize().height));
+    fields.setMaximumSize(new Dimension(formWidth, Integer.MAX_VALUE));
+
+    // ↓ bajamos el bloque completo (el último número = espacio vertical)
+    JPanel centerWrapper = new JPanel(new FlowLayout(FlowLayout.CENTER, 0, 80));
+    centerWrapper.setOpaque(false);
+    centerWrapper.add(fields);
+    card.add(centerWrapper, BorderLayout.CENTER);
+
+    JPanel tags = new JPanel(new FlowLayout(FlowLayout.CENTER, 8, 10));
+    tags.setOpaque(false);
+    tags.add(tag("Insumos"));
+    tags.add(tag("Oficina"));
+    tags.add(tag("Bienes"));
+    card.add(tags, BorderLayout.SOUTH);
+
+    return card;
+}
+
+
+
+
+    private CardPanel buildTablaPanelInventario() {
         CardPanel card = new CardPanel();
         card.setLayout(new BorderLayout(10, 10));
 
@@ -380,7 +338,7 @@ public class InformesPanel extends JPanel {
         title.setForeground(new Color(73, 103, 204));
         card.add(title, BorderLayout.NORTH);
 
-        JTable table = new JTable(model);
+        JTable table = new JTable(modelInv);
         table.setRowHeight(38);
         table.setIntercellSpacing(new Dimension(0, 6));
         table.setShowGrid(true);
@@ -393,9 +351,8 @@ public class InformesPanel extends JPanel {
         header.setReorderingAllowed(false);
         header.setDefaultRenderer(new DefaultTableCellRenderer() {
             @Override
-            public Component getTableCellRendererComponent(JTable table, Object value, boolean isSelected,
-                                                           boolean hasFocus, int row, int column) {
-                JLabel lbl = (JLabel) super.getTableCellRendererComponent(table, value, isSelected, hasFocus, row, column);
+            public Component getTableCellRendererComponent(JTable t, Object v, boolean s, boolean f, int r, int c) {
+                JLabel lbl = (JLabel) super.getTableCellRendererComponent(t, v, s, f, r, c);
                 lbl.setHorizontalAlignment(SwingConstants.CENTER);
                 lbl.setBackground(new Color(230, 230, 230));
                 lbl.setOpaque(true);
@@ -423,22 +380,21 @@ public class InformesPanel extends JPanel {
     private DefaultTableCellRenderer statusRenderer() {
         return new DefaultTableCellRenderer() {
             @Override
-            public Component getTableCellRendererComponent(JTable table, Object value, boolean isSelected,
-                                                           boolean hasFocus, int row, int column) {
-                Component c = super.getTableCellRendererComponent(table, value, isSelected, hasFocus, row, column);
+            public Component getTableCellRendererComponent(JTable t, Object v, boolean s, boolean f, int r, int c) {
+                Component comp = super.getTableCellRendererComponent(t, v, s, f, r, c);
                 setHorizontalAlignment(CENTER);
-                if (value != null) {
-                    String text = value.toString();
+                if (v != null) {
+                    String text = v.toString();
                     setText(text.toUpperCase());
                     setOpaque(true);
                     setBorder(BorderFactory.createEmptyBorder(4, 12, 4, 12));
-                    switch (text.toLowerCase()) {
-                        case "activo" -> setBackground(new Color(212, 235, 216));
+                    switch (text.toLowerCase(Locale.ROOT)) {
+                        case "activo"    -> setBackground(new Color(212, 235, 216));
                         case "pendiente" -> setBackground(new Color(255, 239, 200));
-                        default -> setBackground(new Color(220, 228, 255));
+                        default          -> setBackground(new Color(220, 228, 255));
                     }
                 }
-                return c;
+                return comp;
             }
         };
     }
@@ -465,13 +421,6 @@ public class InformesPanel extends JPanel {
         b.setFocusPainted(false);
         b.setBorder(BorderFactory.createEmptyBorder(12, 18, 12, 18));
         return b;
-    }
-
-    private void stylizeSmall(JButton b) {
-        b.setFont(b.getFont().deriveFont(Font.BOLD, 12f));
-        b.setBorder(BorderFactory.createEmptyBorder(10, 14, 10, 14));
-        b.setBackground(COL_BRAND);
-        b.setForeground(Color.WHITE);
     }
 
     private JButton secondaryButton(String text) {
@@ -513,7 +462,101 @@ public class InformesPanel extends JPanel {
         return t;
     }
 
-    // ==== Métricas y consulta ====
+    // ==== Métricas ====
+private JComponent buildMetrics() {
+    JPanel row = new JPanel(new GridLayout(1, 3, 24, 0));
+    row.setOpaque(false);
+    row.setBorder(BorderFactory.createEmptyBorder(10, 40, 40, 40));
+
+    // 1) Total Insumos
+    CardPanel c1 = metricCard("TOTAL INSUMOS", lblTotalInsumos, COL_BRAND_SOFT, COL_TEXT_PRIMARY, false);
+    c1.setBorder(BorderFactory.createEmptyBorder(14, 20, 14, 20)); // sin línea gris
+
+    // 2) Trámites (solo número)
+    CardPanel c2 = metricCard("TRÁMITES", lblTotalTramites, COL_CARD, COL_TEXT_PRIMARY, false);
+    c2.setBorder(BorderFactory.createEmptyBorder(14, 20, 14, 20)); // sin línea gris
+
+    // 3) Gastos mensuales
+    CardPanel c3 = metricCard("GASTOS MENSUALES", lblGastos, COL_BRAND, Color.WHITE, true);
+    c3.setBorder(BorderFactory.createEmptyBorder(14, 20, 14, 20)); // sin línea gris
+
+    row.add(c1);
+    row.add(c2);
+    row.add(c3);
+    return row;
+}
+
+
+private CardPanel metricCard(String title, JLabel value, Color bg, Color text, boolean strong) {
+    // Panel con degradado azul claro
+    CardPanel card = new CardPanel() {
+        @Override
+        protected void paintComponent(Graphics g) {
+            super.paintComponent(g);
+            Graphics2D g2 = (Graphics2D) g.create();
+            int w = getWidth(), h = getHeight();
+
+            // Degradado azul más claro y suave
+            Color start = new Color(180, 205, 255); // azul celeste claro
+            Color end = new Color(110, 150, 240);   // azul un poco más fuerte
+            GradientPaint gp = new GradientPaint(0, 0, start, w, 0, end);
+            g2.setPaint(gp);
+            g2.fillRoundRect(0, 0, w, h, 20, 20);
+            g2.dispose();
+        }
+    };
+
+    card.setLayout(new BorderLayout());
+    card.setOpaque(false);
+    card.setBorder(BorderFactory.createEmptyBorder(14, 20, 14, 20));
+
+    JLabel lblTitle = new JLabel(title);
+    lblTitle.setForeground(new Color(30, 50, 100)); // azul más oscuro para contraste
+    lblTitle.setFont(lblTitle.getFont().deriveFont(Font.BOLD, 14f));
+    lblTitle.setBorder(BorderFactory.createEmptyBorder(0, 0, 8, 0));
+
+    value.setForeground(new Color(20, 40, 90)); // número en azul oscuro
+    value.setFont(value.getFont().deriveFont(Font.BOLD, strong ? 36f : 28f));
+
+    JPanel center = new JPanel(new BorderLayout());
+    center.setOpaque(false);
+    center.add(value, BorderLayout.CENTER);
+
+    card.add(lblTitle, BorderLayout.NORTH);
+    card.add(center, BorderLayout.CENTER);
+
+    card.setBorder(BorderFactory.createCompoundBorder(
+            BorderFactory.createEmptyBorder(10, 10, 10, 10),
+            BorderFactory.createLineBorder(new Color(0, 0, 0, 30), 1, true)
+    ));
+
+    return card;
+}
+
+
+
+    // ==== Carga de datos Inventario ====
+    private void cargarCategoriasEnCombo() {
+        DefaultComboBoxModel<Categoria> model = new DefaultComboBoxModel<>();
+        model.addElement(null); // "Todas"
+        try {
+            var categorias = invService.listarCategorias();
+            for (Categoria c : categorias) model.addElement(c);
+        } catch (Exception e) {
+            System.err.println("No se pudieron cargar categorías: " + e.getMessage());
+        }
+        cbCategoria.setModel(model);
+
+        cbCategoria.setRenderer(new DefaultListCellRenderer() {
+            @Override
+            public Component getListCellRendererComponent(JList<?> list, Object value, int index,
+                                                          boolean isSelected, boolean cellHasFocus) {
+                super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus);
+                setText(value == null ? "Todas" : ((Categoria) value).getNombre());
+                return this;
+            }
+        });
+    }
 
     private void reloadMetrics() {
         try { lblTotalInsumos.setText(String.valueOf(invService.listarTodos().size())); }
@@ -533,8 +576,8 @@ public class InformesPanel extends JPanel {
         catch (Exception e) { lblGastos.setText("$-"); }
     }
 
-    private void runQuery() {
-        model.setRowCount(0);
+    private void runQueryInventario() {
+        modelInv.setRowCount(0);
         try {
             Categoria sel = (Categoria) cbCategoria.getSelectedItem();
             String cat = (sel == null ? null : sel.getNombre());
@@ -548,12 +591,10 @@ public class InformesPanel extends JPanel {
             for (Insumo i : data) {
                 LocalDate fa = i.getFechaAlta();
                 if (fa == null && i.getCreatedAt() != null) {
-                    fa = java.time.ZonedDateTime.ofInstant(
-                            i.getCreatedAt(), java.time.ZoneId.systemDefault()
-                    ).toLocalDate();
+                    fa = java.time.ZonedDateTime.ofInstant(i.getCreatedAt(), java.time.ZoneId.systemDefault()).toLocalDate();
                 }
                 String fecha = (fa != null) ? fa.format(fmt) : "-";
-                model.addRow(new Object[]{ i.getCodigo(), i.getDescripcion(), i.getEstado(), fecha });
+                modelInv.addRow(new Object[]{ i.getCodigo(), i.getDescripcion(), i.getEstado(), fecha });
             }
         } catch (Exception e) {
             JOptionPane.showMessageDialog(this, e.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
@@ -567,73 +608,273 @@ public class InformesPanel extends JPanel {
             }
             LocalDate fa = i.getFechaAlta();
             if (fa == null && i.getCreatedAt() != null) {
-                fa = java.time.ZonedDateTime.ofInstant(
-                        i.getCreatedAt(), java.time.ZoneId.systemDefault()
-                ).toLocalDate();
+                fa = java.time.ZonedDateTime.ofInstant(i.getCreatedAt(), java.time.ZoneId.systemDefault()).toLocalDate();
             }
             if (d1 != null && (fa == null || fa.isBefore(d1))) return false;
             if (d2 != null && (fa == null || fa.isAfter(d2)))  return false;
-
             return true;
         }).collect(Collectors.toList());
     }
 
-    /** Exporta la tabla a PDF (OpenPDF). */
-    private void exportToPdf() {
-        // Elegir archivo destino
+    // ====== TRÁMITES (Activos) ======
+    private Component buildTramitesFilters() {
+        JPanel panel = new JPanel(new BorderLayout(18, 0));
+        panel.setOpaque(false);
+
+        JLabel lbl = new JLabel("FILTRO");
+        lbl.setFont(new Font("Segoe UI", Font.BOLD, 16));
+        lbl.setForeground(new Color(45, 66, 132));
+        panel.add(lbl, BorderLayout.WEST);
+
+        JPanel fields = new JPanel(new FlowLayout(FlowLayout.LEFT, 12, 0));
+        fields.setOpaque(false);
+
+        styleFilterField(filterSearch, 220);
+        filterSearch.putClientProperty("JTextField.placeholderText", "Buscar");
+        fields.add(filterSearch);
+
+        styleFilterField(filterCategoria, 160);
+        fields.add(filterCategoria);
+
+        styleFilterField(filterEstado, 160);
+        fields.add(filterEstado);
+
+        panel.add(fields, BorderLayout.CENTER);
+
+        return panel;
+    }
+
+private JScrollPane buildTramitesTableScroll() {
+    JTable table = new JTable(modelTra) {
+        @Override
+        protected void paintComponent(Graphics g) {
+            super.paintComponent(g);
+            // Dibujar mensaje cuando no hay filas
+            if (getRowCount() == 0) {
+                Graphics2D g2 = (Graphics2D) g.create();
+                g2.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+                String msg = "Sin resultados";
+                g2.setFont(getFont().deriveFont(Font.PLAIN, 14f));
+                g2.setColor(new Color(120, 130, 150)); // gris suave
+                FontMetrics fm = g2.getFontMetrics();
+                int x = (getWidth() - fm.stringWidth(msg)) / 2;
+                int y = getHeight() / 2;
+                g2.drawString(msg, x, y);
+                g2.dispose();
+            }
+        }
+    };
+    table.setRowHeight(44);
+    table.setShowHorizontalLines(false);
+    table.setShowVerticalLines(false);
+    table.setIntercellSpacing(new Dimension(0, 0));
+    table.setFillsViewportHeight(true);
+    table.setSelectionBackground(new Color(226, 233, 255));
+    table.setSelectionForeground(new Color(32, 48, 105));
+    table.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+    table.setAutoCreateRowSorter(true);
+
+    JTableHeader header = table.getTableHeader();
+    header.setPreferredSize(new Dimension(header.getPreferredSize().width, 46));
+    header.setDefaultRenderer(new TableHeaderRenderer());
+
+    table.getColumnModel().getColumn(4).setCellRenderer(new BadgeRenderer(BadgeRenderer.Type.PRIORITY));
+    table.getColumnModel().getColumn(5).setCellRenderer(new BadgeRenderer(BadgeRenderer.Type.STATUS));
+
+    JScrollPane scroll = new JScrollPane(table);
+    scroll.setBorder(BorderFactory.createEmptyBorder());
+    scroll.getViewport().setBackground(Color.WHITE);
+    return scroll;
+}
+
+
+    private void styleFilterField(JComponent c, int w) {
+        Dimension d = new Dimension(w, 32);
+        c.setPreferredSize(d);
+        c.setMinimumSize(d);
+    }
+
+    private void installFiltersTramites() {
+        filterSearch.getDocument().addDocumentListener(new SimpleDocumentListener(this::loadTableDataTramites));
+        filterCategoria.addActionListener(e -> loadTableDataTramites());
+        filterEstado.addActionListener(e -> loadTableDataTramites());
+    }
+
+private void loadTableDataTramites() {
+    modelTra.setRowCount(0);
+    try {
+        if (traService == null) {
+            JOptionPane.showMessageDialog(this,
+                    "TramiteService no fue inyectado (traService == null).",
+                    "Trámites", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+
+        String search = filterSearch.getText().trim().toLowerCase(Locale.ROOT);
+        String categoria = (String) filterCategoria.getSelectedItem();
+        String estadoFiltro = (String) filterEstado.getSelectedItem();
+
+        List<Tramite> tramites = traService.listarTodos();
+        System.out.println("[Informes] tramites.size = " + (tramites == null ? "null" : tramites.size()));
+
+        if (tramites == null || tramites.isEmpty()) {
+            // No hay datos: salir silenciosamente (deja encabezados vacíos)
+            return;
+        }
+
+        for (Tramite t : tramites) {
+            if (!search.isEmpty()) {
+                String texto = (String.valueOf(t.getAsunto()) + " " + String.valueOf(t.getNro()))
+                        .toLowerCase(Locale.ROOT);
+                if (!texto.contains(search)) continue;
+            }
+
+            if (!"Todas".equals(categoria)) {
+                String as = t.getAsunto() == null ? "" : t.getAsunto().toLowerCase(Locale.ROOT);
+                boolean match =
+                        ("Matrículas".equals(categoria) && as.contains("matric")) ||
+                        ("Ingresos".equals(categoria)   && as.contains("ingres")) ||
+                        ("Suministros".equals(categoria) && as.contains("suminis")) ||
+                        ("Pagos".equals(categoria)       && as.contains("pago"));
+                if (!match) continue;
+            }
+
+            String estado = estadoFriendly(t.getEstado());
+            if (!"Todos".equals(estadoFiltro) && !estado.equalsIgnoreCase(estadoFiltro)) continue;
+
+            String actualizacion = t.getFecha() == null ? "-" : t.getFecha().toString();
+            String ultima        = t.getFecha() == null ? "-" : t.getFecha().plusDays(1).toString(); // placeholder
+            String prioridad     = prioridadDesdeEstado(estado);
+
+            modelTra.addRow(new Object[]{ t.getNro(), t.getAsunto(), actualizacion, ultima, prioridad, estado });
+        }
+
+    } catch (Exception ex) {
+        ex.printStackTrace();
+        JOptionPane.showMessageDialog(this, ex.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
+    }
+}
+
+
+    private String estadoFriendly(String estado) {
+        if (estado == null) return "Pendiente";
+        String e = estado.trim().toLowerCase(Locale.ROOT);
+        if (e.contains("comp")) return "Completado";
+        if (e.contains("proc")) return "En proceso";
+        if (e.contains("pend")) return "Pendiente";
+        if (e.contains("alta")) return "Alta";
+        return "Pendiente";
+    }
+    private String prioridadDesdeEstado(String estado) {
+        if (estado == null) return "Media";
+        String e = estado.trim().toLowerCase(Locale.ROOT);
+        if (e.contains("alta")) return "Alta";
+        if (e.contains("pend")) return "Media";
+        return "Baja";
+    }
+
+    // Encabezado y badges
+    static class TableHeaderRenderer extends DefaultTableCellRenderer {
+        TableHeaderRenderer() {
+            setHorizontalAlignment(LEFT);
+            setFont(new Font("Segoe UI", Font.BOLD, 13));
+            setForeground(new Color(70, 88, 140));
+            setBackground(new Color(238, 242, 255));
+            setBorder(new EmptyBorder(12, 14, 12, 14));
+        }
+        @Override public Component getTableCellRendererComponent(JTable t, Object v, boolean s, boolean f, int r, int c) {
+            super.getTableCellRendererComponent(t, v, s, f, r, c);
+            setText(v == null ? "" : v.toString().toUpperCase(Locale.ROOT));
+            return this;
+        }
+    }
+    static class BadgeRenderer extends DefaultTableCellRenderer {
+        enum Type { PRIORITY, STATUS }
+        private final Type type;
+        BadgeRenderer(Type type) {
+            this.type = type;
+            setHorizontalAlignment(CENTER);
+            setFont(new Font("Segoe UI", Font.BOLD, 12));
+        }
+@Override
+public Component getTableCellRendererComponent(JTable t, Object v, boolean s, boolean f, int r, int c) {
+    super.getTableCellRendererComponent(t, v, s, f, r, c);
+    String text = v == null ? "-" : v.toString();
+    setText(text);
+    setOpaque(true);
+    setBorder(new EmptyBorder(6, 12, 6, 12));
+
+    Color base;
+    String normalized = text.toLowerCase(java.util.Locale.ROOT);
+    if (type == Type.PRIORITY) {
+        if (normalized.contains("alta"))      base = new Color(255, 120, 102);
+        else if (normalized.contains("media")) base = new Color(255, 188, 75);
+        else                                   base = new Color(140, 198, 62);
+    } else {
+        if (normalized.contains("complet"))     base = new Color(28, 184, 113);
+        else if (normalized.contains("proceso")) base = new Color(58, 96, 224);
+        else if (normalized.contains("alta"))    base = new Color(220, 84, 84);
+        else                                     base = new Color(180, 180, 180);
+    }
+
+    if (s) { // <-- antes decía isSelected
+        setForeground(Color.WHITE);
+        setBackground(base.darker());
+    } else {
+        setForeground(Color.WHITE);
+        setBackground(base);
+    }
+    return this;
+}
+
+    }
+
+    // ====== Export (inventario / trámites según tab activo) ======
+    private void exportInventarioToPdf() {
+        exportModelToPdf("INFORME DE INVENTARIO", new String[]{"Código","Descripción","Estado","Fecha"}, modelInv);
+    }
+    private void exportTramitesToPdf() {
+        exportModelToPdf("INFORME DE TRÁMITES", new String[]{"ID Trámite","Asunto","Fecha actualización","Última actualización","Prioridad","Estado"}, modelTra);
+    }
+    private void exportModelToPdf(String titulo, String[] headers, DefaultTableModel model) {
         JFileChooser fc = new JFileChooser();
         fc.setDialogTitle("Guardar informe en PDF");
         fc.setFileFilter(new FileNameExtensionFilter("Archivo PDF (*.pdf)", "pdf"));
-        fc.setSelectedFile(new java.io.File("informe-inventario.pdf"));
+        fc.setSelectedFile(new File(titulo.toLowerCase().replace(" ", "-") + ".pdf"));
         int opt = fc.showSaveDialog(this);
         if (opt != JFileChooser.APPROVE_OPTION) return;
 
-        java.io.File out = fc.getSelectedFile();
-        if (!out.getName().toLowerCase().endsWith(".pdf")) {
-            out = new java.io.File(out.getParentFile(), out.getName() + ".pdf");
-        }
+        File out = fc.getSelectedFile();
+        if (!out.getName().toLowerCase().endsWith(".pdf")) out = new File(out.getParentFile(), out.getName() + ".pdf");
 
-        var doc = new Document(PageSize.A4.rotate(), 36, 36, 36, 36); // apaisado
+        Document doc = new Document(PageSize.A4.rotate(), 36, 36, 36, 36);
         try (FileOutputStream fos = new FileOutputStream(out)) {
             PdfWriter.getInstance(doc, fos);
             doc.open();
 
-            // Título
             com.lowagie.text.Font fTitle = new com.lowagie.text.Font(com.lowagie.text.Font.HELVETICA, 18, com.lowagie.text.Font.BOLD, new Color(24,63,150));
-            Paragraph title = new Paragraph("INFORME DE INVENTARIO", fTitle);
+            Paragraph title = new Paragraph(titulo, fTitle);
             title.setAlignment(Element.ALIGN_CENTER);
             title.setSpacingAfter(8f);
             doc.add(title);
 
-            // Subtítulo con filtros
-            String cat = (cbCategoria.getSelectedItem() instanceof Categoria c) ? c.getNombre() : "Todas";
-            String d1 = (dfDesde.getDate() != null) ? dfDesde.getDate().format(DateTimeFormatter.ofPattern("dd/MM/yyyy")) : "–";
-            String d2 = (dfHasta.getDate() != null) ? dfHasta.getDate().format(DateTimeFormatter.ofPattern("dd/MM/yyyy")) : "–";
-            com.lowagie.text.Font fSub = new com.lowagie.text.Font(com.lowagie.text.Font.HELVETICA, 10, com.lowagie.text.Font.NORMAL, Color.DARK_GRAY);
-            Paragraph info = new Paragraph("Categoría: " + cat + "   |   Desde: " + d1 + "   |   Hasta: " + d2, fSub);
-            info.setSpacingAfter(12f);
-            doc.add(info);
-
-            // Tabla con los datos del JTable
-            PdfPTable table = new PdfPTable(4);
+            PdfPTable table = new PdfPTable(headers.length);
             table.setWidthPercentage(100);
-            table.setWidths(new float[]{20f, 55f, 25f, 20f});
+            float[] w = new float[headers.length];
+            Arrays.fill(w, 1f);
+            table.setWidths(w);
 
-            // Encabezados
             com.lowagie.text.Font fHeader = new com.lowagie.text.Font(com.lowagie.text.Font.HELVETICA, 11, com.lowagie.text.Font.BOLD, Color.WHITE);
-            String[] headers = {"Código","Descripción","Estado","Fecha"};
             for (String h : headers) {
                 PdfPCell cell = new PdfPCell(new Phrase(h, fHeader));
                 cell.setHorizontalAlignment(Element.ALIGN_CENTER);
-                cell.setBackgroundColor(new Color(47,107,228)); // azul
+                cell.setBackgroundColor(new Color(47,107,228));
                 cell.setPadding(6f);
                 table.addCell(cell);
             }
 
-            // Filas
             com.lowagie.text.Font fCell = new com.lowagie.text.Font(com.lowagie.text.Font.HELVETICA, 10, com.lowagie.text.Font.NORMAL, Color.BLACK);
-            int rows = model.getRowCount();
-            for (int r = 0; r < rows; r++) {
+            for (int r = 0; r < model.getRowCount(); r++) {
                 for (int c = 0; c < model.getColumnCount(); c++) {
                     Object v = model.getValueAt(r, c);
                     String txt = (v == null) ? "" : v.toString();
@@ -646,73 +887,121 @@ public class InformesPanel extends JPanel {
 
             doc.add(table);
             doc.close();
-
-            JOptionPane.showMessageDialog(this, "PDF generado:\n" + out.getAbsolutePath(),
-                    "Exportar PDF", JOptionPane.INFORMATION_MESSAGE);
+            JOptionPane.showMessageDialog(this, "PDF generado:\n" + out.getAbsolutePath(), "Exportar PDF", JOptionPane.INFORMATION_MESSAGE);
         } catch (Exception ex) {
-            doc.close();
-            JOptionPane.showMessageDialog(this, "No se pudo generar el PDF:\n" + ex.getMessage(),
-                    "Error", JOptionPane.ERROR_MESSAGE);
+            try { doc.close(); } catch (Exception ignore) {}
+            JOptionPane.showMessageDialog(this, "No se pudo generar el PDF:\n" + ex.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
         }
     }
-    
-    /** Exporta la tabla a CSV (UTF-8, con encabezados). */
-private void exportToCsv() {
-    JFileChooser fc = new JFileChooser();
-    fc.setDialogTitle("Guardar informe en CSV");
-    fc.setFileFilter(new FileNameExtensionFilter("Archivo CSV (*.csv)", "csv"));
-    fc.setSelectedFile(new File("informe-inventario.csv"));
-    int opt = fc.showSaveDialog(this);
-    if (opt != JFileChooser.APPROVE_OPTION) return;
 
-    File out = fc.getSelectedFile();
-    if (!out.getName().toLowerCase().endsWith(".csv")) {
-        out = new File(out.getParentFile(), out.getName() + ".csv");
-    }
+    private void exportInventarioToCsv() { exportModelToCsv(modelInv, ','); }   // o ';' si preferís Excel directo
+    private void exportTramitesToCsv()   { exportModelToCsv(modelTra, ','); }
 
-    try (PrintWriter pw = new PrintWriter(out, java.nio.charset.Charset.forName("Windows-1252")))  {
-        // Encabezados
-        for (int c = 0; c < model.getColumnCount(); c++) {
-            if (c > 0) pw.print(";"); // separador coma
-            pw.print(csvEscape(model.getColumnName(c)));
-        }
-        pw.println();
+    private void exportModelToCsv(DefaultTableModel model, char sep) {
+        JFileChooser fc = new JFileChooser();
+        fc.setDialogTitle("Guardar informe en CSV");
+        fc.setFileFilter(new FileNameExtensionFilter("Archivo CSV (*.csv)", "csv"));
+        fc.setSelectedFile(new File("informe.csv"));
+        int opt = fc.showSaveDialog(this);
+        if (opt != JFileChooser.APPROVE_OPTION) return;
 
-        // Filas
-        for (int r = 0; r < model.getRowCount(); r++) {
+        File out = fc.getSelectedFile();
+        if (!out.getName().toLowerCase().endsWith(".csv")) out = new File(out.getParentFile(), out.getName() + ".csv");
+
+        // Para abrir con doble clic en Excel español sin “Texto en columnas” podés usar Windows-1252 y ';'
+        Charset enc = StandardCharsets.UTF_8; // o Charset.forName("Windows-1252")
+        try (PrintWriter pw = new PrintWriter(out, enc)) {
+            // Headers
             for (int c = 0; c < model.getColumnCount(); c++) {
-                if (c > 0) pw.print(",");
-                Object v = model.getValueAt(r, c);
-                pw.print(csvEscape(v == null ? "" : String.valueOf(v)));
+                if (c > 0) pw.print(sep);
+                pw.print(csvEscape(model.getColumnName(c)));
             }
             pw.println();
+
+            for (int r = 0; r < model.getRowCount(); r++) {
+                for (int c = 0; c < model.getColumnCount(); c++) {
+                    if (c > 0) pw.print(sep);
+                    Object v = model.getValueAt(r, c);
+                    pw.print(csvEscape(v == null ? "" : String.valueOf(v)));
+                }
+                pw.println();
+            }
+        } catch (Exception ex) {
+            JOptionPane.showMessageDialog(this, "No se pudo generar el CSV:\n" + ex.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
+            return;
         }
-    } catch (Exception ex) {
-        JOptionPane.showMessageDialog(this, "No se pudo generar el CSV:\n" + ex.getMessage(),
-                "Error", JOptionPane.ERROR_MESSAGE);
-        return;
+        JOptionPane.showMessageDialog(this, "CSV generado:\n" + out.getAbsolutePath(), "Exportar CSV", JOptionPane.INFORMATION_MESSAGE);
     }
 
-    JOptionPane.showMessageDialog(this, "CSV generado:\n" + out.getAbsolutePath(),
-            "Exportar CSV", JOptionPane.INFORMATION_MESSAGE);
-}
+    private static String csvEscape(String s) {
+        boolean needQuotes = s.contains(",") || s.contains(";") || s.contains("\"") || s.contains("\n") || s.contains("\r");
+        String x = s.replace("\"", "\"\"");
+        return needQuotes ? "\"" + x + "\"" : x;
+    }
 
-/** Escapa un valor según CSV (RFC 4180): comillas dobles y valores con coma/nueva línea. */
-private static String csvEscape(String s) {
-    boolean needQuotes = s.contains(",") || s.contains("\"") || s.contains("\n") || s.contains("\r");
-    String x = s.replace("\"", "\"\"");
-    return needQuotes ? "\"" + x + "\"" : x;
-}
-
+    // ====== Utilidades ======
+    private static class DateField {
+        private final JComponent comp;
+        private final boolean usesFlatPicker;
+        private final DateTimeFormatter fmt = DateTimeFormatter.ofPattern("dd/MM/yyyy");
+        DateField() {
+            JComponent c;
+            boolean ok = false;
+            try {
+                Class<?> cls = Class.forName("com.formdev.flatlaf.extras.components.FlatDatePicker");
+                c = (JComponent) cls.getDeclaredConstructor().newInstance();
+                Method setFormatString = cls.getMethod("setFormatString", String.class);
+                Method setPlaceholderText = cls.getMethod("setPlaceholderText", String.class);
+                Method setEditable = cls.getMethod("setEditable", boolean.class);
+                setFormatString.invoke(c, "dd/MM/yyyy");
+                setPlaceholderText.invoke(c, "dd/mm/aaaa");
+                setEditable.invoke(c, false);
+                ok = true;
+            } catch (Throwable ignore) {
+                c = createMasked();
+            }
+            this.comp = c;
+            this.usesFlatPicker = ok;
+            Dimension size = new Dimension(120, 30);
+            comp.setPreferredSize(size);
+            comp.setMaximumSize(size);
+        }
+        private static JFormattedTextField createMasked() {
+            try {
+                MaskFormatter mf = new MaskFormatter("##/##/####");
+                mf.setPlaceholderCharacter('_');
+                JFormattedTextField tf = new JFormattedTextField(mf);
+                tf.putClientProperty("JComponent.roundRect", true);
+                tf.putClientProperty("JTextField.placeholderText", "dd/mm/aaaa");
+                return tf;
+            } catch (ParseException e) {
+                return new JFormattedTextField();
+            }
+        }
+        LocalDate getDate() {
+            if (usesFlatPicker) {
+                try {
+                    Method getDate = comp.getClass().getMethod("getDate");
+                    Object val = getDate.invoke(comp);
+                    return (val instanceof LocalDate) ? (LocalDate) val : null;
+                } catch (Throwable ignore) { return null; }
+            } else {
+                String txt = ((JFormattedTextField) comp).getText();
+                if (txt == null) return null;
+                txt = txt.trim();
+                if (txt.isEmpty() || txt.contains("_")) return null;
+                try { return LocalDate.parse(txt, fmt); } catch (Exception e) { return null; }
+            }
+        }
+        JComponent getComponent() { return comp; }
+    }
 
     /** Busca un JLabel "Informes" que esté en la barra superior (no en el menú lateral) */
     private static JLabel findHeaderTitleLabel(Container root) {
         for (Component c : root.getComponents()) {
             if (c instanceof JLabel l && "Informes".equals(l.getText())) {
                 Point p = SwingUtilities.convertPoint(l.getParent(), l.getLocation(), root);
-                if (p.y < 120) { // está arriba (header)
-                    return l;
-                }
+                if (p.y < 120) return l;
             }
             if (c instanceof Container ct) {
                 JLabel r = findHeaderTitleLabel(ct);
@@ -720,5 +1009,15 @@ private static String csvEscape(String s) {
             }
         }
         return null;
+    }
+
+    // Document listener simple
+    @FunctionalInterface interface SimpleChange { void onChange(); }
+    static class SimpleDocumentListener implements javax.swing.event.DocumentListener {
+        private final SimpleChange cb;
+        SimpleDocumentListener(SimpleChange cb) { this.cb = cb; }
+        @Override public void insertUpdate(javax.swing.event.DocumentEvent e) { cb.onChange(); }
+        @Override public void removeUpdate(javax.swing.event.DocumentEvent e) { cb.onChange(); }
+        @Override public void changedUpdate(javax.swing.event.DocumentEvent e) { cb.onChange(); }
     }
 }
