@@ -9,5 +9,8 @@ public interface TramiteDao {
     void updateEstado(Long id, String nuevoEstado);
     Optional<Tramite> findByNro(String nro);
     List<Tramite> listAll();
-}
+    List<Tramite> listActivos();
 
+    // ✅ NUEVO: actualizar estado directamente por NRO (sin SELECT previo)
+    void updateEstadoByNro(String nro, String nuevoEstado);
+}

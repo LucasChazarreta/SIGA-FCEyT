@@ -55,13 +55,13 @@ public class InformesPanel extends JPanel {
     private final JLabel lblPendientes = new JLabel("-");
     private final JLabel lblGastos = new JLabel("$-");
     private final JLabel lblPendientesMini = new JLabel();
-    
+
+    // Filtros TRÁMITES (buscador y estado)
     private final JTextField filterSearch = new JTextField(18);
-private final JComboBox<String> filterCategoria = new JComboBox<>(new String[]{"Todas","Matrículas","Ingresos","Suministros","Pagos"});
-private final JComboBox<String> filterEstado = new JComboBox<>(new String[]{"Todos","Completado","En proceso","Pendiente","Alta"});
+    private final JComboBox<String> filterEstado =
+            new JComboBox<>(new String[]{"Todos","Completado","En proceso","Pendiente","Alta"});
 
-
-    // --- INVENTARIO (como ya tenías) ---
+    // --- INVENTARIO ---
     private final JComboBox<Categoria> cbCategoria = new JComboBox<>();
     private final DateField dfDesde = new DateField();
     private final DateField dfHasta = new DateField();
@@ -69,17 +69,10 @@ private final JComboBox<String> filterEstado = new JComboBox<>(new String[]{"Tod
             new Object[]{"Código","Descripción","Estado","Fecha"}, 0
     ) { @Override public boolean isCellEditable(int r, int c) { return false; } };
 
-    // --- TRÁMITES (nuevo tab “Trámites activos” dentro de Informes) ---
-
-
-    // antes tenía "Prioridad" y "Estado"
-private final DefaultTableModel modelTra = new DefaultTableModel(
-    new Object[]{"ID Trámite","Asunto","Fecha actualización","Última actualización","Descripción","Estado"}, 0
-) {
-    @Override public boolean isCellEditable(int r, int c) { return false; }
-};
-
-
+    // --- TRÁMITES (informes) ---
+    private final DefaultTableModel modelTra = new DefaultTableModel(
+            new Object[]{"ID Trámite","Asunto","Fecha actualización","Última actualización","Descripción","Estado"}, 0
+    ) { @Override public boolean isCellEditable(int r, int c) { return false; } };
 
     // UI de contenido por tabs
     private final CardLayout contentCards = new CardLayout();
@@ -125,70 +118,59 @@ private final DefaultTableModel modelTra = new DefaultTableModel(
         cargarCategoriasEnCombo();
         reloadMetrics();
         runQueryInventario();
-        loadTableDataTramites(); // inicial
-        installFiltersTramites(); // listeners filtros trámites
+        loadTableDataTramites();   // inicial
+        installFiltersTramites();  // listeners filtros trámites
     }
-    
-    
-    
-
-
-
 
     // ====== Header con export ======
-private JComponent buildHeader() {
-    JPanel header = new JPanel(new BorderLayout());
-    header.setOpaque(false);
+    private JComponent buildHeader() {
+        JPanel header = new JPanel(new BorderLayout());
+        header.setOpaque(false);
 
-    // --- Centro: TÍTULO perfectamente centrado ---
-    JLabel title = new JLabel("INFORMES", SwingConstants.CENTER);
-    title.setFont(title.getFont().deriveFont(Font.BOLD, 36f));
-    title.setForeground(new Color(24, 63, 150));
+        // Centro: Título
+        JLabel title = new JLabel("INFORMES", SwingConstants.CENTER);
+        title.setFont(title.getFont().deriveFont(Font.BOLD, 36f));
+        title.setForeground(new Color(24, 63, 150));
 
-    // panel centrador para que quede EXACTO en el medio
-    JPanel center = new JPanel(new GridBagLayout());
-    center.setOpaque(false);
-    center.add(title);
+        JPanel center = new JPanel(new GridBagLayout());
+        center.setOpaque(false);
+        center.add(title);
 
-    // --- Derecha: acciones (exportar) ---
-    JPanel actions = new JPanel(new FlowLayout(FlowLayout.RIGHT, 10, 0));
-    actions.setOpaque(false);
-    JButton exportPdf = primaryButton("Exportar PDF");
-    JButton exportCsv = secondaryButton("Exportar CSV");
+        // Derecha: acciones
+        JPanel actions = new JPanel(new FlowLayout(FlowLayout.RIGHT, 10, 0));
+        actions.setOpaque(false);
+        JButton exportPdf = primaryButton("Exportar PDF");
+        JButton exportCsv = secondaryButton("Exportar CSV");
 
-    exportPdf.addActionListener(e -> {
-        if (btnTramites != null && btnTramites.isSelected()) {
-            exportTramitesToPdf();
-        } else {
-            exportInventarioToPdf();
-        }
-    });
-    exportCsv.addActionListener(e -> {
-        if (btnTramites != null && btnTramites.isSelected()) {
-            exportTramitesToCsv();
-        } else {
-            exportInventarioToCsv();
-        }
-    });
+        exportPdf.addActionListener(e -> {
+            if (btnTramites != null && btnTramites.isSelected()) {
+                exportTramitesToPdf();
+            } else {
+                exportInventarioToPdf();
+            }
+        });
+        exportCsv.addActionListener(e -> {
+            if (btnTramites != null && btnTramites.isSelected()) {
+                exportTramitesToCsv();
+            } else {
+                exportInventarioToCsv();
+            }
+        });
 
-    actions.add(exportPdf);
-    actions.add(exportCsv);
+        actions.add(exportPdf);
+        actions.add(exportCsv);
 
-    // --- Izquierda: ESPACIADOR con el MISMO ancho que 'actions' para equilibrar el centro ---
-    JPanel spacer = new JPanel();
-    spacer.setOpaque(false);
-    spacer.setPreferredSize(actions.getPreferredSize());
+        // Izquierda: espaciador
+        JPanel spacer = new JPanel();
+        spacer.setOpaque(false);
+        spacer.setPreferredSize(actions.getPreferredSize());
 
-    // ----- Ensamblado -----
-    header.add(spacer, BorderLayout.WEST);
-    header.add(center, BorderLayout.CENTER);
-    header.add(actions, BorderLayout.EAST);
-    header.setBorder(BorderFactory.createEmptyBorder(10, 20, 20, 20));
-    return header;
-}
-
-
-
+        header.add(spacer, BorderLayout.WEST);
+        header.add(center, BorderLayout.CENTER);
+        header.add(actions, BorderLayout.EAST);
+        header.setBorder(BorderFactory.createEmptyBorder(10, 20, 20, 20));
+        return header;
+    }
 
     // ====== Contenido con tabs ======
     private JComponent buildContent() {
@@ -209,13 +191,13 @@ private JComponent buildHeader() {
         tabRow.add(btnTramites);
         wrapper.add(tabRow, BorderLayout.NORTH);
 
-        // Panel INVENTARIO (métricas + filtros + tabla)
+        // Panel INVENTARIO
         JPanel invPanel = new JPanel(new BorderLayout());
         invPanel.setOpaque(false);
         invPanel.add(buildMetrics(), BorderLayout.NORTH);
         invPanel.add(buildInventarioSplit(), BorderLayout.CENTER);
 
-        // Panel TRÁMITES (filtros + tabla estilo “activos”)
+        // Panel TRÁMITES
         JPanel traPanel = new JPanel(new BorderLayout(20, 24));
         traPanel.setOpaque(false);
         traPanel.add(buildTramitesFilters(), BorderLayout.NORTH);
@@ -227,18 +209,12 @@ private JComponent buildHeader() {
 
         wrapper.add(content, BorderLayout.CENTER);
 
-        // Listeners de tabs
-        btnInventario.addActionListener(e -> {
-    contentCards.show(content, "INV");
-    // opcional: refrescar inventario si querés
-    // runQueryInventario();
-});
-
-btnTramites.addActionListener(e -> {
-    contentCards.show(content, "TRA");
-    loadTableDataTramites();   // ← recarga al cambiar de pestaña
-});
-
+        // Listeners tabs
+        btnInventario.addActionListener(e -> contentCards.show(content, "INV"));
+        btnTramites.addActionListener(e -> {
+            contentCards.show(content, "TRA");
+            loadTableDataTramites();
+        });
 
         return wrapper;
     }
@@ -264,83 +240,77 @@ btnTramites.addActionListener(e -> {
         return split;
     }
 
- private CardPanel buildFiltrosPanelInventario() {
-    CardPanel card = new CardPanel();
-    card.setBorder(BorderFactory.createEmptyBorder(12, 8, 12, 12));
-    card.setLayout(new BorderLayout(10, 10));
+    private CardPanel buildFiltrosPanelInventario() {
+        CardPanel card = new CardPanel();
+        card.setBorder(BorderFactory.createEmptyBorder(12, 8, 12, 12));
+        card.setLayout(new BorderLayout(10, 10));
 
-    // --- Título más grande (alineado a la izquierda) ---
-    JLabel title = new JLabel("FILTROS");
-    title.setFont(title.getFont().deriveFont(Font.BOLD, 16f)); // antes 14f
-    title.setForeground(new Color(73, 103, 204));
-    card.add(title, BorderLayout.NORTH);
+        JLabel title = new JLabel("FILTROS");
+        title.setFont(title.getFont().deriveFont(Font.BOLD, 16f));
+        title.setForeground(new Color(73, 103, 204));
+        card.add(title, BorderLayout.NORTH);
 
-    // --- Bloque de campos centrado un poco más abajo ---
-    JPanel fields = new JPanel();
-    fields.setOpaque(false);
-    fields.setLayout(new BoxLayout(fields, BoxLayout.Y_AXIS));
+        JPanel fields = new JPanel();
+        fields.setOpaque(false);
+        fields.setLayout(new BoxLayout(fields, BoxLayout.Y_AXIS));
 
-    int formWidth = 180;
-    Dimension fieldSize = new Dimension(formWidth, 34);
+        int formWidth = 180;
+        Dimension fieldSize = new Dimension(formWidth, 34);
 
-    cbCategoria.setPreferredSize(fieldSize);
-    cbCategoria.setMaximumSize(fieldSize);
-    cbCategoria.setAlignmentX(Component.LEFT_ALIGNMENT);
+        cbCategoria.setPreferredSize(fieldSize);
+        cbCategoria.setMaximumSize(fieldSize);
+        cbCategoria.setAlignmentX(Component.LEFT_ALIGNMENT);
 
-    dfDesde.getComponent().setPreferredSize(fieldSize);
-    dfDesde.getComponent().setMaximumSize(fieldSize);
-    dfDesde.getComponent().setAlignmentX(Component.LEFT_ALIGNMENT);
+        dfDesde.getComponent().setPreferredSize(fieldSize);
+        dfDesde.getComponent().setMaximumSize(fieldSize);
+        dfDesde.getComponent().setAlignmentX(Component.LEFT_ALIGNMENT);
 
-    dfHasta.getComponent().setPreferredSize(fieldSize);
-    dfHasta.getComponent().setMaximumSize(fieldSize);
-    dfHasta.getComponent().setAlignmentX(Component.LEFT_ALIGNMENT);
+        dfHasta.getComponent().setPreferredSize(fieldSize);
+        dfHasta.getComponent().setMaximumSize(fieldSize);
+        dfHasta.getComponent().setAlignmentX(Component.LEFT_ALIGNMENT);
 
-    JPanel pCat   = filterField("Categoría", cbCategoria);
-    JPanel pDesde = filterField("Desde", dfDesde.getComponent());
-    JPanel pHasta = filterField("Hasta", dfHasta.getComponent());
+        JPanel pCat   = filterField("Categoría", cbCategoria);
+        JPanel pDesde = filterField("Desde", dfDesde.getComponent());
+        JPanel pHasta = filterField("Hasta", dfHasta.getComponent());
 
-    Dimension panelFieldSize = new Dimension(formWidth, pCat.getPreferredSize().height);
-    for (JPanel p : new JPanel[]{pCat, pDesde, pHasta}) {
-        p.setAlignmentX(Component.LEFT_ALIGNMENT);
-        p.setMaximumSize(new Dimension(formWidth, Integer.MAX_VALUE));
-        p.setPreferredSize(panelFieldSize);
+        Dimension panelFieldSize = new Dimension(formWidth, pCat.getPreferredSize().height);
+        for (JPanel p : new JPanel[]{pCat, pDesde, pHasta}) {
+            p.setAlignmentX(Component.LEFT_ALIGNMENT);
+            p.setMaximumSize(new Dimension(formWidth, Integer.MAX_VALUE));
+            p.setPreferredSize(panelFieldSize);
+        }
+
+        fields.add(pCat);
+        fields.add(Box.createVerticalStrut(16));
+        fields.add(pDesde);
+        fields.add(Box.createVerticalStrut(16));
+        fields.add(pHasta);
+        fields.add(Box.createVerticalStrut(22));
+
+        JButton apply = primaryButton("APLICAR FILTROS");
+        apply.addActionListener(e -> runQueryInventario());
+        apply.setAlignmentX(Component.LEFT_ALIGNMENT);
+        apply.setPreferredSize(new Dimension(formWidth, apply.getPreferredSize().height));
+        apply.setMaximumSize(new Dimension(formWidth, apply.getPreferredSize().height));
+        fields.add(apply);
+
+        fields.setPreferredSize(new Dimension(formWidth, fields.getPreferredSize().height));
+        fields.setMaximumSize(new Dimension(formWidth, Integer.MAX_VALUE));
+
+        JPanel centerWrapper = new JPanel(new FlowLayout(FlowLayout.CENTER, 0, 80));
+        centerWrapper.setOpaque(false);
+        centerWrapper.add(fields);
+        card.add(centerWrapper, BorderLayout.CENTER);
+
+        JPanel tags = new JPanel(new FlowLayout(FlowLayout.CENTER, 8, 10));
+        tags.setOpaque(false);
+        tags.add(tag("Insumos"));
+        tags.add(tag("Oficina"));
+        tags.add(tag("Bienes"));
+        card.add(tags, BorderLayout.SOUTH);
+
+        return card;
     }
-
-    fields.add(pCat);
-    fields.add(Box.createVerticalStrut(16));
-    fields.add(pDesde);
-    fields.add(Box.createVerticalStrut(16));
-    fields.add(pHasta);
-    fields.add(Box.createVerticalStrut(22));
-
-    JButton apply = primaryButton("APLICAR FILTROS");
-    apply.addActionListener(e -> runQueryInventario());
-    apply.setAlignmentX(Component.LEFT_ALIGNMENT);
-    apply.setPreferredSize(new Dimension(formWidth, apply.getPreferredSize().height));
-    apply.setMaximumSize(new Dimension(formWidth, apply.getPreferredSize().height));
-    fields.add(apply);
-
-    fields.setPreferredSize(new Dimension(formWidth, fields.getPreferredSize().height));
-    fields.setMaximumSize(new Dimension(formWidth, Integer.MAX_VALUE));
-
-    // ↓ bajamos el bloque completo (el último número = espacio vertical)
-    JPanel centerWrapper = new JPanel(new FlowLayout(FlowLayout.CENTER, 0, 80));
-    centerWrapper.setOpaque(false);
-    centerWrapper.add(fields);
-    card.add(centerWrapper, BorderLayout.CENTER);
-
-    JPanel tags = new JPanel(new FlowLayout(FlowLayout.CENTER, 8, 10));
-    tags.setOpaque(false);
-    tags.add(tag("Insumos"));
-    tags.add(tag("Oficina"));
-    tags.add(tag("Bienes"));
-    card.add(tags, BorderLayout.SOUTH);
-
-    return card;
-}
-
-
-
 
     private CardPanel buildTablaPanelInventario() {
         CardPanel card = new CardPanel();
@@ -476,77 +446,64 @@ btnTramites.addActionListener(e -> {
     }
 
     // ==== Métricas ====
-private JComponent buildMetrics() {
-    JPanel row = new JPanel(new GridLayout(1, 3, 24, 0));
-    row.setOpaque(false);
-    row.setBorder(BorderFactory.createEmptyBorder(10, 40, 40, 40));
+    private JComponent buildMetrics() {
+        JPanel row = new JPanel(new GridLayout(1, 3, 24, 0));
+        row.setOpaque(false);
+        row.setBorder(BorderFactory.createEmptyBorder(10, 40, 40, 40));
 
-    // 1) Total Insumos
-    CardPanel c1 = metricCard("TOTAL INSUMOS", lblTotalInsumos, COL_BRAND_SOFT, COL_TEXT_PRIMARY, false);
-    c1.setBorder(BorderFactory.createEmptyBorder(14, 20, 14, 20)); // sin línea gris
+        CardPanel c1 = metricCard("TOTAL INSUMOS", lblTotalInsumos, COL_BRAND_SOFT, COL_TEXT_PRIMARY, false);
+        c1.setBorder(BorderFactory.createEmptyBorder(14, 20, 14, 20));
 
-    // 2) Trámites (solo número)
-    CardPanel c2 = metricCard("TRÁMITES", lblTotalTramites, COL_CARD, COL_TEXT_PRIMARY, false);
-    c2.setBorder(BorderFactory.createEmptyBorder(14, 20, 14, 20)); // sin línea gris
+        CardPanel c2 = metricCard("TRÁMITES", lblTotalTramites, COL_CARD, COL_TEXT_PRIMARY, false);
+        c2.setBorder(BorderFactory.createEmptyBorder(14, 20, 14, 20));
 
-    // 3) Gastos mensuales
-    CardPanel c3 = metricCard("GASTOS MENSUALES", lblGastos, COL_BRAND, Color.WHITE, true);
-    c3.setBorder(BorderFactory.createEmptyBorder(14, 20, 14, 20)); // sin línea gris
+        CardPanel c3 = metricCard("GASTOS MENSUALES", lblGastos, COL_BRAND, Color.WHITE, true);
+        c3.setBorder(BorderFactory.createEmptyBorder(14, 20, 14, 20));
 
-    row.add(c1);
-    row.add(c2);
-    row.add(c3);
-    return row;
-}
+        row.add(c1); row.add(c2); row.add(c3);
+        return row;
+    }
 
+    private CardPanel metricCard(String title, JLabel value, Color bg, Color text, boolean strong) {
+        CardPanel card = new CardPanel() {
+            @Override protected void paintComponent(Graphics g) {
+                super.paintComponent(g);
+                Graphics2D g2 = (Graphics2D) g.create();
+                int w = getWidth(), h = getHeight();
+                Color start = new Color(180, 205, 255);
+                Color end   = new Color(110, 150, 240);
+                GradientPaint gp = new GradientPaint(0, 0, start, w, 0, end);
+                g2.setPaint(gp);
+                g2.fillRoundRect(0, 0, w, h, 20, 20);
+                g2.dispose();
+            }
+        };
+        card.setLayout(new BorderLayout());
+        card.setOpaque(false);
+        card.setBorder(BorderFactory.createEmptyBorder(14, 20, 14, 20));
 
-private CardPanel metricCard(String title, JLabel value, Color bg, Color text, boolean strong) {
-    // Panel con degradado azul claro
-    CardPanel card = new CardPanel() {
-        @Override
-        protected void paintComponent(Graphics g) {
-            super.paintComponent(g);
-            Graphics2D g2 = (Graphics2D) g.create();
-            int w = getWidth(), h = getHeight();
+        JLabel lblTitle = new JLabel(title);
+        lblTitle.setForeground(new Color(30, 50, 100));
+        lblTitle.setFont(lblTitle.getFont().deriveFont(Font.BOLD, 14f));
+        lblTitle.setBorder(BorderFactory.createEmptyBorder(0, 0, 8, 0));
 
-            // Degradado azul más claro y suave
-            Color start = new Color(180, 205, 255); // azul celeste claro
-            Color end = new Color(110, 150, 240);   // azul un poco más fuerte
-            GradientPaint gp = new GradientPaint(0, 0, start, w, 0, end);
-            g2.setPaint(gp);
-            g2.fillRoundRect(0, 0, w, h, 20, 20);
-            g2.dispose();
-        }
-    };
+        value.setForeground(new Color(20, 40, 90));
+        value.setFont(value.getFont().deriveFont(Font.BOLD, strong ? 36f : 28f));
 
-    card.setLayout(new BorderLayout());
-    card.setOpaque(false);
-    card.setBorder(BorderFactory.createEmptyBorder(14, 20, 14, 20));
+        JPanel center = new JPanel(new BorderLayout());
+        center.setOpaque(false);
+        center.add(value, BorderLayout.CENTER);
 
-    JLabel lblTitle = new JLabel(title);
-    lblTitle.setForeground(new Color(30, 50, 100)); // azul más oscuro para contraste
-    lblTitle.setFont(lblTitle.getFont().deriveFont(Font.BOLD, 14f));
-    lblTitle.setBorder(BorderFactory.createEmptyBorder(0, 0, 8, 0));
+        card.add(lblTitle, BorderLayout.NORTH);
+        card.add(center, BorderLayout.CENTER);
 
-    value.setForeground(new Color(20, 40, 90)); // número en azul oscuro
-    value.setFont(value.getFont().deriveFont(Font.BOLD, strong ? 36f : 28f));
+        card.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createEmptyBorder(10, 10, 10, 10),
+                BorderFactory.createLineBorder(new Color(0, 0, 0, 30), 1, true)
+        ));
 
-    JPanel center = new JPanel(new BorderLayout());
-    center.setOpaque(false);
-    center.add(value, BorderLayout.CENTER);
-
-    card.add(lblTitle, BorderLayout.NORTH);
-    card.add(center, BorderLayout.CENTER);
-
-    card.setBorder(BorderFactory.createCompoundBorder(
-            BorderFactory.createEmptyBorder(10, 10, 10, 10),
-            BorderFactory.createLineBorder(new Color(0, 0, 0, 30), 1, true)
-    ));
-
-    return card;
-}
-
-
+        return card;
+    }
 
     // ==== Carga de datos Inventario ====
     private void cargarCategoriasEnCombo() {
@@ -583,7 +540,9 @@ private CardPanel metricCard(String title, JLabel value, Color bg, Color text, b
                     .count();
             lblPendientes.setText(String.valueOf(pend));
             lblPendientesMini.setText(" " + lblPendientes.getText() + " PENDIENTES");
-        } catch (Exception e) { lblTotalTramites.setText("-"); lblPendientes.setText("-"); }
+        } catch (Exception e) {
+            lblTotalTramites.setText("-"); lblPendientes.setText("-");
+        }
 
         try { lblGastos.setText("+$0"); }
         catch (Exception e) { lblGastos.setText("$-"); }
@@ -629,7 +588,7 @@ private CardPanel metricCard(String title, JLabel value, Color bg, Color text, b
         }).collect(Collectors.toList());
     }
 
-    // ====== TRÁMITES (Activos) ======
+    // ====== TRÁMITES (Informes) ======
     private Component buildTramitesFilters() {
         JPanel panel = new JPanel(new BorderLayout(18, 0));
         panel.setOpaque(false);
@@ -646,60 +605,53 @@ private CardPanel metricCard(String title, JLabel value, Color bg, Color text, b
         filterSearch.putClientProperty("JTextField.placeholderText", "Buscar");
         fields.add(filterSearch);
 
-        styleFilterField(filterCategoria, 160);
-        fields.add(filterCategoria);
-
         styleFilterField(filterEstado, 160);
         fields.add(filterEstado);
 
         panel.add(fields, BorderLayout.CENTER);
-
         return panel;
     }
 
-private JScrollPane buildTramitesTableScroll() {
-    JTable table = new JTable(modelTra) {
-        @Override
-        protected void paintComponent(Graphics g) {
-            super.paintComponent(g);
-            // Dibujar mensaje cuando no hay filas
-            if (getRowCount() == 0) {
-                Graphics2D g2 = (Graphics2D) g.create();
-                g2.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
-                String msg = "Sin resultados";
-                g2.setFont(getFont().deriveFont(Font.PLAIN, 14f));
-                g2.setColor(new Color(120, 130, 150)); // gris suave
-                FontMetrics fm = g2.getFontMetrics();
-                int x = (getWidth() - fm.stringWidth(msg)) / 2;
-                int y = getHeight() / 2;
-                g2.drawString(msg, x, y);
-                g2.dispose();
+    private JScrollPane buildTramitesTableScroll() {
+        JTable table = new JTable(modelTra) {
+            @Override
+            protected void paintComponent(Graphics g) {
+                super.paintComponent(g);
+                if (getRowCount() == 0) {
+                    Graphics2D g2 = (Graphics2D) g.create();
+                    g2.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+                    String msg = "Sin resultados";
+                    g2.setFont(getFont().deriveFont(Font.PLAIN, 14f));
+                    g2.setColor(new Color(120, 130, 150));
+                    FontMetrics fm = g2.getFontMetrics();
+                    int x = (getWidth() - fm.stringWidth(msg)) / 2;
+                    int y = getHeight() / 2;
+                    g2.drawString(msg, x, y);
+                    g2.dispose();
+                }
             }
-        }
-    };
-    table.setRowHeight(44);
-    table.setShowHorizontalLines(false);
-    table.setShowVerticalLines(false);
-    table.setIntercellSpacing(new Dimension(0, 0));
-    table.setFillsViewportHeight(true);
-    table.setSelectionBackground(new Color(226, 233, 255));
-    table.setSelectionForeground(new Color(32, 48, 105));
-    table.setFont(new Font("Segoe UI", Font.PLAIN, 13));
-    table.setAutoCreateRowSorter(true);
+        };
+        table.setRowHeight(44);
+        table.setShowHorizontalLines(false);
+        table.setShowVerticalLines(false);
+        table.setIntercellSpacing(new Dimension(0, 0));
+        table.setFillsViewportHeight(true);
+        table.setSelectionBackground(new Color(226, 233, 255));
+        table.setSelectionForeground(new Color(32, 48, 105));
+        table.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+        table.setAutoCreateRowSorter(true);
 
-    JTableHeader header = table.getTableHeader();
-    header.setPreferredSize(new Dimension(header.getPreferredSize().width, 46));
-    header.setDefaultRenderer(new TableHeaderRenderer());
+        JTableHeader header = table.getTableHeader();
+        header.setPreferredSize(new Dimension(header.getPreferredSize().width, 46));
+        header.setDefaultRenderer(new TableHeaderRenderer());
 
-    //table.getColumnModel().getColumn(4).setCellRenderer(new BadgeRenderer(BadgeRenderer.Type.PRIORITY));
-    table.getColumnModel().getColumn(5).setCellRenderer(new BadgeRenderer(BadgeRenderer.Type.STATUS));
+        table.getColumnModel().getColumn(5).setCellRenderer(new BadgeRenderer(BadgeRenderer.Type.STATUS));
 
-    JScrollPane scroll = new JScrollPane(table);
-    scroll.setBorder(BorderFactory.createEmptyBorder());
-    scroll.getViewport().setBackground(Color.WHITE);
-    return scroll;
-}
-
+        JScrollPane scroll = new JScrollPane(table);
+        scroll.setBorder(BorderFactory.createEmptyBorder());
+        scroll.getViewport().setBackground(Color.WHITE);
+        return scroll;
+    }
 
     private void styleFilterField(JComponent c, int w) {
         Dimension d = new Dimension(w, 32);
@@ -707,172 +659,137 @@ private JScrollPane buildTramitesTableScroll() {
         c.setMinimumSize(d);
     }
 
-private void loadTableDataTramites() {
-    modelTra.setRowCount(0);
-    try {
-        String search = filterSearch.getText().trim().toLowerCase(java.util.Locale.ROOT);
-        String categoria = (String) filterCategoria.getSelectedItem();
-        String estadoFiltro = (String) filterEstado.getSelectedItem();
+    /** Carga de datos para TRÁMITES (sin filtro de categoría). */
+    private void loadTableDataTramites() {
+        modelTra.setRowCount(0);
+        try {
+            String search = filterSearch.getText().trim().toLowerCase(Locale.ROOT);
+            String estadoFiltro = (String) filterEstado.getSelectedItem();
 
-        java.util.List<Tramite> tramites = traService.listarTodos();
-        if (tramites == null) return;
+            List<Tramite> tramites = traService.listarTodos();
+            if (tramites == null) return;
 
-        for (Tramite t : tramites) {
-            if (!search.isEmpty()) {
-                String texto = (String.valueOf(t.getAsunto()) + " " + String.valueOf(t.getNro()))
-                        .toLowerCase(java.util.Locale.ROOT);
-                if (!texto.contains(search)) continue;
-            }
+            DateTimeFormatter fmt = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
-            // Categoría heurística (como tenías)
-            if (!"Todas".equals(categoria)) {
-                String as = t.getAsunto() == null ? "" : t.getAsunto().toLowerCase(java.util.Locale.ROOT);
-                boolean match =
-                        ("Matrículas".equals(categoria) && as.contains("matric")) ||
-                        ("Ingresos".equals(categoria)   && as.contains("ingres")) ||
-                        ("Suministros".equals(categoria) && as.contains("suminis")) ||
-                        ("Pagos".equals(categoria)       && as.contains("pago"));
-                if (!match) continue;
-            }
+            for (Tramite t : tramites) {
+                // búsqueda: nro + asunto + descripción
+                if (!search.isEmpty()) {
+                    String texto = (String.valueOf(t.getAsunto()) + " " + String.valueOf(t.getNro()) + " " +
+                                   (t.getDescripcion() != null ? t.getDescripcion() : ""))
+                                   .toLowerCase(Locale.ROOT);
+                    if (!texto.contains(search)) continue;
+                }
 
-            String estado = estadoFriendly(t.getEstado());
-            if (!"Todos".equals(estadoFiltro) && !estado.equalsIgnoreCase(estadoFiltro)) continue;
+                String estado = estadoFriendly(t.getEstado());
+                if (!"Todos".equals(estadoFiltro) && !estado.equalsIgnoreCase(estadoFiltro)) continue;
 
-            String actualizacion = t.getFecha() == null ? "-" : t.getFecha().toString();
-            String ultima        = t.getFecha() == null ? "-" : t.getFecha().plusDays(1).toString(); // placeholder
+                String actualizacion = t.getFecha() == null ? "-" : t.getFecha().format(fmt);
+                String ultima        = t.getFecha() == null ? "-" : t.getFecha().plusDays(1).format(fmt); // placeholder si no tenés campo real
+                String descripcion   = extraerDescripcionTramite(t);
 
-            // NUEVO: descripción (reflexión para no romper si el método se llama distinto)
-            String descripcion = extraerDescripcionTramite(t);
-
-            modelTra.addRow(new Object[]{
+                modelTra.addRow(new Object[]{
                     t.getNro(),
                     t.getAsunto(),
                     actualizacion,
                     ultima,
-                    descripcion,   // <--- reemplaza a “Prioridad”
-                    estado         // renderer STATUS aplicado a esta col
+                    descripcion,
+                    estado
+                });
+            }
+        } catch (Exception ex) {
+            ex.printStackTrace();
+            JOptionPane.showMessageDialog(this, ex.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
+        }
+    }
+
+    /** Conecta los filtros (buscador y estado) para TRÁMITES. */
+    private void installFiltersTramites() {
+        if (filterSearch != null && filterSearch.getDocument() != null) {
+            filterSearch.getDocument().addDocumentListener(new SimpleDocumentListener() {
+                @Override public void update() { loadTableDataTramites(); }
             });
         }
-    } catch (Exception ex) {
-        ex.printStackTrace();
-        javax.swing.JOptionPane.showMessageDialog(this, ex.getMessage(), "Error", javax.swing.JOptionPane.ERROR_MESSAGE);
-    }
-}
-
-// Conecta los filtros de la pestaña TRÁMITES para recargar la tabla
-private void installFiltersTramites() {
-    if (filterSearch != null && filterSearch.getDocument() != null) {
-        filterSearch.getDocument().addDocumentListener(new SimpleDocumentListener() {
-            @Override public void update() { loadTableDataTramites(); }
-        });
-    }
-    if (filterCategoria != null) {
-        filterCategoria.addActionListener(e -> loadTableDataTramites());
-    }
-    if (filterEstado != null) {
-        filterEstado.addActionListener(e -> loadTableDataTramites());
-    }
-}
-
-
-
-
-
-
-
-/** Devuelve la descripción REAL del trámite (si no hay, devuelve "-"). */
-private String extraerDescripcionTramite(Object t) {
-    if (t == null) return "-";
-
-    // 0) Intento directo: getDescripcion() (el caso correcto si Tramite está bien mapeado)
-    try {
-        Method m = t.getClass().getMethod("getDescripcion");
-        Object val = m.invoke(t);
-        if (val != null) {
-            String s = val.toString().trim();
-            if (!s.isEmpty()) return s;
+        if (filterEstado != null) {
+            filterEstado.addActionListener(e -> loadTableDataTramites());
         }
-    } catch (NoSuchMethodException ignore) {
-        // pasamos a otros nombres
-    } catch (Throwable ignore) {}
+    }
 
-    // 1) Intentos por otros nombres comunes
-    String v = tryGetter(t,
-            "getDescripción",
-            "getDetalle", "getDetalles",
-            "getObservacion", "getObservación", "getObservaciones",
-            "getNota", "getNotas",
-            "getComentario", "getComentarios",
-            "getMotivo", "getResumen",
-            "getInfo", "getInformacion", "getInformación"
-    );
-    if (v != null && !v.isBlank()) return v.trim();
+    /** Devuelve la descripción REAL del trámite (si no hay, "-"). */
+    private String extraerDescripcionTramite(Object t) {
+        if (t == null) return "-";
+        try {
+            Method m = t.getClass().getMethod("getDescripcion");
+            Object val = m.invoke(t);
+            if (val != null) {
+                String s = val.toString().trim();
+                if (!s.isEmpty()) return s;
+            }
+        } catch (NoSuchMethodException ignore) {
+        } catch (Throwable ignore) {}
 
-    // 2) Buscar entre TODOS los getters String con nombres sugerentes
-    try {
-        for (Method m : t.getClass().getMethods()) {
-            if (m.getParameterCount() == 0 &&
-                m.getName().startsWith("get") &&
-                m.getReturnType() == String.class) {
+        String v = tryGetter(t,
+                "getDescripción","getDetalle","getDetalles",
+                "getObservacion","getObservación","getObservaciones",
+                "getNota","getNotas",
+                "getComentario","getComentarios",
+                "getMotivo","getResumen",
+                "getInfo","getInformacion","getInformación"
+        );
+        if (v != null && !v.isBlank()) return v.trim();
 
-                String name = m.getName().toLowerCase(Locale.ROOT);
-                if (name.contains("desc") || name.contains("detalle") ||
-                    name.contains("observ") || name.contains("nota") ||
-                    name.contains("coment") || name.contains("motivo")) {
-                    Object val = m.invoke(t);
+        try {
+            for (Method m : t.getClass().getMethods()) {
+                if (m.getParameterCount() == 0 &&
+                    m.getName().startsWith("get") &&
+                    m.getReturnType() == String.class) {
+                    String name = m.getName().toLowerCase(Locale.ROOT);
+                    if (name.contains("desc") || name.contains("detalle") ||
+                        name.contains("observ") || name.contains("nota") ||
+                        name.contains("coment") || name.contains("motivo")) {
+                        Object val = m.invoke(t);
+                        if (val != null) {
+                            String s = val.toString().trim();
+                            if (!s.isEmpty()) return s;
+                        }
+                    }
+                }
+            }
+        } catch (Throwable ignore) {}
+
+        try {
+            for (java.lang.reflect.Field f : t.getClass().getDeclaredFields()) {
+                String n = f.getName().toLowerCase(Locale.ROOT);
+                if (n.contains("desc") || n.contains("detalle") ||
+                    n.contains("observ") || n.contains("nota") ||
+                    n.contains("coment") || n.contains("motivo")) {
+                    f.setAccessible(true);
+                    Object val = f.get(t);
                     if (val != null) {
                         String s = val.toString().trim();
                         if (!s.isEmpty()) return s;
                     }
                 }
             }
-        }
-    } catch (Throwable ignore) {}
+        } catch (Throwable ignore) {}
 
-    // 3) Intento por campos (no solo getters)
-    try {
-        for (java.lang.reflect.Field f : t.getClass().getDeclaredFields()) {
-            String n = f.getName().toLowerCase(Locale.ROOT);
-            if (n.contains("desc") || n.contains("detalle") ||
-                n.contains("observ") || n.contains("nota") ||
-                n.contains("coment") || n.contains("motivo")) {
-                f.setAccessible(true);
-                Object val = f.get(t);
+        return "-";
+    }
+
+    private static String tryGetter(Object obj, String... getters) {
+        for (String g : getters) {
+            try {
+                Method m = obj.getClass().getMethod(g);
+                Object val = m.invoke(obj);
                 if (val != null) {
                     String s = val.toString().trim();
                     if (!s.isEmpty()) return s;
                 }
+            } catch (NoSuchMethodException ignore) {
+            } catch (Throwable ignore) {
             }
         }
-    } catch (Throwable ignore) {}
-
-    // ⚠️ Sin fallback al asunto
-    return "-";
-}
-
-
-
-/** Helper: probar una lista de getters y devolver el primero no vacío. */
-private static String tryGetter(Object obj, String... getters) {
-    for (String g : getters) {
-        try {
-            Method m = obj.getClass().getMethod(g);
-            Object val = m.invoke(obj);
-            if (val != null) {
-                String s = val.toString().trim();
-                if (!s.isEmpty()) return s;
-            }
-        } catch (NoSuchMethodException ignore) {
-            // seguir probando el siguiente
-        } catch (Throwable ignore) {
-            // ignorar y seguir
-        }
+        return null;
     }
-    return null;
-}
-
-
-
 
     private String estadoFriendly(String estado) {
         if (estado == null) return "Pendiente";
@@ -883,6 +800,7 @@ private static String tryGetter(Object obj, String... getters) {
         if (e.contains("alta")) return "Alta";
         return "Pendiente";
     }
+
     private String prioridadDesdeEstado(String estado) {
         if (estado == null) return "Media";
         String e = estado.trim().toLowerCase(Locale.ROOT);
@@ -906,6 +824,7 @@ private static String tryGetter(Object obj, String... getters) {
             return this;
         }
     }
+
     static class BadgeRenderer extends DefaultTableCellRenderer {
         enum Type { PRIORITY, STATUS }
         private final Type type;
@@ -914,48 +833,47 @@ private static String tryGetter(Object obj, String... getters) {
             setHorizontalAlignment(CENTER);
             setFont(new Font("Segoe UI", Font.BOLD, 12));
         }
-@Override
-public Component getTableCellRendererComponent(JTable t, Object v, boolean s, boolean f, int r, int c) {
-    super.getTableCellRendererComponent(t, v, s, f, r, c);
-    String text = v == null ? "-" : v.toString();
-    setText(text);
-    setOpaque(true);
-    setBorder(new EmptyBorder(6, 12, 6, 12));
+        @Override
+        public Component getTableCellRendererComponent(JTable t, Object v, boolean s, boolean f, int r, int c) {
+            super.getTableCellRendererComponent(t, v, s, f, r, c);
+            String text = v == null ? "-" : v.toString();
+            setText(text);
+            setOpaque(true);
+            setBorder(new EmptyBorder(6, 12, 6, 12));
 
-    Color base;
-    String normalized = text.toLowerCase(java.util.Locale.ROOT);
-    if (type == Type.PRIORITY) {
-        if (normalized.contains("alta"))      base = new Color(255, 120, 102);
-        else if (normalized.contains("media")) base = new Color(255, 188, 75);
-        else                                   base = new Color(140, 198, 62);
-    } else {
-        if (normalized.contains("complet"))     base = new Color(28, 184, 113);
-        else if (normalized.contains("proceso")) base = new Color(58, 96, 224);
-        else if (normalized.contains("alta"))    base = new Color(220, 84, 84);
-        else                                     base = new Color(180, 180, 180);
+            Color base;
+            String normalized = text.toLowerCase(Locale.ROOT);
+            if (type == Type.PRIORITY) {
+                if (normalized.contains("alta"))       base = new Color(255, 120, 102);
+                else if (normalized.contains("media")) base = new Color(255, 188, 75);
+                else                                   base = new Color(140, 198, 62);
+            } else {
+                if (normalized.contains("complet"))     base = new Color(28, 184, 113);
+                else if (normalized.contains("proceso")) base = new Color(58, 96, 224);
+                else if (normalized.contains("alta"))    base = new Color(220, 84, 84);
+                else                                     base = new Color(180, 180, 180);
+            }
+
+            if (s) {
+                setForeground(Color.WHITE);
+                setBackground(base.darker());
+            } else {
+                setForeground(Color.WHITE);
+                setBackground(base);
+            }
+            return this;
+        }
     }
 
-    if (s) { // <-- antes decía isSelected
-        setForeground(Color.WHITE);
-        setBackground(base.darker());
-    } else {
-        setForeground(Color.WHITE);
-        setBackground(base);
-    }
-    return this;
-}
-
-    }
-
-    // ====== Export (inventario / trámites según tab activo) ======
+    // ====== Export ======
     private void exportInventarioToPdf() {
         exportModelToPdf("INFORME DE INVENTARIO", new String[]{"Código","Descripción","Estado","Fecha"}, modelInv);
     }
-private void exportTramitesToPdf() {
-    exportModelToPdf("INFORME DE TRÁMITES",
-        new String[]{"ID Trámite","Asunto","Fecha actualización","Última actualización","Descripción","Estado"},
-        modelTra);
-}
+    private void exportTramitesToPdf() {
+        exportModelToPdf("INFORME DE TRÁMITES",
+                new String[]{"ID Trámite","Asunto","Fecha actualización","Última actualización","Descripción","Estado"},
+                modelTra);
+    }
 
     private void exportModelToPdf(String titulo, String[] headers, DefaultTableModel model) {
         JFileChooser fc = new JFileChooser();
@@ -1015,7 +933,7 @@ private void exportTramitesToPdf() {
         }
     }
 
-    private void exportInventarioToCsv() { exportModelToCsv(modelInv, ','); }   // o ';' si preferís Excel directo
+    private void exportInventarioToCsv() { exportModelToCsv(modelInv, ','); }
     private void exportTramitesToCsv()   { exportModelToCsv(modelTra, ','); }
 
     private void exportModelToCsv(DefaultTableModel model, char sep) {
@@ -1029,10 +947,8 @@ private void exportTramitesToPdf() {
         File out = fc.getSelectedFile();
         if (!out.getName().toLowerCase().endsWith(".csv")) out = new File(out.getParentFile(), out.getName() + ".csv");
 
-        // Para abrir con doble clic en Excel español sin “Texto en columnas” podés usar Windows-1252 y ';'
-        Charset enc = StandardCharsets.UTF_8; // o Charset.forName("Windows-1252")
+        Charset enc = StandardCharsets.UTF_8;
         try (PrintWriter pw = new PrintWriter(out, enc)) {
-            // Headers
             for (int c = 0; c < model.getColumnCount(); c++) {
                 if (c > 0) pw.print(sep);
                 pw.print(csvEscape(model.getColumnName(c)));
@@ -1132,12 +1048,11 @@ private void exportTramitesToPdf() {
         return null;
     }
 
-// Listener simple para JTextField/JTextArea
-private static abstract class SimpleDocumentListener implements javax.swing.event.DocumentListener {
-    public abstract void update();
-    @Override public void insertUpdate(javax.swing.event.DocumentEvent e) { update(); }
-    @Override public void removeUpdate(javax.swing.event.DocumentEvent e) { update(); }
-    @Override public void changedUpdate(javax.swing.event.DocumentEvent e) { update(); }
-}
-
+    // Listener simple para JTextField
+    private static abstract class SimpleDocumentListener implements javax.swing.event.DocumentListener {
+        public abstract void update();
+        @Override public void insertUpdate(javax.swing.event.DocumentEvent e) { update(); }
+        @Override public void removeUpdate(javax.swing.event.DocumentEvent e) { update(); }
+        @Override public void changedUpdate(javax.swing.event.DocumentEvent e) { update(); }
+    }
 }

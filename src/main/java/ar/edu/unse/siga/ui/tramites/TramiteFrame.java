@@ -22,7 +22,9 @@ public class TramiteFrame extends BaseCrudFrame<Tramite> {
     private final TramiteTableModel model = new TramiteTableModel();
 
     private final JTextField txtSearch = new JTextField(20);
-    private final JComboBox<String> cbCampo = new JComboBox<>(new String[]{"Número", "Asunto", "Estado"});
+    private final JComboBox<String> cbCampo =
+    new JComboBox<>(new String[]{"ID Trámite", "Asunto", "Descripción", "Estado"});
+
     private TableRowSorter<TableModel> sorter;
 
     public TramiteFrame(TramiteService service) {
@@ -49,11 +51,14 @@ public class TramiteFrame extends BaseCrudFrame<Tramite> {
                     sorter.setRowFilter(null);
                     return;
                 }
-                int col = switch (cbCampo.getSelectedIndex()) {
-                    case 0 -> 1;  // Número
-                    case 1 -> 2;  // Asunto
-                    default -> 3; // Estado
-                };
+                int col = switch (cbCampo.getSelectedItem().toString()) {
+    case "ID Trámite" -> 0;
+    case "Asunto"     -> 1;
+    case "Descripción"-> 4; // <- apunta a la nueva columna
+    case "Estado"     -> 5;
+    default           -> 1;
+};
+
                 sorter.setRowFilter(new RowFilter<TableModel, Integer>() {
                     @Override
                     public boolean include(Entry<? extends TableModel, ? extends Integer> entry) {
@@ -76,13 +81,15 @@ public class TramiteFrame extends BaseCrudFrame<Tramite> {
                 return c;
             }
         });
-        var cm = table.getColumnModel();
-        cm.getColumn(0).setPreferredWidth(50);   // ID
-        cm.getColumn(1).setPreferredWidth(140);  // Número
-        cm.getColumn(2).setPreferredWidth(320);  // Asunto
-        cm.getColumn(3).setPreferredWidth(120);  // Estado
-        cm.getColumn(4).setPreferredWidth(160);  // Fecha
-        cm.getColumn(5).setPreferredWidth(200);  // Solicitante
+var cm = table.getColumnModel();
+// ajustá índices según tu orden real
+cm.getColumn(0).setPreferredWidth(140); // ID TRÁMITE
+cm.getColumn(1).setPreferredWidth(260); // ASUNTO
+cm.getColumn(2).setPreferredWidth(160); // FECHA ACTUALIZACIÓN
+cm.getColumn(3).setPreferredWidth(160); // ÚLTIMA ACTUALIZACIÓN
+cm.getColumn(4).setPreferredWidth(280); // DESCRIPCIÓN  <- NUEVO
+cm.getColumn(5).setPreferredWidth(140); // ESTADO
+
 
         // ---- Atajos
         var im = table.getInputMap(JComponent.WHEN_ANCESTOR_OF_FOCUSED_COMPONENT);
@@ -153,17 +160,19 @@ public class TramiteFrame extends BaseCrudFrame<Tramite> {
 
     static class TramiteTableModel extends CrudTableModel<Tramite> {
         TramiteTableModel() { super(new String[]{"ID", "Número", "Asunto", "Estado", "Fecha", "Solicitante"}); }
-        @Override public Object getValueAt(int row, int col) {
-            var t = data.get(row);
-            return switch (col) {
-                case 0 -> t.getId();
-                case 1 -> t.getNro();
-                case 2 -> t.getAsunto();
-                case 3 -> t.getEstado();
-                case 4 -> t.getFecha();
-                case 5 -> t.getSolicitante();
-                default -> "";
-            };
-        }
+@Override
+public Object getValueAt(int row, int col) {
+    var t = data.get(row);
+    return switch (col) {
+        case 0 -> t.getNro();           // o t.getId() según tu primera columna
+        case 1 -> t.getAsunto();
+        case 2 -> t.getFecha();         // o tu “fecha actualización”
+        //case 3 -> t.getUltimaActualizacion(); // si la tenés; si no, quitá esta col
+        case 4 -> t.getDescripcion();   // <- NUEVO (reemplaza “Prioridad”)
+        case 5 -> t.getEstado();
+        default -> "";
+    };
+}
+
     }
 }

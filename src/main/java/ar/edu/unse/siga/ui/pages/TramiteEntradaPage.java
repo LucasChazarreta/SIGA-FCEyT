@@ -23,6 +23,13 @@ public class TramiteEntradaPage extends JPanel {
 
     private final TramiteService service;
 
+    // Control para evitar bucle de eventos en edición de estado
+    private boolean updatingEstado = false;
+
+    // Mapea cada fila visible a su Tramite real (para usar el ID al actualizar)
+    private final java.util.List<Tramite> currentRows = new java.util.ArrayList<>();
+
+    // --- Campos de Registro ---
     private final JTextField txtAsunto = new JTextField(25);
     private final JTextField txtRemitente = new JTextField(25);
     private final JTextArea txtDescripcion = new JTextArea(4, 25);
@@ -30,22 +37,23 @@ public class TramiteEntradaPage extends JPanel {
     private final JTextField txtDestinatario = new JTextField(25);
     private final JLabel lblNumero = new JLabel();
 
+    // --- Filtros de la tabla ---
     private final JTextField filterSearch = new JTextField(18);
-    private final JComboBox<String> filterCategoria = new JComboBox<>(
-            new String[]{"Todas", "Matrículas", "Ingresos", "Suministros", "Pagos"});
     private final JComboBox<String> filterEstado = new JComboBox<>(
-            new String[]{"Todos", "Completado", "En proceso", "Pendiente", "Alta"});
+            new String[]{"Todos", "Completado", "En proceso", "Pendiente", "Alta"}
+    );
 
     private final CardLayout cardLayout = new CardLayout();
     private final JPanel cards = new JPanel(cardLayout);
 
+    // Solo la columna "Estado" (índice 5) será editable
     private final JTable table = new JTable(new DefaultTableModel(
             new Object[][]{},
-            new String[]{"ID Trámite", "Asunto", "Fecha actualización", "Última actualización", "Prioridad", "Estado"}
+            new String[]{"ID Trámite", "Asunto", "Fecha actualización", "Última actualización", "Descripcion", "Estado"}
     )) {
         @Override
         public boolean isCellEditable(int row, int column) {
-            return false;
+            return column == 5;
         }
     };
 
@@ -59,9 +67,65 @@ public class TramiteEntradaPage extends JPanel {
 
         lblNumero.setText(generateNumero(LocalDate.now()));
         cardLayout.show(cards, "registro");
+
         configureTable();
         installFilters();
+        installEstadoEditor();    // combo editable en "Estado"
+        installEstadoListener();  // persistencia en BD al cambiar
     }
+
+    // ==== Estado editable (editor + listener) ====
+
+    private void installEstadoEditor() {
+        // Asegura que las columnas estén creadas antes de setear el editor
+        SwingUtilities.invokeLater(() -> {
+            try {
+                if (table.getColumnCount() > 5) {
+                    String[] estados = {"PENDIENTE", "EN PROCESO", "COMPLETADO"};
+                    JComboBox<String> comboEstado = new JComboBox<>(estados);
+                    table.getColumnModel().getColumn(5).setCellEditor(new DefaultCellEditor(comboEstado));
+                    if (table.getRowHeight() < 28) table.setRowHeight(28);
+                }
+            } catch (Exception ex) {
+                Ui.error(this, ex);
+            }
+        });
+    }
+
+    private void installEstadoListener() {
+        table.getModel().addTableModelListener(e -> {
+            if (updatingEstado) return;
+            int col = e.getColumn();
+            int row = e.getFirstRow();
+            if (row >= 0 && col == 5) { // columna ESTADO
+                try {
+                    String elegido = String.valueOf(table.getValueAt(row, col)).trim().toUpperCase(Locale.ROOT);
+                    String canon = switch (elegido) {
+                        case "EN PROCESO" -> "EN_PROCESO";
+                        case "COMPLETADO" -> "COMPLETADO";
+                        case "PENDIENTE"  -> "PENDIENTE";
+                        default -> elegido;
+                    };
+
+                    // Usamos el ID real del trámite de esa fila
+                    Tramite t = currentRows.get(row);
+                    service.actualizarEstado(t.getId(), canon);
+
+                    // Actualizamos objeto y celda visible
+                    t.setEstado(canon);
+                    String friendly = estadoFriendly(canon);
+                    updatingEstado = true;
+                    table.setValueAt(friendly, row, 5);
+                } catch (Exception ex) {
+                    Ui.error(this, ex);
+                } finally {
+                    updatingEstado = false;
+                }
+            }
+        });
+    }
+
+    // ==== Header / Tabs ====
 
     private JComponent buildHeader() {
         JPanel header = new JPanel(new BorderLayout());
@@ -100,6 +164,8 @@ public class TramiteEntradaPage extends JPanel {
         cards.add(buildActivosCard(), "activos");
         return cards;
     }
+
+    // ==== Registro ====
 
     private CardPanel buildRegistroCard() {
         CardPanel card = new CardPanel();
@@ -210,43 +276,37 @@ public class TramiteEntradaPage extends JPanel {
         return card;
     }
 
+    // ==== Activos (tabla) ====
+
     private CardPanel buildActivosCard() {
         CardPanel card = new CardPanel();
         card.setLayout(new BorderLayout(20, 24));
-
         card.add(buildFilters(), BorderLayout.NORTH);
         card.add(buildTableScroll(), BorderLayout.CENTER);
-
         return card;
     }
 
+    // Filtros sin categoría
     private Component buildFilters() {
         JPanel panel = new JPanel(new BorderLayout(18, 0));
         panel.setOpaque(false);
 
-        JLabel lbl = new JLabel("Filtro");
+        JLabel lbl = new JLabel("FILTRO");
         lbl.setFont(new Font("Segoe UI", Font.BOLD, 16));
         lbl.setForeground(new Color(45, 66, 132));
         panel.add(lbl, BorderLayout.WEST);
 
         JPanel fields = new JPanel(new FlowLayout(FlowLayout.LEFT, 12, 0));
         fields.setOpaque(false);
+
         styleFilterField(filterSearch, 220);
         filterSearch.putClientProperty("JTextField.placeholderText", "Buscar");
         fields.add(filterSearch);
-
-        styleFilterField(filterCategoria, 160);
-        fields.add(filterCategoria);
 
         styleFilterField(filterEstado, 160);
         fields.add(filterEstado);
 
         panel.add(fields, BorderLayout.CENTER);
-
-        JButton export = outlineButton("Exportar PDF");
-        export.addActionListener(e -> Ui.info(this, "Funcionalidad de exportación en desarrollo."));
-        panel.add(export, BorderLayout.EAST);
-
         return panel;
     }
 
@@ -265,7 +325,8 @@ public class TramiteEntradaPage extends JPanel {
         header.setPreferredSize(new Dimension(header.getPreferredSize().width, 46));
         header.setDefaultRenderer(new TableHeaderRenderer());
 
-        table.getColumnModel().getColumn(4).setCellRenderer(new BadgeRenderer(BadgeRenderer.Type.PRIORITY));
+        // Descripción sin renderer de color
+        // Estado mantiene badge de colores
         table.getColumnModel().getColumn(5).setCellRenderer(new BadgeRenderer(BadgeRenderer.Type.STATUS));
 
         JScrollPane scroll = new JScrollPane(table);
@@ -274,13 +335,10 @@ public class TramiteEntradaPage extends JPanel {
         return scroll;
     }
 
-    private void configureTable() {
-        loadTableData();
-    }
+    private void configureTable() { loadTableData(); }
 
     private void installFilters() {
         filterSearch.getDocument().addDocumentListener(new SimpleDocumentListener(this::loadTableData));
-        filterCategoria.addActionListener(e -> loadTableData());
         filterEstado.addActionListener(e -> loadTableData());
     }
 
@@ -288,112 +346,86 @@ public class TramiteEntradaPage extends JPanel {
         return date.format(DateTimeFormatter.BASIC_ISO_DATE) + "-" + (int) (Math.random() * 90000 + 10000);
     }
 
-private void onSave() {
-    try {
-        String nro         = lblNumero.getText() != null ? lblNumero.getText().trim() : null;
-        String asunto      = txtAsunto.getText() != null ? txtAsunto.getText().trim() : "";
-        String solicitante = txtRemitente.getText() != null ? txtRemitente.getText().trim() : "";
-        String descripcion = txtDescripcion.getText() != null ? txtDescripcion.getText().trim() : null;
+    private void onSave() {
+        try {
+            String nro = lblNumero.getText() != null ? lblNumero.getText().trim() : null;
+            String asunto = txtAsunto.getText() != null ? txtAsunto.getText().trim() : "";
+            String solicitante = txtRemitente.getText() != null ? txtRemitente.getText().trim() : "";
+            String descripcion = txtDescripcion.getText() != null ? txtDescripcion.getText().trim() : null;
 
-        if (asunto.isEmpty()) {
-            throw new IllegalArgumentException("El asunto es obligatorio");
+            if (asunto.isEmpty()) throw new IllegalArgumentException("El asunto es obligatorio");
+
+            service.registrarTramite(nro, asunto, solicitante,
+                    (descripcion != null && !descripcion.isBlank()) ? descripcion : null);
+
+            Ui.info(this, "Trámite registrado correctamente.");
+
+            // Reset de campos
+            lblNumero.setText(generateNumero(LocalDate.now()));
+            txtAsunto.setText("");
+            txtRemitente.setText("");
+            txtDescripcion.setText("");
+            txtDestino.setText("");
+            txtDestinatario.setText("");
+
+            // refrescar
+            loadTableData();
+        } catch (Exception e) {
+            Ui.error(this, e);
         }
-
-        // 👉 ahora pasamos también la descripción
-        service.registrarTramite(nro, asunto, solicitante, (descripcion != null && !descripcion.isBlank()) ? descripcion : null);
-
-        Ui.info(this, "Trámite registrado correctamente.");
-
-        // Reset de campos
-        lblNumero.setText(generateNumero(java.time.LocalDate.now()));
-        txtAsunto.setText("");
-        txtRemitente.setText("");
-        txtDescripcion.setText("");
-        txtDestino.setText("");
-        txtDestinatario.setText("");
-
-        // refresco de la tabla
-        loadTableData();
-    } catch (Exception e) {
-        Ui.error(this, e);
     }
-}
-
 
     private void loadTableData() {
         DefaultTableModel model = (DefaultTableModel) table.getModel();
         model.setRowCount(0);
+        currentRows.clear(); // MUY IMPORTANTE: mantener buffer fila->Tramite
+
         try {
             String search = filterSearch.getText().trim().toLowerCase(Locale.ROOT);
-            String categoria = (String) filterCategoria.getSelectedItem();
             String estadoFiltro = (String) filterEstado.getSelectedItem();
 
+            // Mostrar todos; el combo de estado filtra
             List<Tramite> tramites = service.listarTodos();
+
+            DateTimeFormatter fmt = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+
             for (Tramite t : tramites) {
+                // búsqueda por nro + asunto + descripción
                 if (!search.isEmpty()) {
-                    String texto = (t.getAsunto() + " " + t.getNro()).toLowerCase(Locale.ROOT);
-                    if (!texto.contains(search)) {
-                        continue;
-                    }
+                    String texto = (t.getAsunto() + " " + t.getNro() + " " +
+                            (t.getDescripcion() != null ? t.getDescripcion() : ""))
+                            .toLowerCase(Locale.ROOT);
+                    if (!texto.contains(search)) continue;
                 }
-                if (!"Todas".equalsIgnoreCase(categoria) && !matchesCategoria(t, categoria)) {
-                    continue;
-                }
+
+                // filtro por estado
                 if (!"Todos".equalsIgnoreCase(estadoFiltro) && !estadoMatches(t.getEstado(), estadoFiltro)) {
                     continue;
                 }
 
-                LocalDateTime fecha = t.getFecha();
-                String actualizacion = fecha != null
-                        ? fecha.format(DateTimeFormatter.ofPattern("dd/MM/yyyy"))
-                        : "-";
-                String ultima = fecha != null
-                        ? fecha.minusDays(1).format(DateTimeFormatter.ofPattern("dd/MM/yyyy"))
-                        : "-";
-
-                String prioridad = prioridadDesdeEstado(t.getEstado());
+                String fecha = t.getFecha() != null ? t.getFecha().format(fmt) : "-";
+                String ultima = t.getFecha() != null ? t.getFecha().plusDays(1).format(fmt) : "-"; // si tenés campo real, usalo acá
+                String descripcion = (t.getDescripcion() == null || t.getDescripcion().isBlank()) ? "-" : t.getDescripcion();
                 String estado = estadoFriendly(t.getEstado());
 
-                model.addRow(new Object[]{
-                        t.getNro(),
-                        t.getAsunto(),
-                        actualizacion,
-                        ultima,
-                        prioridad,
-                        estado
-                });
+                model.addRow(new Object[]{ t.getNro(), t.getAsunto(), fecha, ultima, descripcion, estado });
+
+                // mantener alineado el objeto real con la fila visible
+                currentRows.add(t);
             }
         } catch (Exception ex) {
             Ui.error(this, ex);
         }
     }
 
-    private boolean matchesCategoria(Tramite t, String categoria) {
-        if (t.getAsunto() == null) {
-            return false;
-        }
-        String asunto = t.getAsunto().toLowerCase(Locale.ROOT);
-        return switch (categoria) {
-            case "Matrículas" -> asunto.contains("matric");
-            case "Ingresos" -> asunto.contains("ingres");
-            case "Suministros" -> asunto.contains("suminis") || asunto.contains("pedido");
-            case "Pagos" -> asunto.contains("pago") || asunto.contains("orden");
-            default -> true;
-        };
-    }
-
     private boolean estadoMatches(String estado, String filtro) {
-        if (estado == null) {
-            return false;
-        }
+        if (estado == null) return false;
         String normalized = estadoFriendly(estado).toLowerCase(Locale.ROOT);
         return normalized.equals(filtro.toLowerCase(Locale.ROOT));
     }
 
     private String prioridadDesdeEstado(String estado) {
-        if (estado == null) {
-            return "Media";
-        }
+        if (estado == null) return "Media";
         return switch (estado.toUpperCase(Locale.ROOT)) {
             case "CERRADO", "COMPLETADO" -> "Baja";
             case "EN_PROCESO" -> "Media";
@@ -403,9 +435,7 @@ private void onSave() {
     }
 
     private String estadoFriendly(String estado) {
-        if (estado == null) {
-            return "Pendiente";
-        }
+        if (estado == null) return "Pendiente";
         return switch (estado.toUpperCase(Locale.ROOT)) {
             case "COMPLETADO", "CERRADO" -> "Completado";
             case "EN_PROCESO" -> "En proceso";
@@ -415,11 +445,11 @@ private void onSave() {
     }
 
     private String capitalize(String text) {
-        if (text == null || text.isEmpty()) {
-            return "";
-        }
+        if (text == null || text.isEmpty()) return "";
         return text.substring(0, 1).toUpperCase(Locale.ROOT) + text.substring(1).toLowerCase(Locale.ROOT);
     }
+
+    // ==== UI Helpers ====
 
     private JPanel field(String label, JComponent component) {
         JPanel p = new JPanel();
@@ -606,25 +636,10 @@ private void onSave() {
 
     private static class SimpleDocumentListener implements DocumentListener {
         private final Runnable onChange;
-
-        private SimpleDocumentListener(Runnable onChange) {
-            this.onChange = onChange;
-        }
-
-        @Override
-        public void insertUpdate(DocumentEvent e) {
-            onChange.run();
-        }
-
-        @Override
-        public void removeUpdate(DocumentEvent e) {
-            onChange.run();
-        }
-
-        @Override
-        public void changedUpdate(DocumentEvent e) {
-            onChange.run();
-        }
+        private SimpleDocumentListener(Runnable onChange) { this.onChange = onChange; }
+        @Override public void insertUpdate(DocumentEvent e) { onChange.run(); }
+        @Override public void removeUpdate(DocumentEvent e) { onChange.run(); }
+        @Override public void changedUpdate(DocumentEvent e) { onChange.run(); }
     }
 
     private static class TableHeaderRenderer extends DefaultTableCellRenderer {
@@ -635,7 +650,6 @@ private void onSave() {
             setBackground(new Color(238, 242, 255));
             setBorder(new EmptyBorder(12, 14, 12, 14));
         }
-
         @Override
         public Component getTableCellRendererComponent(JTable table, Object value, boolean isSelected,
                                                        boolean hasFocus, int row, int column) {
@@ -648,13 +662,11 @@ private void onSave() {
     private static class BadgeRenderer extends DefaultTableCellRenderer {
         enum Type { PRIORITY, STATUS }
         private final Type type;
-
         BadgeRenderer(Type type) {
             this.type = type;
             setHorizontalAlignment(CENTER);
             setFont(new Font("Segoe UI", Font.BOLD, 12));
         }
-
         @Override
         public Component getTableCellRendererComponent(JTable table, Object value, boolean isSelected,
                                                        boolean hasFocus, int row, int column) {
@@ -667,23 +679,14 @@ private void onSave() {
             Color base;
             String normalized = text.toLowerCase(Locale.ROOT);
             if (type == Type.PRIORITY) {
-                if (normalized.contains("alta")) {
-                    base = new Color(255, 120, 102);
-                } else if (normalized.contains("media")) {
-                    base = new Color(255, 188, 75);
-                } else {
-                    base = new Color(200, 210, 230);
-                }
+                if (normalized.contains("alta"))       base = new Color(255, 120, 102);
+                else if (normalized.contains("media")) base = new Color(255, 188, 75);
+                else                                    base = new Color(200, 210, 230);
             } else {
-                if (normalized.contains("complet")) {
-                    base = new Color(73, 198, 154);
-                } else if (normalized.contains("proceso")) {
-                    base = new Color(86, 127, 255);
-                } else if (normalized.contains("alta")) {
-                    base = new Color(255, 120, 102);
-                } else {
-                    base = new Color(255, 188, 75);
-                }
+                if (normalized.contains("complet"))     base = new Color(73, 198, 154);
+                else if (normalized.contains("proceso"))base = new Color(86, 127, 255);
+                else if (normalized.contains("alta"))   base = new Color(255, 120, 102);
+                else                                     base = new Color(255, 188, 75);
             }
 
             if (isSelected) {
