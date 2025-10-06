@@ -4,9 +4,11 @@ import ar.edu.unse.siga.domain.Tramite;
 import ar.edu.unse.siga.persistence.dao.TramiteDao;
 
 import java.time.LocalDateTime;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 public class TramiteService {
 
@@ -16,7 +18,6 @@ public class TramiteService {
         this.tramiteDao = tramiteDao;
     }
 
-    // ✅ Método principal: guarda exactamente la descripción que venga de la UI
     public Long registrarTramite(String nro, String asunto, String solicitante, String descripcion, String destino) {
         if (nro == null || nro.isBlank()) throw new IllegalArgumentException("Número obligatorio");
         if (asunto == null || asunto.isBlank()) throw new IllegalArgumentException("Asunto obligatorio");
@@ -32,13 +33,6 @@ public class TramiteService {
 
         return tramiteDao.create(t);
     }
-
-    // ✅ Overload para compatibilidad
-//    public Long registrarTramite(String nro, String asunto, String solicitante, String descripcion, String destino) {
-//        return registrarTramite(nro, asunto, solicitante, descripcion, destino);
-//    }
-
-    // ========= ESTADOS =========
 
     private String canonicalEstado(String estado) {
         if (estado == null || estado.isBlank()) throw new IllegalArgumentException("Estado inválido");
@@ -56,38 +50,32 @@ public class TramiteService {
         tramiteDao.updateEstado(id, canonicalEstado(nuevoEstado));
     }
 
-    // ✅ NUEVO: update por NRO (evita el SELECT y el popup de error)
     public void actualizarEstadoPorNro(String nro, String nuevoEstado) {
         if (nro == null || nro.isBlank()) throw new IllegalArgumentException("Nro inválido");
         tramiteDao.updateEstadoByNro(nro, canonicalEstado(nuevoEstado));
     }
 
-    // Compatibilidad: delega
-    public void cambiarEstado(Long id, String nuevoEstado) {
-        actualizarEstado(id, nuevoEstado);
-    }
+    public Optional<Tramite> buscarPorNro(String nro) { return tramiteDao.findByNro(nro); }
 
-    // ========= CONSULTAS =========
+    public List<Tramite> listarTodos() { return tramiteDao.listAll(); }
 
-    public Optional<Tramite> buscarPorNro(String nro) {
-        return tramiteDao.findByNro(nro);
-    }
+    public List<Tramite> listarActivos() { return tramiteDao.listActivos(); }
 
-    public List<Tramite> listarTodos() {
-        return tramiteDao.listAll();
-    }
-
-    public List<Tramite> listarActivos() {
-        return tramiteDao.listActivos();
-    }
-
-    public int totalTramites() {
-        return listarTodos().size();
-    }
+    public int totalTramites() { return listarTodos().size(); }
 
     public int totalPendientes() {
         return (int) listarTodos().stream()
                 .filter(t -> t.getEstado() != null && t.getEstado().equalsIgnoreCase("PENDIENTE"))
                 .count();
     }
+
+    // ====== NUEVO: últimos N trámites (por fecha descendente) ======
+// En TramiteService
+public java.util.List<Tramite> tramitesRecientes(int limit) {
+    return tramiteDao.listRecientes(limit); // requiere Dao (paso 2)
+}
+
+
+    
+    
 }

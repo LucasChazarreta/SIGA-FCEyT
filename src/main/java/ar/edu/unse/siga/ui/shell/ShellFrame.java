@@ -20,6 +20,7 @@ import java.awt.*;
 import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.function.Consumer;
 
 public class ShellFrame extends JFrame {
 
@@ -63,13 +64,37 @@ public class ShellFrame extends JFrame {
         cardHolder.add(cards, BorderLayout.CENTER);
         root.add(cardHolder, BorderLayout.CENTER);
 
-        // Páginas
-        addPage("home",        new HomePage());
-        addPage("inventario",  new InventoryPage(inventarioService));
+        // ===== Navegación centralizada =====
+        Consumer<String> nav = key -> {
+            String title = switch (key) {
+                case "home" ->
+                    "Inicio";
+                case "inventario" ->
+                    "Inventario";
+                case "movimientos" ->
+                    "Movimientos";
+                case "reportes" ->
+                    "Informes";
+                case "tramites" ->
+                    "Trámites";
+                case "finanzas" ->
+                    "Finanzas";
+                default ->
+                    key;
+            };
+            showCard(key, title);
+        };
+
+        // ===== Páginas (instancias compartidas) =====
+        HomePage homePage = new HomePage(CurrentSession.getUser(), inventarioService, tramiteService, nav);
+        TramiteEntradaPage tramitesPage = new TramiteEntradaPage(tramiteService, homePage::recargarTramitesRecientes);
+
+        addPage("home", homePage);
+        addPage("inventario", new InventoryPage(inventarioService));
         addPage("movimientos", new InventoryMovementsPage(inventarioService));
-        addPage("tramites",    new TramiteEntradaPage(tramiteService));
-        addPage("reportes",    new InformesPanel(inventarioService, tramiteService));
-        addPage("finanzas",    new FinanzasPage());
+        addPage("tramites", tramitesPage);
+        addPage("reportes", new InformesPanel(inventarioService, tramiteService));
+        // addPage("finanzas",    new FinanzasPage()); // si la usás, descomentar
 
         setSize(1200, 760);
         setLocationRelativeTo(null);
@@ -86,8 +111,8 @@ public class ShellFrame extends JFrame {
         header.add(lblTitle, BorderLayout.WEST);
 
         var u = CurrentSession.getUser();
-        lblUser.setText((u != null ? u.getUsername() : "-") +
-                "  |  " + java.time.LocalDate.now().format(DateTimeFormatter.ofPattern("dd/MM/yyyy")));
+        lblUser.setText((u != null ? u.getUsername() : "-")
+                + "  |  " + java.time.LocalDate.now().format(DateTimeFormatter.ofPattern("dd/MM/yyyy")));
         lblUser.setForeground(new Color(90, 110, 150));
         header.add(lblUser, BorderLayout.EAST);
         return header;
@@ -120,19 +145,19 @@ public class ShellFrame extends JFrame {
         menu.setLayout(new BoxLayout(menu, BoxLayout.Y_AXIS));
         menu.setBorder(BorderFactory.createEmptyBorder(8, 16, 16, 16));
 
-        NavButton bHome = nav("Inicio",       "ui/icons/home.svg",       "home");
-        NavButton bInv  = nav("Inventario",   "ui/icons/inventory.svg",  "inventario");
-        NavButton bMov  = nav("Movimientos",  "ui/icons/movements.svg",  "movimientos", 1);
-        NavButton bInf  = nav("Informes",     "ui/icons/reports.svg",    "reportes");
-        NavButton bTra  = nav("Trámites",     "ui/icons/tramites.svg",   "tramites");
-        //NavButton bFin  = nav("Finanzas",     "ui/icons/finanzas.svg",   "finanzas");
+        NavButton bHome = nav("Inicio", "ui/icons/home.svg", "home");
+        NavButton bInv = nav("Inventario", "ui/icons/inventory.svg", "inventario");
+        NavButton bMov = nav("Movimientos", "ui/icons/movements.svg", "movimientos", 1);
+        NavButton bInf = nav("Informes", "ui/icons/reports.svg", "reportes");
+        NavButton bTra = nav("Trámites", "ui/icons/tramites.svg", "tramites");
+        // NavButton bFin  = nav("Finanzas",     "ui/icons/finanzas.svg",   "finanzas");
 
         navGroup.add(bHome);
         navGroup.add(bInv);
         navGroup.add(bMov);
         navGroup.add(bInf);
         navGroup.add(bTra);
-        //navGroup.add(bFin);
+        // navGroup.add(bFin);
 
         menu.add(bHome);
         menu.add(Box.createVerticalStrut(8));
@@ -144,7 +169,7 @@ public class ShellFrame extends JFrame {
         menu.add(Box.createVerticalStrut(8));
         menu.add(bTra);
         menu.add(Box.createVerticalStrut(8));
-        //menu.add(bFin);
+        // menu.add(bFin);
         menu.add(Box.createVerticalGlue());
 
         side.add(menu, BorderLayout.CENTER);
@@ -166,7 +191,9 @@ public class ShellFrame extends JFrame {
         return side;
     }
 
-    /** Crea y registra un NavButton asociado a la clave de CardLayout. */
+    /**
+     * Crea y registra un NavButton asociado a la clave de CardLayout.
+     */
     private NavButton nav(String text, String icon, String key) {
         return nav(text, icon, key, 0);
     }
@@ -181,7 +208,9 @@ public class ShellFrame extends JFrame {
         return btn;
     }
 
-    /** Muestra la card y resalta el botón activo (pastilla blanca). */
+    /**
+     * Muestra la card y resalta el botón activo (pastilla blanca).
+     */
     private void showCard(String key, String title) {
         cardLayout.show(cards, key);
         lblTitle.setText(title);

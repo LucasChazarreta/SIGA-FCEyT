@@ -20,6 +20,7 @@ public class TramiteFrame extends BaseCrudFrame<Tramite> {
 
     private final TramiteService service;
     private final TramiteTableModel model = new TramiteTableModel();
+    
 
     private final JTextField txtSearch = new JTextField(20);
     private final JComboBox<String> cbCampo
@@ -92,6 +93,8 @@ public class TramiteFrame extends BaseCrudFrame<Tramite> {
                 filter();
             }
         });
+        
+        
 
         // ---- Zebra striping y anchos
         table.setDefaultRenderer(Object.class, new DefaultTableCellRenderer() {
@@ -215,7 +218,7 @@ public class TramiteFrame extends BaseCrudFrame<Tramite> {
                 sel.getEstado());
         if (nuevo != null) {
             try {
-                service.cambiarEstado(sel.getId(), nuevo);
+                service.actualizarEstado(sel.getId(), nuevo);
                 loadData();
             } catch (Exception e) {
                 Ui.error(this, e);

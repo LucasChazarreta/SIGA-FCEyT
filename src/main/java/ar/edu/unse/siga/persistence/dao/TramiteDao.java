@@ -10,6 +10,9 @@ public interface TramiteDao {
     Optional<Tramite> findByNro(String nro);
     List<Tramite> listAll();
     List<Tramite> listActivos();
+    // En TramiteDao
+List<Tramite> listRecientes(int limit);
+
 
     // ✅ NUEVO: actualizar estado directamente por NRO (sin SELECT previo)
     void updateEstadoByNro(String nro, String nuevoEstado);
