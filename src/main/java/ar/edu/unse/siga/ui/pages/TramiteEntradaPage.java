@@ -18,6 +18,8 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Locale;
+import javax.swing.table.TableColumn;
+import javax.swing.event.TableModelEvent;
 
 public class TramiteEntradaPage extends JPanel {
 
@@ -25,29 +27,40 @@ public class TramiteEntradaPage extends JPanel {
 
     private final JTextField txtAsunto = new JTextField(25);
     private final JTextField txtRemitente = new JTextField(25);
-    private final JTextArea txtDescripcion = new JTextArea(4, 25);
+    private final JTextArea txtDescripcion = new JTextArea();
     private final JTextField txtDestino = new JTextField(25);
-    private final JTextField txtDestinatario = new JTextField(25);
     private final JLabel lblNumero = new JLabel();
+    // listas laterales que vamos a rellenar/refrescar
+    private JPanel recentList;
+    private JPanel oldList;
+
 
     private final JTextField filterSearch = new JTextField(18);
-    private final JComboBox<String> filterCategoria = new JComboBox<>(
-            new String[]{"Todas", "Matrículas", "Ingresos", "Suministros", "Pagos"});
+    
     private final JComboBox<String> filterEstado = new JComboBox<>(
-            new String[]{"Todos", "Completado", "En proceso", "Pendiente", "Alta"});
-
+            new String[]{"Completado", "En proceso", "Pendiente", }
+            );
+    
     private final CardLayout cardLayout = new CardLayout();
     private final JPanel cards = new JPanel(cardLayout);
 
     private final JTable table = new JTable(new DefaultTableModel(
-            new Object[][]{},
-            new String[]{"ID Trámite", "Asunto", "Fecha actualización", "Última actualización", "Prioridad", "Estado"}
-    )) {
+        new Object[][]{},
+        new String[]{"ID Trámite", "Asunto", "Fecha actualización", "Última actualización", "Descripción", "Estado", "ID_DB"}
+    ) {
         @Override
         public boolean isCellEditable(int row, int column) {
-            return false;
+            return column == 5; // Solo "Estado"
+        }
+    }) {
+        @Override
+        public boolean isCellEditable(int row, int column) {
+            // Delegar en el modelo para claridad
+            return ((DefaultTableModel) getModel()).isCellEditable(row, column);
         }
     };
+    
+   
 
     public TramiteEntradaPage(TramiteService service) {
         this.service = service;
@@ -132,36 +145,45 @@ public class TramiteEntradaPage extends JPanel {
         JLabel title = new JLabel("Detalle del trámite");
         title.setFont(new Font("Segoe UI", Font.BOLD, 16));
         title.setForeground(new Color(54, 92, 190));
-        card.add(title, BorderLayout.NORTH);
 
         JPanel form = new JPanel();
         form.setOpaque(false);
         form.setLayout(new BoxLayout(form, BoxLayout.Y_AXIS));
-
+        
+        // AQUI ES DONDE ESTAN LOS DETALLES DEL TRAMITE 
         form.add(infoLabel("Número generado", lblNumero));
-        form.add(Box.createVerticalStrut(16));
+        form.add(Box.createVerticalStrut(14));
         form.add(field("Asunto", txtAsunto));
-        form.add(Box.createVerticalStrut(14));
+        form.add(Box.createVerticalStrut(12));
         form.add(field("Remitente", txtRemitente));
-        form.add(Box.createVerticalStrut(14));
+        form.add(Box.createVerticalStrut(12));
         txtDescripcion.setLineWrap(true);
         txtDescripcion.setWrapStyleWord(true);
         form.add(textAreaField("Descripción", txtDescripcion));
         form.add(Box.createVerticalStrut(14));
         form.add(field("Destino", txtDestino));
         form.add(Box.createVerticalStrut(14));
-        form.add(field("Destinatario", txtDestinatario));
-
         JButton btn = primaryButton("Aceptar");
         btn.addActionListener(e -> onSave());
         btn.setAlignmentX(Component.LEFT_ALIGNMENT);
         form.add(Box.createVerticalStrut(22));
         form.add(btn);
-
+        
+        JPanel column = new JPanel();
+        column.setOpaque(false);
+        column.setLayout(new BoxLayout(column, BoxLayout.Y_AXIS));
+        column.setAlignmentX(Component.LEFT_ALIGNMENT);
+        title.setAlignmentX(Component.LEFT_ALIGNMENT);
+        form.setAlignmentX(Component.LEFT_ALIGNMENT);
+        column.add(title);
+        column.add(Box.createVerticalStrut(12));
+        column.add(form);
+        
         card.add(form, BorderLayout.CENTER);
         return card;
     }
-
+    
+    
     private JComponent buildSidebarPanel() {
         JPanel grid = new JPanel(new GridLayout(2, 1, 18, 18));
         grid.setOpaque(false);
@@ -169,46 +191,186 @@ public class TramiteEntradaPage extends JPanel {
         grid.add(oldTramitesCard());
         return grid;
     }
-
     private CardPanel recentTramitesCard() {
         CardPanel card = new CardPanel();
         card.setLayout(new BorderLayout(0, 12));
         card.add(sideTitle("Trámites recientes"), BorderLayout.NORTH);
 
-        JPanel list = new JPanel();
-        list.setOpaque(false);
-        list.setLayout(new BoxLayout(list, BoxLayout.Y_AXIS));
-        list.add(recentItem("Asunto: Presupuesto 2026", "Estado: COMPLETADO", "Completo", new Color(73, 198, 154)));
-        list.add(recentItem("Asunto: Pedido resma A4", "Estado: EN PROCESO", "En proceso", new Color(86, 127, 255)));
-        list.add(recentItem("Asunto: Solicitud equipamiento", "Estado: PENDIENTE", "Pendiente", new Color(255, 170, 70)));
+        recentList = new JPanel();
+        recentList.setOpaque(false);
+        recentList.setLayout(new BoxLayout(recentList, BoxLayout.Y_AXIS));
 
-        JButton link = subtleLink("Ver historial completo");
-        list.add(Box.createVerticalStrut(12));
-        list.add(link);
+        card.add(scrollList(recentList, 260), BorderLayout.CENTER);
 
-        card.add(list, BorderLayout.CENTER);
+        // llenar la lista desde la BD
+        refreshRecientes();
+
         return card;
     }
+    
+    private void refreshRecientes() {
+        if (recentList == null) return;
+        recentList.removeAll();
+        try {
+            var tramites = service.listarTodos();
+            tramites.stream()
+                    .sorted((a,b) -> {
+                        var fa = a.getFecha(); var fb = b.getFecha();
+                        if (fa == null && fb == null) return 0;
+                        if (fa == null) return 1;
+                        if (fb == null) return -1;
+                        return fb.compareTo(fa); // más nuevos primero
+                    })
+                    .limit(20)
+                    .forEach(t -> {
+                        String titulo = "Asunto: " + (t.getAsunto()==null? "-" : t.getAsunto());
+                        String subt   = "Estado: " + (t.getEstado()==null? "-" : t.getEstado());
+                        String badge  = estadoFriendly(t.getEstado());
+                        java.awt.Color c = new java.awt.Color(200,210,230);
+                        String e = badge.toLowerCase(java.util.Locale.ROOT);
+                        if (e.contains("complet")) c = new java.awt.Color(73,198,154);
+                        else if (e.contains("proceso")) c = new java.awt.Color(86,127,255);
+                        else if (e.contains("pend")) c = new java.awt.Color(255,170,70);
+                        recentList.add(recentItem(titulo, subt, badge, c));
+                        recentList.add(Box.createVerticalStrut(4));
+                    });
+        } catch (Exception ex) {
+            Ui.error(this, ex);
+        }
+        recentList.revalidate();
+        recentList.repaint();
+    }
 
+    private void refreshAntiguos() {
+        if (oldList == null) return;
+        oldList.removeAll();
+        try {
+            var fmt = java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy");
+            var tramites = service.listarTodos();
+            tramites.stream()
+                    .sorted(java.util.Comparator.comparing(
+                            ar.edu.unse.siga.domain.Tramite::getFecha,
+                            java.util.Comparator.nullsLast(java.util.Comparator.naturalOrder())
+                    ))
+                    .limit(50)
+                    .forEach(t -> {
+                        String asunto = (t.getAsunto()==null || t.getAsunto().isBlank()) ? "-" : t.getAsunto();
+                        String fecha  = (t.getFecha()==null) ? "-" : t.getFecha().format(fmt);
+                        oldList.add(twoLineItem("Asunto: " + asunto, "Fecha: " + fecha));
+                        oldList.add(Box.createVerticalStrut(4));
+                    });
+        } catch (Exception ex) {
+            Ui.error(this, ex);
+        }
+        oldList.revalidate();
+        oldList.repaint();
+    }
+
+
+//    private CardPanel recentTramitesCard() {
+//        CardPanel card = new CardPanel();
+//        card.setLayout(new BorderLayout(0, 12));
+//        card.add(sideTitle("Trámites recientes"), BorderLayout.NORTH);
+//
+//        JPanel list = new JPanel();
+//        list.setOpaque(false);
+//        list.setLayout(new BoxLayout(list, BoxLayout.Y_AXIS));
+//
+//        //muestra los ultimos tramites cargado
+//        list.removeAll();
+//        try {
+//            var tramites = service.listarTodos(); // trae todos
+//            tramites.stream()
+//                    .sorted((a,b) -> {
+//                        var fa = a.getFecha(); var fb = b.getFecha();
+//                        if (fa == null && fb == null) return 0;
+//                        if (fa == null) return 1;
+//                        if (fb == null) return -1;
+//                        return fb.compareTo(fa); // orden descendente
+//                    })
+//                    .limit(20) // cuántos mostrar con scroll
+//                    .forEach(t -> {
+//                        String titulo = "Asunto: " + (t.getAsunto() == null ? "-" : t.getAsunto());
+//                        String subt   = "Estado: " + (t.getEstado() == null ? "-" : t.getEstado());
+//                        Color c = new Color(200, 210, 230);
+//                        String e = (t.getEstado() == null ? "" : t.getEstado().toLowerCase());
+//                        if (e.contains("complet")) c = new Color(73, 198, 154);
+//                        else if (e.contains("proceso")) c = new Color(86, 127, 255);
+//                        else if (e.contains("pend")) c = new Color(255, 170, 70);
+//                        list.add(recentItem(titulo, subt, t.getEstado(), c));
+//                    });
+//            list.revalidate();
+//            list.repaint();
+//        } catch (Exception ex) {
+//            Ui.error(this, ex);
+//        }
+//
+//
+//        // >>> Envolver la lista en un scroll y NO agregar más link
+//        card.add(scrollList(list, 260), BorderLayout.CENTER);
+//        return card;
+//    }
+
+
+    // Reemplazá TODO el método por este:
+//    private CardPanel oldTramitesCard() {
+//        CardPanel card = new CardPanel();
+//        card.setLayout(new BorderLayout(0, 12));
+//        card.add(sideTitle("Trámites más antiguos"), BorderLayout.NORTH);
+//
+//        JPanel list = new JPanel();
+//        list.setOpaque(false);
+//        list.setLayout(new BoxLayout(list, BoxLayout.Y_AXIS));
+//
+//        // --- Carga dinámica desde BD: más antiguos primero
+//        list.removeAll();
+//        try {
+//            var fmt = java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy");
+//            var tramites = service.listarTodos(); // Ideal: que venga ya ordenado desde el DAO
+//
+//            tramites.stream()
+//                    .sorted(java.util.Comparator.comparing(
+//                            ar.edu.unse.siga.domain.Tramite::getFecha,
+//                            java.util.Comparator.nullsLast(java.util.Comparator.naturalOrder())
+//                    )) // ascendente (más viejo → más nuevo)
+//                    .limit(50) // mostrás hasta 50; el scroll permite verlos
+//                    .forEach(t -> {
+//                        String asunto = (t.getAsunto() == null || t.getAsunto().isBlank())
+//                                ? "-" : t.getAsunto();
+//                        String fechaTxt = (t.getFecha() == null)
+//                                ? "-" : t.getFecha().format(fmt);
+//                        list.add(twoLineItem("Asunto: " + asunto, "Fecha: " + fechaTxt));
+//                    });
+//
+//            list.revalidate();
+//            list.repaint();
+//        } catch (Exception ex) {
+//            Ui.error(this, ex);
+//        }
+//
+//        // Scroll: si hay más ítems que el alto, aparece la barra
+//        card.add(scrollList(list, 220), BorderLayout.CENTER);
+//        return card;
+//    }
+    
     private CardPanel oldTramitesCard() {
         CardPanel card = new CardPanel();
         card.setLayout(new BorderLayout(0, 12));
         card.add(sideTitle("Trámites más antiguos"), BorderLayout.NORTH);
 
-        JPanel list = new JPanel();
-        list.setOpaque(false);
-        list.setLayout(new BoxLayout(list, BoxLayout.Y_AXIS));
-        list.add(twoLineItem("Asunto: Compra equipos Lab.", "Fecha: 23/09/2024"));
-        list.add(twoLineItem("Asunto: Presupuesto Decanato", "Fecha: 12/01/2025"));
-        list.add(twoLineItem("Asunto: Renovación licencias", "Fecha: 08/02/2025"));
+        oldList = new JPanel();
+        oldList.setOpaque(false);
+        oldList.setLayout(new BoxLayout(oldList, BoxLayout.Y_AXIS));
 
-        JButton link = subtleLink("Ver historial completo");
-        list.add(Box.createVerticalStrut(12));
-        list.add(link);
+        card.add(scrollList(oldList, 220), BorderLayout.CENTER);
 
-        card.add(list, BorderLayout.CENTER);
+        // llenar la lista desde la BD
+        refreshAntiguos();
+
         return card;
     }
+
+
 
     private CardPanel buildActivosCard() {
         CardPanel card = new CardPanel();
@@ -235,17 +397,13 @@ public class TramiteEntradaPage extends JPanel {
         filterSearch.putClientProperty("JTextField.placeholderText", "Buscar");
         fields.add(filterSearch);
 
-        styleFilterField(filterCategoria, 160);
-        fields.add(filterCategoria);
+        
 
         styleFilterField(filterEstado, 160);
         fields.add(filterEstado);
 
         panel.add(fields, BorderLayout.CENTER);
 
-        JButton export = outlineButton("Exportar PDF");
-        export.addActionListener(e -> Ui.info(this, "Funcionalidad de exportación en desarrollo."));
-        panel.add(export, BorderLayout.EAST);
 
         return panel;
     }
@@ -261,11 +419,18 @@ public class TramiteEntradaPage extends JPanel {
         table.setFont(new Font("Segoe UI", Font.PLAIN, 13));
         table.setAutoCreateRowSorter(true);
 
+        // Editar la celda de Estados con opciones 
+        JComboBox<String> estadoEditor = new JComboBox<>(new String[]{
+                "Completado", "En proceso", "Pendiente"
+        });
+        table.getColumnModel().getColumn(5).setCellEditor(new DefaultCellEditor(estadoEditor));
+
+        
         JTableHeader header = table.getTableHeader();
         header.setPreferredSize(new Dimension(header.getPreferredSize().width, 46));
         header.setDefaultRenderer(new TableHeaderRenderer());
 
-        table.getColumnModel().getColumn(4).setCellRenderer(new BadgeRenderer(BadgeRenderer.Type.PRIORITY));
+        //  ----------- AQUI ESTAN LOS COLORES DE LA TABLA DE TRAMITES ACTIVOS----------
         table.getColumnModel().getColumn(5).setCellRenderer(new BadgeRenderer(BadgeRenderer.Type.STATUS));
 
         JScrollPane scroll = new JScrollPane(table);
@@ -276,11 +441,40 @@ public class TramiteEntradaPage extends JPanel {
 
     private void configureTable() {
         loadTableData();
+        // === Editor para columna Estado ===
+        JComboBox<String> estadoEditor = new JComboBox<>(new String[]{
+                "Completado", "En proceso", "Pendiente", "Nuevo"
+        });
+        table.getColumnModel().getColumn(5).setCellEditor(new DefaultCellEditor(estadoEditor));
+        // === Ocultar la columna ID_DB (si la agregaste) ===
+        TableColumn hiddenIdCol = table.getColumnModel().getColumn(6);
+        hiddenIdCol.setMinWidth(0);
+        hiddenIdCol.setMaxWidth(0);
+        hiddenIdCol.setPreferredWidth(0);
+        // === Listener para guardar cambios de estado ===
+        DefaultTableModel m = (DefaultTableModel) table.getModel();
+        m.addTableModelListener(e -> {
+            if (e.getType() != TableModelEvent.UPDATE) return;
+            int row = e.getFirstRow();
+            int col = e.getColumn();
+            if (row < 0 || col != 5) return; // solo si cambió "Estado"
+            Object idObj = m.getValueAt(row, 6);       // ID_DB oculto
+            Object estadoObj = m.getValueAt(row, 5);   // Estado visible
+            if (idObj == null || estadoObj == null) return;
+            try {
+                Long id = (idObj instanceof Long) ? (Long) idObj : Long.valueOf(idObj.toString());
+                String nuevoEstado = estadoObj.toString();
+                service.cambiarEstado(id, nuevoEstado);   // usa tu método existente
+                table.repaint();
+            } catch (Exception ex) {
+                Ui.error(this, ex);
+            }
+        });
+
     }
 
     private void installFilters() {
         filterSearch.getDocument().addDocumentListener(new SimpleDocumentListener(this::loadTableData));
-        filterCategoria.addActionListener(e -> loadTableData());
         filterEstado.addActionListener(e -> loadTableData());
     }
 
@@ -293,11 +487,14 @@ public class TramiteEntradaPage extends JPanel {
             String nro = lblNumero.getText();
             String asunto = txtAsunto.getText().trim();
             String solicitante = txtRemitente.getText().trim();
+            String descripcion = txtDescripcion.getText().trim();
+            String destino = txtDestino.getText().trim();
+            
             if (asunto.isEmpty()) {
                 throw new IllegalArgumentException("El asunto es obligatorio");
             }
 
-            service.registrarTramite(nro, asunto, solicitante);
+            service.registrarTramite(nro, asunto, solicitante, descripcion, destino);
 
             Ui.info(this, "Trámite registrado correctamente.");
             lblNumero.setText(generateNumero(LocalDate.now()));
@@ -305,8 +502,9 @@ public class TramiteEntradaPage extends JPanel {
             txtRemitente.setText("");
             txtDescripcion.setText("");
             txtDestino.setText("");
-            txtDestinatario.setText("");
             loadTableData();
+            refreshRecientes();
+            refreshAntiguos();
         } catch (Exception e) {
             Ui.error(this, e);
         }
@@ -317,7 +515,6 @@ public class TramiteEntradaPage extends JPanel {
         model.setRowCount(0);
         try {
             String search = filterSearch.getText().trim().toLowerCase(Locale.ROOT);
-            String categoria = (String) filterCategoria.getSelectedItem();
             String estadoFiltro = (String) filterEstado.getSelectedItem();
 
             List<Tramite> tramites = service.listarTodos();
@@ -327,14 +524,12 @@ public class TramiteEntradaPage extends JPanel {
                     if (!texto.contains(search)) {
                         continue;
                     }
-                }
-                if (!"Todas".equalsIgnoreCase(categoria) && !matchesCategoria(t, categoria)) {
-                    continue;
-                }
-                if (!"Todos".equalsIgnoreCase(estadoFiltro) && !estadoMatches(t.getEstado(), estadoFiltro)) {
-                    continue;
-                }
+                    if (!"Estado".equals(estadoFiltro)&& !estadoFriendly(t.getEstado()).equalsIgnoreCase(estadoFiltro)) {
+                        continue;
+}
 
+                }
+                
                 LocalDateTime fecha = t.getFecha();
                 String actualizacion = fecha != null
                         ? fecha.format(DateTimeFormatter.ofPattern("dd/MM/yyyy"))
@@ -343,17 +538,19 @@ public class TramiteEntradaPage extends JPanel {
                         ? fecha.minusDays(1).format(DateTimeFormatter.ofPattern("dd/MM/yyyy"))
                         : "-";
 
-                String prioridad = prioridadDesdeEstado(t.getEstado());
+                String descripcion = (t.getDescripcion() == null || t.getDescripcion().isBlank()) ? "-" : t.getDescripcion();
                 String estado = estadoFriendly(t.getEstado());
 
                 model.addRow(new Object[]{
-                        t.getNro(),
-                        t.getAsunto(),
-                        actualizacion,
-                        ultima,
-                        prioridad,
-                        estado
+                t.getNro(),
+                t.getAsunto(),
+                actualizacion,
+                ultima,
+                descripcion,
+                estado,
+                t.getId() // esta es la nueva columna oculta
                 });
+
             }
         } catch (Exception ex) {
             Ui.error(this, ex);
@@ -401,7 +598,7 @@ public class TramiteEntradaPage extends JPanel {
         return switch (estado.toUpperCase(Locale.ROOT)) {
             case "COMPLETADO", "CERRADO" -> "Completado";
             case "EN_PROCESO" -> "En proceso";
-            case "ALTA" -> "Alta";
+            
             default -> capitalize(estado);
         };
     }
@@ -417,6 +614,7 @@ public class TramiteEntradaPage extends JPanel {
         JPanel p = new JPanel();
         p.setOpaque(false);
         p.setLayout(new BoxLayout(p, BoxLayout.Y_AXIS));
+        p.setAlignmentX(Component.LEFT_ALIGNMENT);
         JLabel lbl = new JLabel(label.toUpperCase(Locale.ROOT));
         lbl.setAlignmentX(Component.LEFT_ALIGNMENT);
         lbl.setFont(new Font("Segoe UI", Font.BOLD, 12));
@@ -429,29 +627,50 @@ public class TramiteEntradaPage extends JPanel {
         return p;
     }
 
+    
     private JPanel textAreaField(String label, JTextArea area) {
-        JPanel p = new JPanel();
-        p.setOpaque(false);
-        p.setLayout(new BoxLayout(p, BoxLayout.Y_AXIS));
-        JLabel lbl = new JLabel(label.toUpperCase(Locale.ROOT));
-        lbl.setAlignmentX(Component.LEFT_ALIGNMENT);
-        lbl.setFont(new Font("Segoe UI", Font.BOLD, 12));
-        lbl.setForeground(new Color(87, 110, 178));
-        area.setAlignmentX(Component.LEFT_ALIGNMENT);
-        area.setBorder(new EmptyBorder(8, 12, 8, 12));
-        area.setFont(new Font("Segoe UI", Font.PLAIN, 13));
-        JScrollPane scroll = new JScrollPane(area);
-        scroll.setBorder(BorderFactory.createLineBorder(new Color(211, 220, 249)));
-        scroll.setAlignmentX(Component.LEFT_ALIGNMENT);
-        p.add(lbl);
-        p.add(Box.createVerticalStrut(6));
-        p.add(scroll);
-        return p;
-    }
+     JPanel p = new JPanel();
+     p.setOpaque(false);
+     p.setLayout(new BoxLayout(p, BoxLayout.Y_AXIS));
+     p.setAlignmentX(Component.LEFT_ALIGNMENT);
+
+     JLabel lbl = new JLabel(label.toUpperCase(Locale.ROOT));
+     lbl.setAlignmentX(Component.LEFT_ALIGNMENT);
+     lbl.setFont(new Font("Segoe UI", Font.BOLD, 12));
+     lbl.setForeground(new Color(87, 110, 178));
+
+     // Config del área
+     area.setLineWrap(true);
+     area.setWrapStyleWord(true);
+     area.setBorder(new EmptyBorder(8, 12, 8, 12));
+     area.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+     area.setRows(2);   // <- alto base (6 líneas visibles)
+
+     // IMPORTANTÍSIMO: el tamaño se lo damos al SCROLL, no al área
+     JScrollPane scroll = new JScrollPane(area);
+     scroll.setBorder(BorderFactory.createLineBorder(new Color(211, 220, 249)));
+     scroll.setAlignmentX(Component.LEFT_ALIGNMENT);
+     scroll.setOpaque(false);
+     scroll.getViewport().setOpaque(false);
+
+     // Forzamos altura para BoxLayout (min, pref y max):
+     int alto = 100; // subilo si querés: 160/180
+     scroll.setMinimumSize(new Dimension(0, alto));
+     scroll.setPreferredSize(new Dimension(0, alto));
+     scroll.setMaximumSize(new Dimension(Integer.MAX_VALUE, alto));
+
+     p.add(lbl);
+     p.add(Box.createVerticalStrut(6));
+     p.add(scroll);
+     return p;
+ }
+
+
 
     private JPanel infoLabel(String title, JLabel value) {
         JPanel panel = new JPanel(new BorderLayout());
         panel.setOpaque(false);
+        panel.setAlignmentX(Component.LEFT_ALIGNMENT);
         JLabel lblTitle = new JLabel(title.toUpperCase(Locale.ROOT));
         lblTitle.setFont(new Font("Segoe UI", Font.BOLD, 12));
         lblTitle.setForeground(new Color(87, 110, 178));
@@ -552,6 +771,19 @@ public class TramiteEntradaPage extends JPanel {
             component.setBackground(Color.WHITE);
         }
     }
+    private JScrollPane scrollList(JComponent content, int preferredHeight) {
+        JScrollPane scroll = new JScrollPane(content);
+        scroll.setBorder(BorderFactory.createEmptyBorder());
+        scroll.setOpaque(false);
+        scroll.getViewport().setOpaque(false);
+        // altura “tope” deseada para que, si hay más items, aparezca el scroll
+        scroll.setPreferredSize(new Dimension(0, preferredHeight));
+        scroll.setVerticalScrollBarPolicy(ScrollPaneConstants.VERTICAL_SCROLLBAR_AS_NEEDED);
+        scroll.setHorizontalScrollBarPolicy(ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
+        scroll.getVerticalScrollBar().setUnitIncrement(16); // scroll suave
+        return scroll;
+    }
+
 
     private JButton primaryButton(String text) {
         JButton b = new JButton(text);

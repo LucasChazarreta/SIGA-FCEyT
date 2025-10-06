@@ -15,21 +15,33 @@ public class TramiteService {
         this.tramiteDao = tramiteDao;
     }
 
-    public Long registrarTramite(String nro, String asunto, String solicitante) {
+    public Long registrarTramite(String nro, String asunto, String solicitante, String descripcion, String destino) {
         if (nro == null || nro.isBlank()) {
             throw new IllegalArgumentException("Número obligatorio");
         }
         if (asunto == null || asunto.isBlank()) {
             throw new IllegalArgumentException("Asunto obligatorio");
         }
+        if (descripcion == null || descripcion.isBlank()) {
+            throw new IllegalArgumentException("Descripcion obligatorio");
+        }
+        if (destino == null || destino.isBlank()) {
+            throw new IllegalArgumentException("Destino obligatorio");
+        }
         Tramite t = new Tramite();
         t.setNro(nro);
         t.setAsunto(asunto);
         t.setSolicitante(solicitante);
+        t.setDescripcion(descripcion);
+        t.setDestino(destino);        
         t.setEstado("NUEVO");
         t.setFecha(LocalDateTime.now());
         return tramiteDao.create(t);
     }
+    
+    
+    //----------Metodo para actualizar el campo Estado de tramite-------
+      
 
     public void cambiarEstado(Long id, String nuevoEstado) {
         if (nuevoEstado == null || nuevoEstado.isBlank()) {

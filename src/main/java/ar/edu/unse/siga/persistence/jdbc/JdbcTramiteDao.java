@@ -21,12 +21,14 @@ public class JdbcTramiteDao implements TramiteDao {
         Timestamp ts = rs.getTimestamp("fecha");
         if (ts != null) t.setFecha(ts.toLocalDateTime());
         t.setSolicitante(rs.getString("solicitante"));
+        t.setDescripcion(rs.getString("descripcion"));
+        t.setDestino(rs.getString("destino"));
         return t;
     }
 
     @Override
     public Long create(Tramite t) {
-        String sql = "INSERT INTO tramite(nro, asunto, estado, fecha, solicitante) VALUES (?,?,?,?,?)";
+        String sql = "INSERT INTO tramite"+"(nro, asunto, estado, fecha, solicitante, descripcion, destino) VALUES (?,?,?,?,?,?,?)";
         try (Connection cn = DataSourceFactory.getConnection();
              PreparedStatement ps = cn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
 
@@ -35,7 +37,8 @@ public class JdbcTramiteDao implements TramiteDao {
             ps.setString(3, t.getEstado());
             ps.setTimestamp(4, Timestamp.valueOf(t.getFecha()!=null? t.getFecha(): LocalDateTime.now()));
             ps.setString(5, t.getSolicitante());
-
+            ps.setString(6, t.getDescripcion());
+            ps.setString(7, t.getDestino());    
             ps.executeUpdate();
             try (ResultSet rs = ps.getGeneratedKeys()) {
                 if (rs.next()) {
