@@ -216,7 +216,7 @@ public class TramiteEntradaPage extends JPanel {
         form.add(Box.createVerticalStrut(14));
         form.add(field("Destino", txtDestino));
         form.add(Box.createVerticalStrut(14));
-        form.add(field("Destinatario", txtDestinatario));
+        //form.add(field("Destinatario", txtDestinatario));
 
         JButton btn = primaryButton("Aceptar");
         btn.addActionListener(e -> onSave());
@@ -366,7 +366,7 @@ public class TramiteEntradaPage extends JPanel {
             txtRemitente.setText("");
             txtDescripcion.setText("");
             txtDestino.setText("");
-            txtDestinatario.setText("");
+            //txtDestinatario.setText("");
 
             // refrescar
             loadTableData();

@@ -125,14 +125,14 @@ public class ShellFrame extends JFrame {
         NavButton bMov  = nav("Movimientos",  "ui/icons/movements.svg",  "movimientos", 1);
         NavButton bInf  = nav("Informes",     "ui/icons/reports.svg",    "reportes");
         NavButton bTra  = nav("Trámites",     "ui/icons/tramites.svg",   "tramites");
-        NavButton bFin  = nav("Finanzas",     "ui/icons/finanzas.svg",   "finanzas");
+        //NavButton bFin  = nav("Finanzas",     "ui/icons/finanzas.svg",   "finanzas");
 
         navGroup.add(bHome);
         navGroup.add(bInv);
         navGroup.add(bMov);
         navGroup.add(bInf);
         navGroup.add(bTra);
-        navGroup.add(bFin);
+        //navGroup.add(bFin);
 
         menu.add(bHome);
         menu.add(Box.createVerticalStrut(8));
@@ -144,7 +144,7 @@ public class ShellFrame extends JFrame {
         menu.add(Box.createVerticalStrut(8));
         menu.add(bTra);
         menu.add(Box.createVerticalStrut(8));
-        menu.add(bFin);
+        //menu.add(bFin);
         menu.add(Box.createVerticalGlue());
 
         side.add(menu, BorderLayout.CENTER);
