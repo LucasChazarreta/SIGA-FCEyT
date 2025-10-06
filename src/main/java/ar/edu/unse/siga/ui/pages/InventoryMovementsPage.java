@@ -17,17 +17,14 @@ public class InventoryMovementsPage extends JPanel {
 
     private final InventarioService service;
 
-    // selector
     private final DefaultListModel<Insumo> listModel = new DefaultListModel<>();
     private final JList<Insumo> lstInsumos = new JList<>(listModel);
 
-    // resumen seleccionado
     private final JTextArea taSeleccion = new JTextArea();
-    private Color resumenColorNormal;   // para poder alternar rojo/normal según stock
+    private Color resumenColorNormal;
     private final JButton btnEntrada = new JButton("Registrar ENTRADA");
     private final JButton btnSalida = new JButton("Registrar SALIDA");
 
-    // historial
     private final DefaultListModel<String> historialModel = new DefaultListModel<>();
     private final JList<String> lstHistorial = new JList<>(historialModel);
 
@@ -69,17 +66,14 @@ public class InventoryMovementsPage extends JPanel {
         gc.weightx = 0.5;
         gc.weighty = 1;
 
-        // izquierda: selector
         var left = new JPanel();
         left.setOpaque(false);
         left.setLayout(new BoxLayout(left, BoxLayout.Y_AXIS));
         left.add(selectorCard());
 
-        gc.gridx = 0;
-        gc.gridy = 0;
+        gc.gridx = 0; gc.gridy = 0;
         body.add(left, gc);
 
-        // derecha: resumen + historial real
         var right = new JPanel();
         right.setOpaque(false);
         right.setLayout(new BoxLayout(right, BoxLayout.Y_AXIS));
@@ -87,8 +81,7 @@ public class InventoryMovementsPage extends JPanel {
         right.add(Box.createVerticalStrut(12));
         right.add(historialCard());
 
-        gc.gridx = 1;
-        gc.gridy = 0;
+        gc.gridx = 1; gc.gridy = 0;
         body.add(right, gc);
 
         return container;
@@ -104,7 +97,6 @@ public class InventoryMovementsPage extends JPanel {
         north.add(sectionTitle("Seleccionar insumo"));
         north.add(Box.createVerticalStrut(8));
 
-        // búsqueda (solo botón Buscar + Enter)
         JPanel searchPanel = new JPanel(new BorderLayout(8, 0));
         searchPanel.setOpaque(false);
         var txtSearch = new JTextField();
@@ -125,13 +117,12 @@ public class InventoryMovementsPage extends JPanel {
 
         card.add(north, BorderLayout.NORTH);
 
-        // lista
         lstInsumos.setVisibleRowCount(12);
         lstInsumos.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
         lstInsumos.setCellRenderer(new DefaultListCellRenderer() {
             @Override
             public Component getListCellRendererComponent(JList<?> list, Object value, int index,
-                    boolean isSelected, boolean cellHasFocus) {
+                                                          boolean isSelected, boolean cellHasFocus) {
                 super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus);
                 if (value instanceof Insumo ins) {
                     String cod = ins.getCodigo() == null ? "-" : ins.getCodigo();
@@ -153,10 +144,7 @@ public class InventoryMovementsPage extends JPanel {
                     setActionsEnabled(false);
                     taSeleccion.setText("Seleccioná un insumo");
                     historialModel.clear();
-                    // volver a color normal
-                    if (resumenColorNormal != null) {
-                        taSeleccion.setForeground(resumenColorNormal);
-                    }
+                    if (resumenColorNormal != null) taSeleccion.setForeground(resumenColorNormal);
                 }
             }
         });
@@ -171,7 +159,6 @@ public class InventoryMovementsPage extends JPanel {
 
         card.add(sectionTitle("Insumo seleccionado"), BorderLayout.NORTH);
 
-        // Área multilínea para que se vea todo (wrap + scroll si hace falta)
         taSeleccion.setOpaque(false);
         taSeleccion.setWrapStyleWord(true);
         taSeleccion.setLineWrap(true);
@@ -186,10 +173,8 @@ public class InventoryMovementsPage extends JPanel {
         scroll.setPreferredSize(new Dimension(10, 90));
         card.add(scroll, BorderLayout.CENTER);
 
-        // guardar el color por defecto para poder alternar
         resumenColorNormal = taSeleccion.getForeground();
 
-        // barra de acciones contextual
         JPanel actions = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 0));
         actions.setOpaque(false);
 
@@ -261,10 +246,9 @@ public class InventoryMovementsPage extends JPanel {
 
         int stock = 0;
         try {
-            InventarioService.StockCheckResult res = service.stockActual(sel.getId());
-
-        } catch (Exception ignored) {
-        }
+            StockCheckResult res = service.stockActual(sel.getId());
+            stock = (res != null && res.stockActual != null) ? res.stockActual : 0;   // ← usar lo devuelto
+        } catch (Exception ignored) {}
 
         var win = SwingUtilities.getWindowAncestor(this);
         String ctx = "Insumo: " + sel.getCodigo() + " · " + sel.getDescripcion()
@@ -272,9 +256,7 @@ public class InventoryMovementsPage extends JPanel {
 
         MovimientoDialog dlg = new MovimientoDialog(win, ctx, tipoInicial, null, 1);
         dlg.setVisible(true);
-        if (!dlg.isAccepted()) {
-            return;
-        }
+        if (!dlg.isAccepted()) return;
 
         String tipo = dlg.getTipo();
         int cantidad = dlg.getCantidad();
@@ -287,46 +269,39 @@ public class InventoryMovementsPage extends JPanel {
 
         // Pre-chequeo SALIDA
         try {
-            InventarioService.StockCheckResult res = service.stockActual(sel.getId());
-
-        } catch (Exception ignored) {
-        }
+            StockCheckResult res = service.stockActual(sel.getId());
+            stock = (res != null && res.stockActual != null) ? res.stockActual : 0;   // ← actualizar base para validar
+        } catch (Exception ignored) {}
         if ("SALIDA".equalsIgnoreCase(tipo) && cantidad > stock) {
             JOptionPane.showMessageDialog(this,
-                    String.format(
-                            "No hay suficiente stock para realizar esta salida.\n\n"
-                            + "Cantidad disponible: %d\n"
-                            + "Cantidad solicitada: %d\n\n"
-                            + "Podés registrar una cantidad menor o agregar más stock con una ENTRADA.",
+                    String.format("No hay suficiente stock para realizar esta salida.\n\nCantidad disponible: %d\nCantidad solicitada: %d\n\nPodés registrar una cantidad menor o agregar más stock con una ENTRADA.",
                             stock, cantidad),
                     "Error", JOptionPane.ERROR_MESSAGE);
             return;
         }
 
         try {
-            // NUEVO: usamos el resultado de control de stock del servicio
-            InventarioService.StockCheckResult res = service.stockActual(sel.getId());
+            // *** REGISTRAR MOVIMIENTO EN BD ***
+            service.registrarMovimiento(sel.getId(), tipo, cantidad, destino);
 
+            // Consultar stock actualizado y notificar
+            StockCheckResult res = service.stockActual(sel.getId());
 
-            // Mensaje principal
             JOptionPane.showMessageDialog(this,
                     String.format("%s registrada.\nStock actual: %d",
-                            tipo, res.stockActual),
+                            tipo, (res.stockActual == null ? 0 : res.stockActual)),
                     "OK", JOptionPane.INFORMATION_MESSAGE);
 
-            // Alerta si quedó por debajo del mínimo
             if (res.bajoMinimo) {
                 JOptionPane.showMessageDialog(this,
                         String.format("⚠ Stock por debajo del mínimo.\nActual: %d  |  Mínimo: %s",
-                                res.stockActual,
+                                (res.stockActual == null ? 0 : res.stockActual),
                                 res.stockMinimo == null ? "-" : res.stockMinimo),
                         "Alerta de reposición", JOptionPane.WARNING_MESSAGE);
             }
 
             refreshHistorial(sel.getId());
             refreshSelectedSummary();
-        } catch (IllegalArgumentException | IllegalStateException ex) {
-            JOptionPane.showMessageDialog(this, ex.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
         } catch (Exception ex) {
             JOptionPane.showMessageDialog(this, "Ocurrió un error al registrar el movimiento.",
                     "Error", JOptionPane.ERROR_MESSAGE);
@@ -336,19 +311,15 @@ public class InventoryMovementsPage extends JPanel {
 
     private void refreshHistorial(Long insumoId) {
         historialModel.clear();
-        if (insumoId == null) {
-            return;
-        }
+        if (insumoId == null) return;
         try {
             List<Movimiento> movs = service.ultimosMovimientos(insumoId, 20);
             DateTimeFormatter fmt = DateTimeFormatter.ofPattern("dd-MM-yyyy HH:mm");
             for (Movimiento m : movs) {
                 String fecha = (m.getFecha() != null ? m.getFecha().format(fmt) : "");
-                String linea = String.format(
-                        "%s · x%d %s · Destino: %s",
+                String linea = String.format("%s · x%d %s · Destino: %s",
                         fecha, m.getCantidad(), m.getTipo(),
-                        (m.getDestinoFuente() == null || m.getDestinoFuente().isBlank()) ? "-" : m.getDestinoFuente()
-                );
+                        (m.getDestinoFuente() == null || m.getDestinoFuente().isBlank()) ? "-" : m.getDestinoFuente());
                 historialModel.addElement(linea);
             }
         } catch (Exception ex) {
@@ -356,41 +327,31 @@ public class InventoryMovementsPage extends JPanel {
         }
     }
 
-    /**
-     * Actualiza panel derecho con descripción y stock actual y resalta en rojo
-     * si está por debajo del mínimo.
-     */
     private void refreshSelectedSummary() {
         Insumo sel = lstInsumos.getSelectedValue();
         if (sel == null) {
             taSeleccion.setText("Seleccioná un insumo");
-            if (resumenColorNormal != null) {
-                taSeleccion.setForeground(resumenColorNormal);
-            }
+            if (resumenColorNormal != null) taSeleccion.setForeground(resumenColorNormal);
             return;
         }
         int stockAct = 0;
         try {
-            InventarioService.StockCheckResult res = service.stockActual(sel.getId());
-
-        } catch (Exception ignored) {
-        }
+            StockCheckResult res = service.stockActual(sel.getId());
+            stockAct = (res != null && res.stockActual != null) ? res.stockActual : 0; // ← usar lo devuelto
+        } catch (Exception ignored) {}
 
         String cod = sel.getCodigo() == null ? "-" : sel.getCodigo();
         String desc = sel.getDescripcion() == null ? "-" : sel.getDescripcion();
         String min = sel.getStockMinimo() == null ? "-" : String.valueOf(sel.getStockMinimo());
 
-        taSeleccion.setText(
-                String.format("#%d · %s · %s%nStock mín.: %s  |  Stock actual: %d",
-                        sel.getId(), cod, desc, min, stockAct)
-        );
+        taSeleccion.setText(String.format("#%d · %s · %s%nStock mín.: %s  |  Stock actual: %d",
+                sel.getId(), cod, desc, min, stockAct));
         taSeleccion.setCaretPosition(0);
-        taSeleccion.setToolTipText(desc.length() > 40 ? desc : null); // tooltip si es largo
+        taSeleccion.setToolTipText(desc.length() > 40 ? desc : null);
 
-        // Pintar en rojo si está bajo mínimo
         boolean bajoMinimo = (sel.getStockMinimo() != null) && (stockAct < sel.getStockMinimo());
         if (bajoMinimo) {
-            taSeleccion.setForeground(new Color(176, 0, 32)); // rojo alerta
+            taSeleccion.setForeground(new Color(176, 0, 32));
         } else if (resumenColorNormal != null) {
             taSeleccion.setForeground(resumenColorNormal);
         }

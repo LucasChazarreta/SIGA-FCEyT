@@ -28,7 +28,6 @@ public class InventarioService {
 
     // === Categorías ===
     public List<Categoria> listarCategorias() {
-        // si preferís sin orden alfabético, podés usar categoriaDao.listAll()
         return categoriaDao.findAllOrderByNombre();
     }
 
@@ -43,21 +42,13 @@ public class InventarioService {
         return insumoDao.create(i);
     }
 
-    public void editarInsumo(Insumo i) {
-        insumoDao.update(i);
-    }
+    public void editarInsumo(Insumo i) { insumoDao.update(i); }
 
-    public void bajaLogica(Long id) {
-        insumoDao.softDelete(id);
-    }
+    public void bajaLogica(Long id) { insumoDao.softDelete(id); }
 
-    public Optional<Insumo> buscarPorCodigo(String codigo) {
-        return insumoDao.findByCodigo(codigo);
-    }
+    public Optional<Insumo> buscarPorCodigo(String codigo) { return insumoDao.findByCodigo(codigo); }
 
-    public List<Insumo> listarTodos() {
-        return insumoDao.listAll();
-    }
+    public List<Insumo> listarTodos() { return insumoDao.listAll(); }
 
     // === Movimientos ===
     public Long registrarMovimiento(Long insumoId, String tipo, int cantidad, String destinoFuente) {
@@ -78,16 +69,12 @@ public class InventarioService {
         return movimientoDao.registrar(m);
     }
 
-    public int totalInsumos() {
-        return listarTodos().size();
-    }
+    public int totalInsumos() { return listarTodos().size(); }
 
     public java.math.BigDecimal gastosMensuales(LocalDate desde, LocalDate hasta) {
-        // placeholder hasta definir métrica de gastos
         return java.math.BigDecimal.ZERO;
     }
 
-    // Búsqueda simple (filtro local por nombre de categoría)
     public List<Insumo> buscarInsumos(String categoriaLike, LocalDate desde, LocalDate hasta) {
         return listarTodos().stream()
                 .filter(i -> {
@@ -98,14 +85,13 @@ public class InventarioService {
                 })
                 .collect(Collectors.toList());
     }
-    
+
     // --- BEGIN API compatible con la UI ---
 
-    // La UI usa estos campos y puede chequear contra null
     public static class StockCheckResult {
         public final Long insumoId;
-        public final Integer stockActual;  // Integer (no int) por comparaciones con null
-        public final Integer stockMinimo;  // Integer (no int)
+        public final Integer stockActual;
+        public final Integer stockMinimo;
         public final boolean bajoMinimo;
 
         public StockCheckResult(Long insumoId, Integer stockActual, Integer stockMinimo) {
@@ -119,41 +105,37 @@ public class InventarioService {
             return new StockCheckResult(insumoId, actual, minimo);
         }
 
-        // Getters opcionales
         public Long getInsumoId() { return insumoId; }
         public Integer getStockActual() { return stockActual; }
         public Integer getStockMinimo() { return stockMinimo; }
         public boolean isBajoMinimo() { return bajoMinimo; }
     }
 
-    // Para los lugares donde esperan un ENTERO
+    // Consulta “entera” (para llamadas antiguas)
     public int stockActual(long insumoId) {
-        // TODO: implementar real (suma ingresos - egresos)
-        return 0;
+        return movimientoDao.stockActual(insumoId);
     }
 
-    // Para los lugares donde esperan el OBJETO con mínimos
-    // (si llaman con Long y asignan a StockCheckResult, cae acá)
+    // Para pantallas que quieren también el mínimo
     public StockCheckResult stockActual(Long insumoId) {
-        int actual = (insumoId == null) ? 0 : stockActual(insumoId.longValue());
-        Integer minimo = 0; // TODO: traer mínimo real desde DAO
+        int actual = (insumoId == null) ? 0 : movimientoDao.stockActual(insumoId);
+        Integer minimo = null;
+        if (insumoId != null) {
+            minimo = insumoDao.listAll().stream()
+                    .filter(i -> insumoId.equals(i.getId()))
+                    .map(Insumo::getStockMinimo)
+                    .findFirst()
+                    .orElse(null);
+        }
         return StockCheckResult.of(insumoId, actual, minimo);
     }
 
-    // Alias legible que algunas pantallas podrían preferir
-    public StockCheckResult stockCheck(Long insumoId) {
-        return stockActual(insumoId);
-    }
+    public StockCheckResult stockCheck(Long insumoId) { return stockActual(insumoId); }
 
-    // Stub hasta cablear a MovimientoDao
-    public java.util.List<ar.edu.unse.siga.domain.Movimiento> ultimosMovimientos(Long insumoId, int limit) {
-        return java.util.Collections.emptyList();
+    public List<Movimiento> ultimosMovimientos(Long insumoId, int limit) {
+        if (insumoId == null) return java.util.Collections.emptyList();
+        return movimientoDao.ultimosPorInsumo(insumoId, limit);
     }
 
     // --- END API compatible con la UI ---
-
-
-
-    
-
 }
