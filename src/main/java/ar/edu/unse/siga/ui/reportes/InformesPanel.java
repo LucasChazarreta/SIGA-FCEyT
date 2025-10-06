@@ -9,9 +9,9 @@ import ar.edu.unse.siga.ui.base.CardPanel;
 
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
+import javax.swing.filechooser.FileNameExtensionFilter;
 import javax.swing.table.*;
 import javax.swing.text.MaskFormatter;
-import javax.swing.filechooser.FileNameExtensionFilter;
 import java.awt.*;
 import java.lang.reflect.Method;
 import java.text.ParseException;
@@ -39,12 +39,11 @@ import com.lowagie.text.pdf.PdfWriter;
 public class InformesPanel extends JPanel {
 
     // ======= Estilos =======
-    private static final Color COL_BG = new Color(0xE9,0xEB,0xEF);
-    private static final Color COL_TEXT_PRIMARY = new Color(0x0B,0x0B,0x0C);
-    private static final Color COL_BRAND = new Color(0x2F,0x6B,0xE4);
-    private static final Color COL_BRAND_SOFT = new Color(0xC7,0xD7,0xEA);
-    private static final Color COL_CARD = new Color(0xF1,0xF3,0xF6);
-    private static final Color COL_SHADOW = new Color(0xD1,0xD6,0xDF);
+    private static final Color COL_BG = new Color(0xE9, 0xEB, 0xEF);
+    private static final Color COL_TEXT_PRIMARY = new Color(0x0B, 0x0B, 0x0C);
+    private static final Color COL_BRAND = new Color(0x2F, 0x6B, 0xE4);
+    private static final Color COL_BRAND_SOFT = new Color(0xC7, 0xD7, 0xEA);
+    private static final Color COL_CARD = new Color(0xF1, 0xF3, 0xF6);
 
     private final InventarioService invService;
     private final TramiteService traService;
@@ -56,23 +55,33 @@ public class InformesPanel extends JPanel {
     private final JLabel lblGastos = new JLabel("$-");
     private final JLabel lblPendientesMini = new JLabel();
 
-    // Filtros TRÁMITES (buscador y estado)
+    // Filtros TRÁMITES
     private final JTextField filterSearch = new JTextField(18);
-    private final JComboBox<String> filterEstado =
-            new JComboBox<>(new String[]{"Todos","Completado","En proceso","Pendiente","Alta"});
+    private final JComboBox<String> filterEstado
+            = new JComboBox<>(new String[]{"Todos", "Completado", "En proceso", "Pendiente", "Alta"});
 
     // --- INVENTARIO ---
     private final JComboBox<Categoria> cbCategoria = new JComboBox<>();
     private final DateField dfDesde = new DateField();
     private final DateField dfHasta = new DateField();
     private final DefaultTableModel modelInv = new DefaultTableModel(
-            new Object[]{"Código","Descripción","Estado","Fecha"}, 0
-    ) { @Override public boolean isCellEditable(int r, int c) { return false; } };
+            new Object[]{"Código", "Descripción", "Estado", "Fecha"}, 0
+    ) {
+        @Override
+        public boolean isCellEditable(int r, int c) {
+            return false;
+        }
+    };
 
-    // --- TRÁMITES (informes) ---
+    // --- TRÁMITES ---
     private final DefaultTableModel modelTra = new DefaultTableModel(
-            new Object[]{"ID Trámite","Asunto","Fecha actualización","Última actualización","Descripción","Estado"}, 0
-    ) { @Override public boolean isCellEditable(int r, int c) { return false; } };
+            new Object[]{"ID Trámite", "Asunto", "Fecha actualización", "Última actualización", "Descripción", "Estado"}, 0
+    ) {
+        @Override
+        public boolean isCellEditable(int r, int c) {
+            return false;
+        }
+    };
 
     // UI de contenido por tabs
     private final CardLayout contentCards = new CardLayout();
@@ -84,13 +93,14 @@ public class InformesPanel extends JPanel {
         this.invService = invService;
         this.traService = traService;
 
-        setLayout(new BorderLayout(20, 20));
+        setLayout(new BorderLayout(0, 12));
         setOpaque(false);
+        setBorder(BorderFactory.createEmptyBorder(12, 12, 12, 12));
 
         add(buildHeader(), BorderLayout.NORTH);
-        add(buildContent(), BorderLayout.CENTER);
+        add(buildContentScrollable(), BorderLayout.CENTER);
 
-        // Ocultar el “Informes” chico del header global
+        // Ocultar título duplicado en el header global (si existe)
         SwingUtilities.invokeLater(() -> {
             Window w = SwingUtilities.getWindowAncestor(InformesPanel.this);
             if (w instanceof JFrame frame) {
@@ -98,8 +108,8 @@ public class InformesPanel extends JPanel {
                 JLabel headerTitle = findHeaderTitleLabel(root);
                 if (headerTitle != null) {
                     headerTitle.setText("");
-                    Container parent = headerTitle.getParent();
-                    if (parent != null) { parent.revalidate(); parent.repaint(); }
+                    headerTitle.getParent().revalidate();
+                    headerTitle.getParent().repaint();
                 }
             }
         });
@@ -109,7 +119,9 @@ public class InformesPanel extends JPanel {
                     Window w = SwingUtilities.getWindowAncestor(InformesPanel.this);
                     if (w instanceof JFrame frame) {
                         JLabel headerTitle = findHeaderTitleLabel(frame.getContentPane());
-                        if (headerTitle != null) headerTitle.setText("");
+                        if (headerTitle != null) {
+                            headerTitle.setText("");
+                        }
                     }
                 });
             }
@@ -118,8 +130,8 @@ public class InformesPanel extends JPanel {
         cargarCategoriasEnCombo();
         reloadMetrics();
         runQueryInventario();
-        loadTableDataTramites();   // inicial
-        installFiltersTramites();  // listeners filtros trámites
+        loadTableDataTramites();
+        installFiltersTramites();
     }
 
     // ====== Header con export ======
@@ -127,16 +139,14 @@ public class InformesPanel extends JPanel {
         JPanel header = new JPanel(new BorderLayout());
         header.setOpaque(false);
 
-        // Centro: Título
         JLabel title = new JLabel("INFORMES", SwingConstants.CENTER);
-        title.setFont(title.getFont().deriveFont(Font.BOLD, 36f));
+        title.setFont(title.getFont().deriveFont(Font.BOLD, 34f));
         title.setForeground(new Color(24, 63, 150));
 
         JPanel center = new JPanel(new GridBagLayout());
         center.setOpaque(false);
         center.add(title);
 
-        // Derecha: acciones
         JPanel actions = new JPanel(new FlowLayout(FlowLayout.RIGHT, 10, 0));
         actions.setOpaque(false);
         JButton exportPdf = primaryButton("Exportar PDF");
@@ -160,7 +170,6 @@ public class InformesPanel extends JPanel {
         actions.add(exportPdf);
         actions.add(exportCsv);
 
-        // Izquierda: espaciador
         JPanel spacer = new JPanel();
         spacer.setOpaque(false);
         spacer.setPreferredSize(actions.getPreferredSize());
@@ -168,19 +177,18 @@ public class InformesPanel extends JPanel {
         header.add(spacer, BorderLayout.WEST);
         header.add(center, BorderLayout.CENTER);
         header.add(actions, BorderLayout.EAST);
-        header.setBorder(BorderFactory.createEmptyBorder(10, 20, 20, 20));
+        header.setBorder(BorderFactory.createEmptyBorder(4, 8, 4, 8));
         return header;
     }
 
-    // ====== Contenido con tabs ======
-    private JComponent buildContent() {
+    // ====== Contenido con scroll general ======
+    private JComponent buildContentScrollable() {
         JPanel wrapper = new JPanel(new BorderLayout(8, 18));
         wrapper.setOpaque(false);
 
         ButtonGroup tabs = new ButtonGroup();
         btnInventario = pill("INVENTARIO");
-        btnTramites   = pill("TRÁMITES");
-
+        btnTramites = pill("TRÁMITES");
         btnInventario.setSelected(true);
         tabs.add(btnInventario);
         tabs.add(btnTramites);
@@ -191,14 +199,14 @@ public class InformesPanel extends JPanel {
         tabRow.add(btnTramites);
         wrapper.add(tabRow, BorderLayout.NORTH);
 
-        // Panel INVENTARIO
+        // INVENTARIO
         JPanel invPanel = new JPanel(new BorderLayout());
         invPanel.setOpaque(false);
         invPanel.add(buildMetrics(), BorderLayout.NORTH);
         invPanel.add(buildInventarioSplit(), BorderLayout.CENTER);
 
-        // Panel TRÁMITES
-        JPanel traPanel = new JPanel(new BorderLayout(20, 24));
+        // TRÁMITES
+        JPanel traPanel = new JPanel(new BorderLayout(12, 12));
         traPanel.setOpaque(false);
         traPanel.add(buildTramitesFilters(), BorderLayout.NORTH);
         traPanel.add(buildTramitesTableScroll(), BorderLayout.CENTER);
@@ -209,14 +217,19 @@ public class InformesPanel extends JPanel {
 
         wrapper.add(content, BorderLayout.CENTER);
 
-        // Listeners tabs
         btnInventario.addActionListener(e -> contentCards.show(content, "INV"));
         btnTramites.addActionListener(e -> {
             contentCards.show(content, "TRA");
             loadTableDataTramites();
         });
 
-        return wrapper;
+        // 🔑 Scroll general para todo el contenido (si la ventana se achica)
+        JScrollPane scroller = new JScrollPane(wrapper,
+                ScrollPaneConstants.VERTICAL_SCROLLBAR_AS_NEEDED,
+                ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
+        scroller.setBorder(BorderFactory.createEmptyBorder());
+        scroller.getVerticalScrollBar().setUnitIncrement(18);
+        return scroller;
     }
 
     // ====== INVENTARIO ======
@@ -225,16 +238,27 @@ public class InformesPanel extends JPanel {
         split.setOpaque(false);
 
         GridBagConstraints gc = new GridBagConstraints();
-        gc.insets = new Insets(0, 4, 0, 12);
+        gc.insets = new Insets(0, 0, 0, 12);
         gc.fill = GridBagConstraints.BOTH;
         gc.weighty = 1;
 
-        CardPanel filtros = buildFiltrosPanelInventario();
-        gc.gridx = 0; gc.weightx = 0.25;
-        split.add(filtros, gc);
+        // Lado filtros con SU PROPIO scroll (para que "APLICAR FILTROS" siempre sea accesible)
+        CardPanel filtrosCard = buildFiltrosPanelInventario();
+        JScrollPane filtrosScroll = new JScrollPane(filtrosCard,
+                ScrollPaneConstants.VERTICAL_SCROLLBAR_AS_NEEDED,
+                ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
+        filtrosScroll.setBorder(BorderFactory.createEmptyBorder());
+        filtrosScroll.setMinimumSize(new Dimension(260, 180));
+        filtrosScroll.setPreferredSize(new Dimension(300, 300));
+        gc.gridx = 0;
+        gc.weightx = 0.32;
+        split.add(filtrosScroll, gc);
 
+        // Lado tabla
         CardPanel tabla = buildTablaPanelInventario();
-        gc.gridx = 1; gc.weightx = 0.75; gc.insets = new Insets(0, 0, 0, 0);
+        gc.gridx = 1;
+        gc.weightx = 0.68;
+        gc.insets = new Insets(0, 0, 0, 0);
         split.add(tabla, gc);
 
         return split;
@@ -242,7 +266,7 @@ public class InformesPanel extends JPanel {
 
     private CardPanel buildFiltrosPanelInventario() {
         CardPanel card = new CardPanel();
-        card.setBorder(BorderFactory.createEmptyBorder(12, 8, 12, 12));
+        card.setBorder(BorderFactory.createEmptyBorder(12, 12, 12, 12));
         card.setLayout(new BorderLayout(10, 10));
 
         JLabel title = new JLabel("FILTROS");
@@ -254,61 +278,46 @@ public class InformesPanel extends JPanel {
         fields.setOpaque(false);
         fields.setLayout(new BoxLayout(fields, BoxLayout.Y_AXIS));
 
-        int formWidth = 180;
-        Dimension fieldSize = new Dimension(formWidth, 34);
+        Dimension fieldSize = new Dimension(220, 34);
 
-        cbCategoria.setPreferredSize(fieldSize);
-        cbCategoria.setMaximumSize(fieldSize);
         cbCategoria.setAlignmentX(Component.LEFT_ALIGNMENT);
+        cbCategoria.setMaximumSize(fieldSize);
+        cbCategoria.setPreferredSize(fieldSize);
 
-        dfDesde.getComponent().setPreferredSize(fieldSize);
-        dfDesde.getComponent().setMaximumSize(fieldSize);
         dfDesde.getComponent().setAlignmentX(Component.LEFT_ALIGNMENT);
+        dfDesde.getComponent().setMaximumSize(fieldSize);
+        dfDesde.getComponent().setPreferredSize(fieldSize);
 
-        dfHasta.getComponent().setPreferredSize(fieldSize);
-        dfHasta.getComponent().setMaximumSize(fieldSize);
         dfHasta.getComponent().setAlignmentX(Component.LEFT_ALIGNMENT);
+        dfHasta.getComponent().setMaximumSize(fieldSize);
+        dfHasta.getComponent().setPreferredSize(fieldSize);
 
-        JPanel pCat   = filterField("Categoría", cbCategoria);
-        JPanel pDesde = filterField("Desde", dfDesde.getComponent());
-        JPanel pHasta = filterField("Hasta", dfHasta.getComponent());
-
-        Dimension panelFieldSize = new Dimension(formWidth, pCat.getPreferredSize().height);
-        for (JPanel p : new JPanel[]{pCat, pDesde, pHasta}) {
-            p.setAlignmentX(Component.LEFT_ALIGNMENT);
-            p.setMaximumSize(new Dimension(formWidth, Integer.MAX_VALUE));
-            p.setPreferredSize(panelFieldSize);
-        }
-
-        fields.add(pCat);
+        fields.add(filterField("Categoría", cbCategoria));
+        fields.add(Box.createVerticalStrut(12));
+        fields.add(filterField("Desde", dfDesde.getComponent()));
+        fields.add(Box.createVerticalStrut(12));
+        fields.add(filterField("Hasta", dfHasta.getComponent()));
         fields.add(Box.createVerticalStrut(16));
-        fields.add(pDesde);
-        fields.add(Box.createVerticalStrut(16));
-        fields.add(pHasta);
-        fields.add(Box.createVerticalStrut(22));
 
         JButton apply = primaryButton("APLICAR FILTROS");
         apply.addActionListener(e -> runQueryInventario());
         apply.setAlignmentX(Component.LEFT_ALIGNMENT);
-        apply.setPreferredSize(new Dimension(formWidth, apply.getPreferredSize().height));
-        apply.setMaximumSize(new Dimension(formWidth, apply.getPreferredSize().height));
         fields.add(apply);
 
-        fields.setPreferredSize(new Dimension(formWidth, fields.getPreferredSize().height));
-        fields.setMaximumSize(new Dimension(formWidth, Integer.MAX_VALUE));
+        fields.add(Box.createVerticalStrut(16));
 
-        JPanel centerWrapper = new JPanel(new FlowLayout(FlowLayout.CENTER, 0, 80));
-        centerWrapper.setOpaque(false);
-        centerWrapper.add(fields);
-        card.add(centerWrapper, BorderLayout.CENTER);
-
-        JPanel tags = new JPanel(new FlowLayout(FlowLayout.CENTER, 8, 10));
+        JPanel tags = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
         tags.setOpaque(false);
         tags.add(tag("Insumos"));
         tags.add(tag("Oficina"));
         tags.add(tag("Bienes"));
-        card.add(tags, BorderLayout.SOUTH);
+        tags.setAlignmentX(Component.LEFT_ALIGNMENT);
+        fields.add(tags);
 
+        // glue para que el scroll funcione bien cuando hay espacio
+        fields.add(Box.createVerticalGlue());
+
+        card.add(fields, BorderLayout.CENTER);
         return card;
     }
 
@@ -321,15 +330,32 @@ public class InformesPanel extends JPanel {
         title.setForeground(new Color(73, 103, 204));
         card.add(title, BorderLayout.NORTH);
 
-        JTable table = new JTable(modelInv);
+        JTable table = new JTable(modelInv) {
+            @Override
+            public boolean getScrollableTracksViewportWidth() {
+                // permite scroll horizontal si columnas exceden el viewport
+                return getParent() instanceof JViewport
+                        && getPreferredSize().width < getParent().getWidth();
+            }
+        };
+        table.setAutoResizeMode(JTable.AUTO_RESIZE_OFF); // 🔑 habilita scroll horizontal
         table.setRowHeight(38);
         table.setIntercellSpacing(new Dimension(0, 6));
         table.setShowGrid(true);
         table.setGridColor(new Color(232, 232, 232));
         table.setFillsViewportHeight(true);
-        table.getColumnModel().getColumn(2).setCellRenderer(statusRenderer());
         table.setDefaultEditor(Object.class, null);
 
+        // Anchos razonables
+        TableColumnModel tcm = table.getColumnModel();
+        if (tcm.getColumnCount() >= 4) {
+            tcm.getColumn(0).setPreferredWidth(180);
+            tcm.getColumn(1).setPreferredWidth(280);
+            tcm.getColumn(2).setPreferredWidth(120);
+            tcm.getColumn(3).setPreferredWidth(120);
+        }
+
+        // Renderers
         JTableHeader header = table.getTableHeader();
         header.setReorderingAllowed(false);
         header.setDefaultRenderer(new DefaultTableCellRenderer() {
@@ -345,14 +371,16 @@ public class InformesPanel extends JPanel {
             }
         });
 
-        DefaultTableCellRenderer centerRenderer = new DefaultTableCellRenderer();
-        centerRenderer.setHorizontalAlignment(SwingConstants.CENTER);
+        DefaultTableCellRenderer center = new DefaultTableCellRenderer();
+        center.setHorizontalAlignment(SwingConstants.CENTER);
         for (int i = 0; i < table.getColumnCount(); i++) {
-            if (i != 2) table.getColumnModel().getColumn(i).setCellRenderer(centerRenderer);
+            table.getColumnModel().getColumn(i).setCellRenderer(i == 2 ? statusRenderer() : center);
         }
 
-        JScrollPane scroll = new JScrollPane(table);
-        card.setBorder(BorderFactory.createCompoundBorder(
+        JScrollPane scroll = new JScrollPane(table,
+                ScrollPaneConstants.VERTICAL_SCROLLBAR_AS_NEEDED,
+                ScrollPaneConstants.HORIZONTAL_SCROLLBAR_AS_NEEDED);
+        scroll.setBorder(BorderFactory.createCompoundBorder(
                 new javax.swing.border.LineBorder(new Color(232, 232, 232), 1, true),
                 BorderFactory.createEmptyBorder(6, 6, 6, 6)
         ));
@@ -372,9 +400,12 @@ public class InformesPanel extends JPanel {
                     setOpaque(true);
                     setBorder(BorderFactory.createEmptyBorder(4, 12, 4, 12));
                     switch (text.toLowerCase(Locale.ROOT)) {
-                        case "activo"    -> setBackground(new Color(212, 235, 216));
-                        case "pendiente" -> setBackground(new Color(255, 239, 200));
-                        default          -> setBackground(new Color(220, 228, 255));
+                        case "activo" ->
+                            setBackground(new Color(212, 235, 216));
+                        case "pendiente" ->
+                            setBackground(new Color(255, 239, 200));
+                        default ->
+                            setBackground(new Color(220, 228, 255));
                     }
                 }
                 return comp;
@@ -402,7 +433,7 @@ public class InformesPanel extends JPanel {
         b.setForeground(Color.WHITE);
         b.setFont(b.getFont().deriveFont(Font.BOLD, 14f));
         b.setFocusPainted(false);
-        b.setBorder(BorderFactory.createEmptyBorder(12, 18, 12, 18));
+        b.setBorder(BorderFactory.createEmptyBorder(10, 16, 10, 16));
         return b;
     }
 
@@ -431,7 +462,7 @@ public class InformesPanel extends JPanel {
         t.setFont(t.getFont().deriveFont(Font.BOLD, 16f));
         t.setBorder(BorderFactory.createCompoundBorder(
                 BorderFactory.createLineBorder(COL_BRAND, 2, true),
-                BorderFactory.createEmptyBorder(12, 22, 12, 22)
+                BorderFactory.createEmptyBorder(10, 18, 10, 18)
         ));
         t.addChangeListener(e -> {
             if (t.isSelected()) {
@@ -447,40 +478,28 @@ public class InformesPanel extends JPanel {
 
     // ==== Métricas ====
     private JComponent buildMetrics() {
-        JPanel row = new JPanel(new GridLayout(1, 3, 24, 0));
+        JPanel row = new JPanel(new GridLayout(1, 3, 16, 0));
         row.setOpaque(false);
-        row.setBorder(BorderFactory.createEmptyBorder(10, 40, 40, 40));
+        row.setBorder(BorderFactory.createEmptyBorder(6, 6, 12, 6));
 
         CardPanel c1 = metricCard("TOTAL INSUMOS", lblTotalInsumos, COL_BRAND_SOFT, COL_TEXT_PRIMARY, false);
-        c1.setBorder(BorderFactory.createEmptyBorder(14, 20, 14, 20));
-
         CardPanel c2 = metricCard("TRÁMITES", lblTotalTramites, COL_CARD, COL_TEXT_PRIMARY, false);
-        c2.setBorder(BorderFactory.createEmptyBorder(14, 20, 14, 20));
-
         CardPanel c3 = metricCard("GASTOS MENSUALES", lblGastos, COL_BRAND, Color.WHITE, true);
-        c3.setBorder(BorderFactory.createEmptyBorder(14, 20, 14, 20));
 
-        row.add(c1); row.add(c2); row.add(c3);
+        row.add(c1);
+        row.add(c2);
+        row.add(c3);
         return row;
     }
 
     private CardPanel metricCard(String title, JLabel value, Color bg, Color text, boolean strong) {
-        CardPanel card = new CardPanel() {
-            @Override protected void paintComponent(Graphics g) {
-                super.paintComponent(g);
-                Graphics2D g2 = (Graphics2D) g.create();
-                int w = getWidth(), h = getHeight();
-                Color start = new Color(180, 205, 255);
-                Color end   = new Color(110, 150, 240);
-                GradientPaint gp = new GradientPaint(0, 0, start, w, 0, end);
-                g2.setPaint(gp);
-                g2.fillRoundRect(0, 0, w, h, 20, 20);
-                g2.dispose();
-            }
-        };
+        CardPanel card = new CardPanel();
         card.setLayout(new BorderLayout());
         card.setOpaque(false);
-        card.setBorder(BorderFactory.createEmptyBorder(14, 20, 14, 20));
+        card.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createEmptyBorder(8, 8, 8, 8),
+                BorderFactory.createLineBorder(new Color(0, 0, 0, 30), 1, true)
+        ));
 
         JLabel lblTitle = new JLabel(title);
         lblTitle.setForeground(new Color(30, 50, 100));
@@ -496,12 +515,6 @@ public class InformesPanel extends JPanel {
 
         card.add(lblTitle, BorderLayout.NORTH);
         card.add(center, BorderLayout.CENTER);
-
-        card.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createEmptyBorder(10, 10, 10, 10),
-                BorderFactory.createLineBorder(new Color(0, 0, 0, 30), 1, true)
-        ));
-
         return card;
     }
 
@@ -509,43 +522,52 @@ public class InformesPanel extends JPanel {
     private void cargarCategoriasEnCombo() {
         DefaultComboBoxModel<Categoria> model = new DefaultComboBoxModel<>();
         model.addElement(null); // "Todas"
+
         try {
             var categorias = invService.listarCategorias();
-            for (Categoria c : categorias) model.addElement(c);
+            for (Categoria c : categorias) {
+                model.addElement(c);
+            }
         } catch (Exception e) {
             System.err.println("No se pudieron cargar categorías: " + e.getMessage());
         }
+
         cbCategoria.setModel(model);
 
         cbCategoria.setRenderer(new DefaultListCellRenderer() {
             @Override
-            public Component getListCellRendererComponent(JList<?> list, Object value, int index,
-                                                          boolean isSelected, boolean cellHasFocus) {
+            public Component getListCellRendererComponent(JList<?> list,
+                    Object value,
+                    int index,
+                    boolean isSelected,
+                    boolean cellHasFocus) {
                 super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus);
-                setText(value == null ? "Todas" : ((Categoria) value).getNombre());
+                String texto = (value instanceof Categoria c) ? c.getNombre() : "Todas";
+                setText(texto);
                 return this;
             }
         });
     }
 
     private void reloadMetrics() {
-        try { lblTotalInsumos.setText(String.valueOf(invService.listarTodos().size())); }
-        catch (Exception e) { lblTotalInsumos.setText("-"); }
+        try {
+            lblTotalInsumos.setText(String.valueOf(invService.listarTodos().size()));
+        } catch (Exception e) {
+            lblTotalInsumos.setText("-");
+        }
 
         try {
             var tramites = traService.listarTodos();
             lblTotalTramites.setText(String.valueOf(tramites.size()));
-            long pend = tramites.stream()
-                    .filter(t -> "PENDIENTE".equalsIgnoreCase(String.valueOf(t.getEstado())))
-                    .count();
+            long pend = tramites.stream().filter(t -> "PENDIENTE".equalsIgnoreCase(String.valueOf(t.getEstado()))).count();
             lblPendientes.setText(String.valueOf(pend));
             lblPendientesMini.setText(" " + lblPendientes.getText() + " PENDIENTES");
         } catch (Exception e) {
-            lblTotalTramites.setText("-"); lblPendientes.setText("-");
+            lblTotalTramites.setText("-");
+            lblPendientes.setText("-");
         }
 
-        try { lblGastos.setText("+$0"); }
-        catch (Exception e) { lblGastos.setText("$-"); }
+        lblGastos.setText("+$0"); // placeholder
     }
 
     private void runQueryInventario() {
@@ -566,7 +588,7 @@ public class InformesPanel extends JPanel {
                     fa = java.time.ZonedDateTime.ofInstant(i.getCreatedAt(), java.time.ZoneId.systemDefault()).toLocalDate();
                 }
                 String fecha = (fa != null) ? fa.format(fmt) : "-";
-                modelInv.addRow(new Object[]{ i.getCodigo(), i.getDescripcion(), i.getEstado(), fecha });
+                modelInv.addRow(new Object[]{i.getCodigo(), i.getDescripcion(), i.getEstado(), fecha});
             }
         } catch (Exception e) {
             JOptionPane.showMessageDialog(this, e.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
@@ -576,19 +598,25 @@ public class InformesPanel extends JPanel {
     private static List<Insumo> filtrarLocal(List<Insumo> base, String cat, LocalDate d1, LocalDate d2) {
         return base.stream().filter(i -> {
             if (cat != null && i.getCategoria() != null) {
-                if (!cat.equalsIgnoreCase(i.getCategoria().getNombre())) return false;
+                if (!cat.equalsIgnoreCase(i.getCategoria().getNombre())) {
+                    return false;
+                }
             }
             LocalDate fa = i.getFechaAlta();
             if (fa == null && i.getCreatedAt() != null) {
                 fa = java.time.ZonedDateTime.ofInstant(i.getCreatedAt(), java.time.ZoneId.systemDefault()).toLocalDate();
             }
-            if (d1 != null && (fa == null || fa.isBefore(d1))) return false;
-            if (d2 != null && (fa == null || fa.isAfter(d2)))  return false;
+            if (d1 != null && (fa == null || fa.isBefore(d1))) {
+                return false;
+            }
+            if (d2 != null && (fa == null || fa.isAfter(d2))) {
+                return false;
+            }
             return true;
         }).collect(Collectors.toList());
     }
 
-    // ====== TRÁMITES (Informes) ======
+    // ====== TRÁMITES ======
     private Component buildTramitesFilters() {
         JPanel panel = new JPanel(new BorderLayout(18, 0));
         panel.setOpaque(false);
@@ -615,22 +643,12 @@ public class InformesPanel extends JPanel {
     private JScrollPane buildTramitesTableScroll() {
         JTable table = new JTable(modelTra) {
             @Override
-            protected void paintComponent(Graphics g) {
-                super.paintComponent(g);
-                if (getRowCount() == 0) {
-                    Graphics2D g2 = (Graphics2D) g.create();
-                    g2.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
-                    String msg = "Sin resultados";
-                    g2.setFont(getFont().deriveFont(Font.PLAIN, 14f));
-                    g2.setColor(new Color(120, 130, 150));
-                    FontMetrics fm = g2.getFontMetrics();
-                    int x = (getWidth() - fm.stringWidth(msg)) / 2;
-                    int y = getHeight() / 2;
-                    g2.drawString(msg, x, y);
-                    g2.dispose();
-                }
+            public boolean getScrollableTracksViewportWidth() {
+                return getParent() instanceof JViewport
+                        && getPreferredSize().width < getParent().getWidth();
             }
         };
+        table.setAutoResizeMode(JTable.AUTO_RESIZE_OFF); // 🔑 scroll horizontal si hace falta
         table.setRowHeight(44);
         table.setShowHorizontalLines(false);
         table.setShowVerticalLines(false);
@@ -641,13 +659,26 @@ public class InformesPanel extends JPanel {
         table.setFont(new Font("Segoe UI", Font.PLAIN, 13));
         table.setAutoCreateRowSorter(true);
 
+        // anchos base
+        TableColumnModel tcm = table.getColumnModel();
+        if (tcm.getColumnCount() >= 6) {
+            tcm.getColumn(0).setPreferredWidth(120);
+            tcm.getColumn(1).setPreferredWidth(240);
+            tcm.getColumn(2).setPreferredWidth(160);
+            tcm.getColumn(3).setPreferredWidth(170);
+            tcm.getColumn(4).setPreferredWidth(300);
+            tcm.getColumn(5).setPreferredWidth(130);
+        }
+
         JTableHeader header = table.getTableHeader();
         header.setPreferredSize(new Dimension(header.getPreferredSize().width, 46));
         header.setDefaultRenderer(new TableHeaderRenderer());
 
         table.getColumnModel().getColumn(5).setCellRenderer(new BadgeRenderer(BadgeRenderer.Type.STATUS));
 
-        JScrollPane scroll = new JScrollPane(table);
+        JScrollPane scroll = new JScrollPane(table,
+                ScrollPaneConstants.VERTICAL_SCROLLBAR_AS_NEEDED,
+                ScrollPaneConstants.HORIZONTAL_SCROLLBAR_AS_NEEDED);
         scroll.setBorder(BorderFactory.createEmptyBorder());
         scroll.getViewport().setBackground(Color.WHITE);
         return scroll;
@@ -659,7 +690,6 @@ public class InformesPanel extends JPanel {
         c.setMinimumSize(d);
     }
 
-    /** Carga de datos para TRÁMITES (sin filtro de categoría). */
     private void loadTableDataTramites() {
         modelTra.setRowCount(0);
         try {
@@ -667,34 +697,32 @@ public class InformesPanel extends JPanel {
             String estadoFiltro = (String) filterEstado.getSelectedItem();
 
             List<Tramite> tramites = traService.listarTodos();
-            if (tramites == null) return;
+            if (tramites == null) {
+                return;
+            }
 
             DateTimeFormatter fmt = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
             for (Tramite t : tramites) {
-                // búsqueda: nro + asunto + descripción
                 if (!search.isEmpty()) {
-                    String texto = (String.valueOf(t.getAsunto()) + " " + String.valueOf(t.getNro()) + " " +
-                                   (t.getDescripcion() != null ? t.getDescripcion() : ""))
-                                   .toLowerCase(Locale.ROOT);
-                    if (!texto.contains(search)) continue;
+                    String texto = (String.valueOf(t.getAsunto()) + " " + String.valueOf(t.getNro()) + " "
+                            + (t.getDescripcion() != null ? t.getDescripcion() : ""))
+                            .toLowerCase(Locale.ROOT);
+                    if (!texto.contains(search)) {
+                        continue;
+                    }
                 }
 
                 String estado = estadoFriendly(t.getEstado());
-                if (!"Todos".equals(estadoFiltro) && !estado.equalsIgnoreCase(estadoFiltro)) continue;
+                if (!"Todos".equals(estadoFiltro) && !estado.equalsIgnoreCase(estadoFiltro)) {
+                    continue;
+                }
 
                 String actualizacion = t.getFecha() == null ? "-" : t.getFecha().format(fmt);
-                String ultima        = t.getFecha() == null ? "-" : t.getFecha().plusDays(1).format(fmt); // placeholder si no tenés campo real
-                String descripcion   = extraerDescripcionTramite(t);
+                String ultima = t.getFecha() == null ? "-" : t.getFecha().plusDays(1).format(fmt); // placeholder
+                String descripcion = extraerDescripcionTramite(t);
 
-                modelTra.addRow(new Object[]{
-                    t.getNro(),
-                    t.getAsunto(),
-                    actualizacion,
-                    ultima,
-                    descripcion,
-                    estado
-                });
+                modelTra.addRow(new Object[]{t.getNro(), t.getAsunto(), actualizacion, ultima, descripcion, estado});
             }
         } catch (Exception ex) {
             ex.printStackTrace();
@@ -702,76 +730,77 @@ public class InformesPanel extends JPanel {
         }
     }
 
-    /** Conecta los filtros (buscador y estado) para TRÁMITES. */
     private void installFiltersTramites() {
-        if (filterSearch != null && filterSearch.getDocument() != null) {
+        if (filterSearch.getDocument() != null) {
             filterSearch.getDocument().addDocumentListener(new SimpleDocumentListener() {
-                @Override public void update() { loadTableDataTramites(); }
+                @Override
+                public void update() {
+                    loadTableDataTramites();
+                }
             });
         }
-        if (filterEstado != null) {
-            filterEstado.addActionListener(e -> loadTableDataTramites());
-        }
+        filterEstado.addActionListener(e -> loadTableDataTramites());
     }
 
-    /** Devuelve la descripción REAL del trámite (si no hay, "-"). */
     private String extraerDescripcionTramite(Object t) {
-        if (t == null) return "-";
+        if (t == null) {
+            return "-";
+        }
         try {
             Method m = t.getClass().getMethod("getDescripcion");
             Object val = m.invoke(t);
             if (val != null) {
                 String s = val.toString().trim();
-                if (!s.isEmpty()) return s;
+                if (!s.isEmpty()) {
+                    return s;
+                }
             }
         } catch (NoSuchMethodException ignore) {
-        } catch (Throwable ignore) {}
+        } catch (Throwable ignore) {
+        }
 
-        String v = tryGetter(t,
-                "getDescripción","getDetalle","getDetalles",
-                "getObservacion","getObservación","getObservaciones",
-                "getNota","getNotas",
-                "getComentario","getComentarios",
-                "getMotivo","getResumen",
-                "getInfo","getInformacion","getInformación"
-        );
-        if (v != null && !v.isBlank()) return v.trim();
+        String v = tryGetter(t, "getDescripción", "getDetalle", "getDetalles", "getObservacion", "getObservación", "getObservaciones",
+                "getNota", "getNotas", "getComentario", "getComentarios", "getMotivo", "getResumen", "getInfo", "getInformacion", "getInformación");
+        if (v != null && !v.isBlank()) {
+            return v.trim();
+        }
 
         try {
             for (Method m : t.getClass().getMethods()) {
-                if (m.getParameterCount() == 0 &&
-                    m.getName().startsWith("get") &&
-                    m.getReturnType() == String.class) {
+                if (m.getParameterCount() == 0 && m.getName().startsWith("get") && m.getReturnType() == String.class) {
                     String name = m.getName().toLowerCase(Locale.ROOT);
-                    if (name.contains("desc") || name.contains("detalle") ||
-                        name.contains("observ") || name.contains("nota") ||
-                        name.contains("coment") || name.contains("motivo")) {
+                    if (name.contains("desc") || name.contains("detalle") || name.contains("observ") || name.contains("nota")
+                            || name.contains("coment") || name.contains("motivo")) {
                         Object val = m.invoke(t);
                         if (val != null) {
                             String s = val.toString().trim();
-                            if (!s.isEmpty()) return s;
+                            if (!s.isEmpty()) {
+                                return s;
+                            }
                         }
                     }
                 }
             }
-        } catch (Throwable ignore) {}
+        } catch (Throwable ignore) {
+        }
 
         try {
             for (java.lang.reflect.Field f : t.getClass().getDeclaredFields()) {
                 String n = f.getName().toLowerCase(Locale.ROOT);
-                if (n.contains("desc") || n.contains("detalle") ||
-                    n.contains("observ") || n.contains("nota") ||
-                    n.contains("coment") || n.contains("motivo")) {
+                if (n.contains("desc") || n.contains("detalle") || n.contains("observ") || n.contains("nota")
+                        || n.contains("coment") || n.contains("motivo")) {
                     f.setAccessible(true);
                     Object val = f.get(t);
                     if (val != null) {
                         String s = val.toString().trim();
-                        if (!s.isEmpty()) return s;
+                        if (!s.isEmpty()) {
+                            return s;
+                        }
                     }
                 }
             }
-        } catch (Throwable ignore) {}
-
+        } catch (Throwable ignore) {
+        }
         return "-";
     }
 
@@ -782,7 +811,9 @@ public class InformesPanel extends JPanel {
                 Object val = m.invoke(obj);
                 if (val != null) {
                     String s = val.toString().trim();
-                    if (!s.isEmpty()) return s;
+                    if (!s.isEmpty()) {
+                        return s;
+                    }
                 }
             } catch (NoSuchMethodException ignore) {
             } catch (Throwable ignore) {
@@ -792,25 +823,28 @@ public class InformesPanel extends JPanel {
     }
 
     private String estadoFriendly(String estado) {
-        if (estado == null) return "Pendiente";
+        if (estado == null) {
+            return "Pendiente";
+        }
         String e = estado.trim().toLowerCase(Locale.ROOT);
-        if (e.contains("comp")) return "Completado";
-        if (e.contains("proc")) return "En proceso";
-        if (e.contains("pend")) return "Pendiente";
-        if (e.contains("alta")) return "Alta";
+        if (e.contains("comp")) {
+            return "Completado";
+        }
+        if (e.contains("proc")) {
+            return "En proceso";
+        }
+        if (e.contains("pend")) {
+            return "Pendiente";
+        }
+        if (e.contains("alta")) {
+            return "Alta";
+        }
         return "Pendiente";
-    }
-
-    private String prioridadDesdeEstado(String estado) {
-        if (estado == null) return "Media";
-        String e = estado.trim().toLowerCase(Locale.ROOT);
-        if (e.contains("alta")) return "Alta";
-        if (e.contains("pend")) return "Media";
-        return "Baja";
     }
 
     // Encabezado y badges
     static class TableHeaderRenderer extends DefaultTableCellRenderer {
+
         TableHeaderRenderer() {
             setHorizontalAlignment(LEFT);
             setFont(new Font("Segoe UI", Font.BOLD, 13));
@@ -818,7 +852,9 @@ public class InformesPanel extends JPanel {
             setBackground(new Color(238, 242, 255));
             setBorder(new EmptyBorder(12, 14, 12, 14));
         }
-        @Override public Component getTableCellRendererComponent(JTable t, Object v, boolean s, boolean f, int r, int c) {
+
+        @Override
+        public Component getTableCellRendererComponent(JTable t, Object v, boolean s, boolean f, int r, int c) {
             super.getTableCellRendererComponent(t, v, s, f, r, c);
             setText(v == null ? "" : v.toString().toUpperCase(Locale.ROOT));
             return this;
@@ -826,13 +862,18 @@ public class InformesPanel extends JPanel {
     }
 
     static class BadgeRenderer extends DefaultTableCellRenderer {
-        enum Type { PRIORITY, STATUS }
+
+        enum Type {
+            PRIORITY, STATUS
+        }
         private final Type type;
+
         BadgeRenderer(Type type) {
             this.type = type;
             setHorizontalAlignment(CENTER);
             setFont(new Font("Segoe UI", Font.BOLD, 12));
         }
+
         @Override
         public Component getTableCellRendererComponent(JTable t, Object v, boolean s, boolean f, int r, int c) {
             super.getTableCellRendererComponent(t, v, s, f, r, c);
@@ -840,38 +881,41 @@ public class InformesPanel extends JPanel {
             setText(text);
             setOpaque(true);
             setBorder(new EmptyBorder(6, 12, 6, 12));
-
             Color base;
             String normalized = text.toLowerCase(Locale.ROOT);
             if (type == Type.PRIORITY) {
-                if (normalized.contains("alta"))       base = new Color(255, 120, 102);
-                else if (normalized.contains("media")) base = new Color(255, 188, 75);
-                else                                   base = new Color(140, 198, 62);
+                if (normalized.contains("alta")) {
+                    base = new Color(255, 120, 102);
+                } else if (normalized.contains("media")) {
+                    base = new Color(255, 188, 75);
+                } else {
+                    base = new Color(140, 198, 62);
+                }
             } else {
-                if (normalized.contains("complet"))     base = new Color(28, 184, 113);
-                else if (normalized.contains("proceso")) base = new Color(58, 96, 224);
-                else if (normalized.contains("alta"))    base = new Color(220, 84, 84);
-                else                                     base = new Color(180, 180, 180);
+                if (normalized.contains("complet")) {
+                    base = new Color(28, 184, 113);
+                } else if (normalized.contains("proceso")) {
+                    base = new Color(58, 96, 224);
+                } else if (normalized.contains("alta")) {
+                    base = new Color(220, 84, 84);
+                } else {
+                    base = new Color(180, 180, 180);
+                }
             }
-
-            if (s) {
-                setForeground(Color.WHITE);
-                setBackground(base.darker());
-            } else {
-                setForeground(Color.WHITE);
-                setBackground(base);
-            }
+            setForeground(Color.WHITE);
+            setBackground(s ? base.darker() : base);
             return this;
         }
     }
 
     // ====== Export ======
     private void exportInventarioToPdf() {
-        exportModelToPdf("INFORME DE INVENTARIO", new String[]{"Código","Descripción","Estado","Fecha"}, modelInv);
+        exportModelToPdf("INFORME DE INVENTARIO", new String[]{"Código", "Descripción", "Estado", "Fecha"}, modelInv);
     }
+
     private void exportTramitesToPdf() {
         exportModelToPdf("INFORME DE TRÁMITES",
-                new String[]{"ID Trámite","Asunto","Fecha actualización","Última actualización","Descripción","Estado"},
+                new String[]{"ID Trámite", "Asunto", "Fecha actualización", "Última actualización", "Descripción", "Estado"},
                 modelTra);
     }
 
@@ -881,17 +925,21 @@ public class InformesPanel extends JPanel {
         fc.setFileFilter(new FileNameExtensionFilter("Archivo PDF (*.pdf)", "pdf"));
         fc.setSelectedFile(new File(titulo.toLowerCase().replace(" ", "-") + ".pdf"));
         int opt = fc.showSaveDialog(this);
-        if (opt != JFileChooser.APPROVE_OPTION) return;
+        if (opt != JFileChooser.APPROVE_OPTION) {
+            return;
+        }
 
         File out = fc.getSelectedFile();
-        if (!out.getName().toLowerCase().endsWith(".pdf")) out = new File(out.getParentFile(), out.getName() + ".pdf");
+        if (!out.getName().toLowerCase().endsWith(".pdf")) {
+            out = new File(out.getParentFile(), out.getName() + ".pdf");
+        }
 
         Document doc = new Document(PageSize.A4.rotate(), 36, 36, 36, 36);
         try (FileOutputStream fos = new FileOutputStream(out)) {
             PdfWriter.getInstance(doc, fos);
             doc.open();
 
-            com.lowagie.text.Font fTitle = new com.lowagie.text.Font(com.lowagie.text.Font.HELVETICA, 18, com.lowagie.text.Font.BOLD, new Color(24,63,150));
+            com.lowagie.text.Font fTitle = new com.lowagie.text.Font(com.lowagie.text.Font.HELVETICA, 18, com.lowagie.text.Font.BOLD, new Color(24, 63, 150));
             Paragraph title = new Paragraph(titulo, fTitle);
             title.setAlignment(Element.ALIGN_CENTER);
             title.setSpacingAfter(8f);
@@ -907,7 +955,7 @@ public class InformesPanel extends JPanel {
             for (String h : headers) {
                 PdfPCell cell = new PdfPCell(new Phrase(h, fHeader));
                 cell.setHorizontalAlignment(Element.ALIGN_CENTER);
-                cell.setBackgroundColor(new Color(47,107,228));
+                cell.setBackgroundColor(new Color(47, 107, 228));
                 cell.setPadding(6f);
                 table.addCell(cell);
             }
@@ -928,13 +976,21 @@ public class InformesPanel extends JPanel {
             doc.close();
             JOptionPane.showMessageDialog(this, "PDF generado:\n" + out.getAbsolutePath(), "Exportar PDF", JOptionPane.INFORMATION_MESSAGE);
         } catch (Exception ex) {
-            try { doc.close(); } catch (Exception ignore) {}
+            try {
+                doc.close();
+            } catch (Exception ignore) {
+            }
             JOptionPane.showMessageDialog(this, "No se pudo generar el PDF:\n" + ex.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
         }
     }
 
-    private void exportInventarioToCsv() { exportModelToCsv(modelInv, ','); }
-    private void exportTramitesToCsv()   { exportModelToCsv(modelTra, ','); }
+    private void exportInventarioToCsv() {
+        exportModelToCsv(modelInv, ',');
+    }
+
+    private void exportTramitesToCsv() {
+        exportModelToCsv(modelTra, ',');
+    }
 
     private void exportModelToCsv(DefaultTableModel model, char sep) {
         JFileChooser fc = new JFileChooser();
@@ -942,22 +998,30 @@ public class InformesPanel extends JPanel {
         fc.setFileFilter(new FileNameExtensionFilter("Archivo CSV (*.csv)", "csv"));
         fc.setSelectedFile(new File("informe.csv"));
         int opt = fc.showSaveDialog(this);
-        if (opt != JFileChooser.APPROVE_OPTION) return;
+        if (opt != JFileChooser.APPROVE_OPTION) {
+            return;
+        }
 
         File out = fc.getSelectedFile();
-        if (!out.getName().toLowerCase().endsWith(".csv")) out = new File(out.getParentFile(), out.getName() + ".csv");
+        if (!out.getName().toLowerCase().endsWith(".csv")) {
+            out = new File(out.getParentFile(), out.getName() + ".csv");
+        }
 
         Charset enc = StandardCharsets.UTF_8;
         try (PrintWriter pw = new PrintWriter(out, enc)) {
             for (int c = 0; c < model.getColumnCount(); c++) {
-                if (c > 0) pw.print(sep);
+                if (c > 0) {
+                    pw.print(sep);
+                }
                 pw.print(csvEscape(model.getColumnName(c)));
             }
             pw.println();
 
             for (int r = 0; r < model.getRowCount(); r++) {
                 for (int c = 0; c < model.getColumnCount(); c++) {
-                    if (c > 0) pw.print(sep);
+                    if (c > 0) {
+                        pw.print(sep);
+                    }
                     Object v = model.getValueAt(r, c);
                     pw.print(csvEscape(v == null ? "" : String.valueOf(v)));
                 }
@@ -978,9 +1042,11 @@ public class InformesPanel extends JPanel {
 
     // ====== Utilidades ======
     private static class DateField {
+
         private final JComponent comp;
         private final boolean usesFlatPicker;
         private final DateTimeFormatter fmt = DateTimeFormatter.ofPattern("dd/MM/yyyy");
+
         DateField() {
             JComponent c;
             boolean ok = false;
@@ -1003,6 +1069,7 @@ public class InformesPanel extends JPanel {
             comp.setPreferredSize(size);
             comp.setMaximumSize(size);
         }
+
         private static JFormattedTextField createMasked() {
             try {
                 MaskFormatter mf = new MaskFormatter("##/##/####");
@@ -1015,44 +1082,76 @@ public class InformesPanel extends JPanel {
                 return new JFormattedTextField();
             }
         }
+
         LocalDate getDate() {
             if (usesFlatPicker) {
                 try {
                     Method getDate = comp.getClass().getMethod("getDate");
                     Object val = getDate.invoke(comp);
                     return (val instanceof LocalDate) ? (LocalDate) val : null;
-                } catch (Throwable ignore) { return null; }
+                } catch (Throwable ignore) {
+                    return null;
+                }
             } else {
                 String txt = ((JFormattedTextField) comp).getText();
-                if (txt == null) return null;
+                if (txt == null) {
+                    return null;
+                }
                 txt = txt.trim();
-                if (txt.isEmpty() || txt.contains("_")) return null;
-                try { return LocalDate.parse(txt, fmt); } catch (Exception e) { return null; }
+                if (txt.isEmpty() || txt.contains("_")) {
+                    return null;
+                }
+                try {
+                    return LocalDate.parse(txt, fmt);
+                } catch (Exception e) {
+                    return null;
+                }
             }
         }
-        JComponent getComponent() { return comp; }
+
+        JComponent getComponent() {
+            return comp;
+        }
     }
 
-    /** Busca un JLabel "Informes" que esté en la barra superior (no en el menú lateral) */
+    /**
+     * Busca un JLabel "Informes" que esté en la barra superior
+     */
     private static JLabel findHeaderTitleLabel(Container root) {
         for (Component c : root.getComponents()) {
             if (c instanceof JLabel l && "Informes".equals(l.getText())) {
                 Point p = SwingUtilities.convertPoint(l.getParent(), l.getLocation(), root);
-                if (p.y < 120) return l;
+                if (p.y < 120) {
+                    return l;
+                }
             }
             if (c instanceof Container ct) {
                 JLabel r = findHeaderTitleLabel(ct);
-                if (r != null) return r;
+                if (r != null) {
+                    return r;
+                }
             }
         }
         return null;
     }
 
-    // Listener simple para JTextField
     private static abstract class SimpleDocumentListener implements javax.swing.event.DocumentListener {
+
         public abstract void update();
-        @Override public void insertUpdate(javax.swing.event.DocumentEvent e) { update(); }
-        @Override public void removeUpdate(javax.swing.event.DocumentEvent e) { update(); }
-        @Override public void changedUpdate(javax.swing.event.DocumentEvent e) { update(); }
+
+        @Override
+        public void insertUpdate(javax.swing.event.DocumentEvent e) {
+            update();
+        }
+
+        @Override
+        public void removeUpdate(javax.swing.event.DocumentEvent e) {
+            update();
+        }
+
+        @Override
+        public void changedUpdate(javax.swing.event.DocumentEvent e) {
+            update();
+        }
     }
 }

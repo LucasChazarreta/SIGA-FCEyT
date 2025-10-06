@@ -11,7 +11,7 @@ public class Tramite {
     private LocalDateTime fecha;
     private String solicitante;
     private String descripcion;
-
+    private String destino;
 
 
     public Tramite() {}
@@ -30,6 +30,14 @@ public class Tramite {
     public String getSolicitante() { return solicitante; }
     public void setSolicitante(String solicitante) { this.solicitante = solicitante; }
 
+    public String getDestino() {
+        return destino;
+    }
+
+    public void setDestino(String destino) {
+        this.destino = destino;
+    }
+    
     @Override public boolean equals(Object o) {
         if (this == o) return true;
         if (!(o instanceof Tramite)) return false;

@@ -17,7 +17,7 @@ public class TramiteService {
     }
 
     // ✅ Método principal: guarda exactamente la descripción que venga de la UI
-    public Long registrarTramite(String nro, String asunto, String solicitante, String descripcion) {
+    public Long registrarTramite(String nro, String asunto, String solicitante, String descripcion, String destino) {
         if (nro == null || nro.isBlank()) throw new IllegalArgumentException("Número obligatorio");
         if (asunto == null || asunto.isBlank()) throw new IllegalArgumentException("Asunto obligatorio");
 
@@ -28,14 +28,15 @@ public class TramiteService {
         t.setEstado("PENDIENTE");
         t.setFecha(LocalDateTime.now());
         t.setDescripcion(descripcion != null ? descripcion.trim() : null);
+        t.setDestino(destino != null && !destino.isBlank() ? destino.trim() : "Secretaria FCEyT");
 
         return tramiteDao.create(t);
     }
 
     // ✅ Overload para compatibilidad
-    public Long registrarTramite(String nro, String asunto, String solicitante) {
-        return registrarTramite(nro, asunto, solicitante, null);
-    }
+//    public Long registrarTramite(String nro, String asunto, String solicitante, String descripcion, String destino) {
+//        return registrarTramite(nro, asunto, solicitante, descripcion, destino);
+//    }
 
     // ========= ESTADOS =========
 

@@ -352,11 +352,12 @@ public class TramiteEntradaPage extends JPanel {
             String asunto = txtAsunto.getText() != null ? txtAsunto.getText().trim() : "";
             String solicitante = txtRemitente.getText() != null ? txtRemitente.getText().trim() : "";
             String descripcion = txtDescripcion.getText() != null ? txtDescripcion.getText().trim() : null;
-
+            String destino = txtDestino.getText() != null ? txtDestino.getText().trim() : "";
+               
             if (asunto.isEmpty()) throw new IllegalArgumentException("El asunto es obligatorio");
 
             service.registrarTramite(nro, asunto, solicitante,
-                    (descripcion != null && !descripcion.isBlank()) ? descripcion : null);
+                    (descripcion != null && !descripcion.isBlank()) ? descripcion : null, destino);
 
             Ui.info(this, "Trámite registrado correctamente.");
 
