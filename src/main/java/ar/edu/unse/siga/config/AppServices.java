@@ -1,30 +1,38 @@
 package ar.edu.unse.siga.config;
 
-import ar.edu.unse.siga.persistence.jdbc.JdbcCategoriaDao;
+import ar.edu.unse.siga.persistence.dao.CategoriaDao;
+import ar.edu.unse.siga.persistence.dao.InsumoDao;
+import ar.edu.unse.siga.persistence.dao.MovimientoDao;
+import ar.edu.unse.siga.persistence.dao.TramiteDao;
 import ar.edu.unse.siga.persistence.jdbc.JdbcInsumoDao;
 import ar.edu.unse.siga.persistence.jdbc.JdbcMovimientoDao;
+import ar.edu.unse.siga.persistence.jdbc.JdbcCategoriaDao;
 import ar.edu.unse.siga.persistence.jdbc.JdbcTramiteDao;
 
 import ar.edu.unse.siga.service.InventarioService;
 import ar.edu.unse.siga.service.TramiteService;
-
 public final class AppServices {
 
     private static InventarioService inventarioService;
     private static TramiteService tramiteService;
+    
 
     private AppServices() {}
 
     public static void init() {
         // DAOs concretos
-        var insumoDao    = new JdbcInsumoDao();
-        var movDao       = new JdbcMovimientoDao();
-        var categoriaDao = new JdbcCategoriaDao();
-        var tramDao      = new JdbcTramiteDao();
+        InsumoDao insumoDao = new JdbcInsumoDao();
+        MovimientoDao movDao = new JdbcMovimientoDao();
+        CategoriaDao categoriaDao = new JdbcCategoriaDao();
+        TramiteDao tramDao = new JdbcTramiteDao();
+
 
         // Services (constructor con las dependencias que usa)
         inventarioService = new InventarioService(insumoDao, movDao, categoriaDao);
         tramiteService    = new TramiteService(tramDao);
+        
+        
+         
     }
 
     public static InventarioService inventario() {

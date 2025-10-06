@@ -1,25 +1,54 @@
 package ar.edu.unse.siga.ui.pages;
 
 import ar.edu.unse.siga.domain.Usuario;
+import ar.edu.unse.siga.domain.Insumo;
 import ar.edu.unse.siga.ui.base.CardPanel;
+import ar.edu.unse.siga.service.InventarioService;
 
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
 import java.awt.*;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
+import java.util.function.Consumer;
+import java.util.List;
 
+/**
+ * Dashboard de Inicio con métricas dinámicas y navegación. - Muestra saludo,
+ * banner de alertas, métricas y listas. - Botones de accesos rápidos navegan a
+ * otras páginas mediante callback. - "Insumos críticos" se calcula con
+ * InventarioService (stockActual < stockMinimo).
+ */
 public class HomePage extends JPanel {
 
     private final Usuario usuarioActual;
+    private final InventarioService inventarioService;  // para métricas reales
+    private final Consumer<String> onNavigate;          // callback para cambiar de página
     private final DateTimeFormatter friendlyDate = DateTimeFormatter.ofPattern("dd 'de' MMMM yyyy");
 
+    // Labels de métricas (para refrescar)
+    private JLabel lblTareasPend;
+    private JLabel lblAprobPend;
+    private JLabel lblInsumosCriticos;
+    private JLabel lblBalance;
+
+    private Timer autoRefreshTimer;
+
+    // ===== Constructores de compatibilidad =====
     public HomePage() {
-        this(null);
+        this(null, null, null);
     }
 
     public HomePage(Usuario usuarioActual) {
+        this(usuarioActual, null, null);
+    }
+
+    // ===== Constructor recomendado =====
+    public HomePage(Usuario usuarioActual, InventarioService inventarioService, Consumer<String> onNavigate) {
         this.usuarioActual = usuarioActual;
+        this.inventarioService = inventarioService;
+        this.onNavigate = onNavigate;
+
         setOpaque(false);
         setLayout(new BorderLayout());
 
@@ -48,6 +77,14 @@ public class HomePage extends JPanel {
         layout.add(buildQuickActions(), gc);
 
         add(layout, BorderLayout.CENTER);
+
+        // Primer refresco de métricas
+        refreshMetrics();
+
+        // Auto-refresco (cada 30 s). Podés desactivarlo si no lo querés.
+        autoRefreshTimer = new Timer(30_000, e -> refreshMetrics());
+        autoRefreshTimer.setRepeats(true);
+        autoRefreshTimer.start();
     }
 
     private JComponent buildHeroSection() {
@@ -60,7 +97,7 @@ public class HomePage extends JPanel {
         JPanel greetings = new JPanel();
         greetings.setOpaque(false);
         greetings.setLayout(new BoxLayout(greetings, BoxLayout.Y_AXIS));
-        String name = usuarioActual != null && usuarioActual.getUsuario() != null
+        String name = (usuarioActual != null && usuarioActual.getUsuario() != null)
                 ? usuarioActual.getUsuario()
                 : "Administrador";
         JLabel greet = new JLabel("Hola " + name + ", encantado de verte.");
@@ -82,18 +119,29 @@ public class HomePage extends JPanel {
         body.setLayout(new BoxLayout(body, BoxLayout.Y_AXIS));
         body.add(alertBanner());
         body.add(Box.createVerticalStrut(18));
-        body.add(metricsRow());
-
+        body.add(metricsRow()); // ← crea las tarjetas y guarda labels
         card.add(body, BorderLayout.CENTER);
+
         return card;
     }
 
     private Component buildHeaderActions() {
         JPanel actions = new JPanel(new FlowLayout(FlowLayout.RIGHT, 12, 0));
         actions.setOpaque(false);
-        actions.add(headerChip("Perfil"));
-        actions.add(headerChip("Notificaciones"));
-        actions.add(headerChip("Ajustes"));
+
+        JButton perfil = headerChip("Perfil");
+        perfil.addActionListener(e -> navigateOrInfo("perfil"));
+
+        JButton notif = headerChip("Notificaciones");
+        notif.addActionListener(e -> JOptionPane.showMessageDialog(
+                this, "Módulo de notificaciones en construcción.", "Info", JOptionPane.INFORMATION_MESSAGE));
+
+        JButton ajustes = headerChip("Ajustes");
+        ajustes.addActionListener(e -> navigateOrInfo("ajustes"));
+
+        actions.add(perfil);
+        actions.add(notif);
+        actions.add(ajustes);
         return actions;
     }
 
@@ -126,7 +174,16 @@ public class HomePage extends JPanel {
         banner.setLayout(new FlowLayout(FlowLayout.LEFT, 16, 12));
         banner.setBorder(new EmptyBorder(4, 18, 4, 18));
 
-        banner.add(alertChip("Alertas importantes"));
+        JLabel chip = alertChip("Alertas importantes");
+        chip.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        chip.addMouseListener(new java.awt.event.MouseAdapter() {
+            @Override
+            public void mouseClicked(java.awt.event.MouseEvent e) {
+                navigateOrInfo("informes"); // o abrir un diálogo de alertas
+            }
+        });
+
+        banner.add(chip);
         banner.add(alertMessage("Nuevo protocolo de gastos"));
         banner.add(alertMessage("Mantenimiento del sistema de 11 PM a 2 AM"));
         return banner;
@@ -138,7 +195,6 @@ public class HomePage extends JPanel {
         lbl.setForeground(new Color(37, 99, 235));
         lbl.setBackground(Color.WHITE);
         lbl.setOpaque(true);
-        lbl.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
         lbl.setBorder(BorderFactory.createCompoundBorder(
                 BorderFactory.createLineBorder(new Color(190, 210, 255)),
                 new EmptyBorder(6, 12, 6, 12)));
@@ -155,14 +211,17 @@ public class HomePage extends JPanel {
     private JPanel metricsRow() {
         JPanel row = new JPanel(new GridLayout(1, 4, 16, 0));
         row.setOpaque(false);
-        row.add(metricCard("Tareas pendientes", "7", "Nuevas tareas", new Color(58, 109, 255)));
-        row.add(metricCard("Aprob. pendientes", "3", "Documentos en revisión", new Color(86, 127, 255)));
-        row.add(metricCard("Insumos críticos", "12", "Requieren pedido urgente", new Color(255, 99, 99)));
-        row.add(metricCard("Balance dpto", "$145.200", "Órdenes de compra", new Color(58, 182, 186)));
+
+        // Crea las tarjetas y guarda referencias a sus labels de valor
+        row.add(metricCard("Tareas pendientes", lblTareasPend = new JLabel("0"), "Tareas por revisar", new Color(58, 109, 255)));
+        row.add(metricCard("Aprob. pendientes", lblAprobPend = new JLabel("3"), "Órdenes de compra", new Color(86, 127, 255)));
+        row.add(metricCard("Insumos críticos", lblInsumosCriticos = new JLabel("0"), "Requieren pedido urgente", new Color(255, 99, 99)));
+        row.add(metricCard("Balance dpto", lblBalance = new JLabel("$145.200"), "Órdenes de compra", new Color(58, 182, 186)));
         return row;
     }
 
-    private JPanel metricCard(String title, String value, String hint, Color base) {
+    // Versión de metricCard que recibe el JLabel del valor (para poder refrescar)
+    private JPanel metricCard(String title, JLabel valueLabel, String hint, Color base) {
         JPanel card = new JPanel() {
             @Override
             protected void paintComponent(Graphics g) {
@@ -182,16 +241,35 @@ public class HomePage extends JPanel {
         JLabel lblTitle = new JLabel(title.toUpperCase());
         lblTitle.setForeground(new Color(217, 230, 255));
         lblTitle.setFont(new Font("Segoe UI", Font.BOLD, 12));
-        JLabel lblValue = new JLabel(value);
-        lblValue.setForeground(Color.WHITE);
-        lblValue.setFont(new Font("Segoe UI", Font.BOLD, 28));
+
+        valueLabel.setForeground(Color.WHITE);
+        valueLabel.setFont(new Font("Segoe UI", Font.BOLD, 28));
+
         JLabel lblHint = new JLabel(hint);
         lblHint.setForeground(new Color(220, 231, 255));
         lblHint.setFont(new Font("Segoe UI", Font.PLAIN, 12));
 
         card.add(lblTitle, BorderLayout.NORTH);
-        card.add(lblValue, BorderLayout.CENTER);
+        card.add(valueLabel, BorderLayout.CENTER);
         card.add(lblHint, BorderLayout.SOUTH);
+
+        // Click en la tarjeta para navegar (según título)
+        card.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        card.addMouseListener(new java.awt.event.MouseAdapter() {
+            @Override
+            public void mouseClicked(java.awt.event.MouseEvent e) {
+                switch (title.toLowerCase()) {
+                    case "insumos críticos" ->
+                        navigateOrInfo("inventario");
+                    case "aprob. pendientes" ->
+                        navigateOrInfo("tramites");
+                    case "tareas pendientes" ->
+                        navigateOrInfo("tramites");
+                    case "balance dpto" ->
+                        navigateOrInfo("finanzas");
+                }
+            }
+        });
         return card;
     }
 
@@ -231,7 +309,7 @@ public class HomePage extends JPanel {
         list.setLayout(new BoxLayout(list, BoxLayout.Y_AXIS));
         list.add(eventRow("10:00 Reunión Dpto.", "Decanato de Ciencias"));
         list.add(divider());
-        list.add(eventRow("12:30 Comité Compras", "Sala 3 - Mesa de Compras"));
+        list.add(eventRow("Mañana: Cierre de mes", "Finanzas"));
         list.add(divider());
         list.add(eventRow("14:00 Seguimiento Proyectos", "Sala Multimedia"));
 
@@ -248,15 +326,13 @@ public class HomePage extends JPanel {
         list.setOpaque(false);
         list.setLayout(new BoxLayout(list, BoxLayout.Y_AXIS));
         for (String[] row : new String[][]{
-                {"Hace 5 min", "Juan P. aprobó Traspaso de Inventario"},
-                {"Hace 15 min", "M. López registró movimiento de tóner"},
-                {"Hace 30 min", "Admin derivó Expediente 123/24 a Compras"},
-                {"Hace 1 h", "S. Ruiz finalizó Pedido de Suministros"}
-        }) {
+            {"Hace 5 min", "Juan P. solicitó informe de inventario"},
+            {"Hace 9 min", "Tito P. solicitó informe de trámites"},
+            {"Ayer", "Agus T. aprobó préstamo de proyector"},
+            {"Ayer", "Tito P. aprobó préstamo de proyector"},}) {
             list.add(activityRow(row[0], row[1]));
             list.add(divider());
         }
-        list.add(activityRow("Hace 2 h", "Tesorería generó Orden de Compra 89"));
 
         card.add(list, BorderLayout.CENTER);
         return card;
@@ -271,8 +347,8 @@ public class HomePage extends JPanel {
         list.setOpaque(false);
         list.setLayout(new BoxLayout(list, BoxLayout.Y_AXIS));
         list.add(priorityRow("Revisar solicitud de préstamo de proyector", true));
+        list.add(priorityRow("Aprobar orden #2034-08", false));
         list.add(priorityRow("Aprobar orden #2034-09", false));
-        list.add(priorityRow("Actualizar inventario laboratorio B", false));
 
         card.add(list, BorderLayout.CENTER);
         return card;
@@ -287,10 +363,10 @@ public class HomePage extends JPanel {
         list.setOpaque(false);
         list.setLayout(new BoxLayout(list, BoxLayout.Y_AXIS));
         for (String[] row : new String[][]{
-                {"Hace 5 min", "Juan P. - Aprobó presupuesto de inventario"},
-                {"Hace 9 min", "María L. - Revisó Compras"},
-                {"Hace 15 min", "Sofía R. - Actualizó tramites"},
-                {"Hace 20 min", "Admin - Registró nueva orden"}
+            {"Hace 5 min", "Juan P. - Aprobó presupuesto de inventario"},
+            {"Hace 9 min", "María L. - Revisó Compras"},
+            {"Hace 15 min", "Sofía R. - Actualizó trámites"},
+            {"Hace 20 min", "Admin - Registró nueva orden"}
         }) {
             list.add(activityRow(row[0], row[1]));
             list.add(divider());
@@ -359,9 +435,19 @@ public class HomePage extends JPanel {
 
         JPanel buttons = new JPanel(new FlowLayout(FlowLayout.LEFT, 16, 0));
         buttons.setOpaque(false);
-        buttons.add(primaryButton("Registrar nuevo trámite"));
-        buttons.add(secondaryButton("Generar orden de compra"));
-        buttons.add(secondaryButton("Ver reportes"));
+
+        JButton btnTramite = primaryButton("Registrar nuevo trámite");
+        btnTramite.addActionListener(e -> navigateOrInfo("tramites"));
+
+        JButton btnOC = secondaryButton("Generar orden de compra");
+        btnOC.addActionListener(e -> navigateOrInfo("finanzas"));
+
+        JButton btnReportes = secondaryButton("Ver reportes");
+        btnReportes.addActionListener(e -> navigateOrInfo("reportes"));
+
+        buttons.add(btnTramite);
+        buttons.add(btnOC);
+        buttons.add(btnReportes);
         card.add(buttons, BorderLayout.CENTER);
 
         JLabel footer = new JLabel("" + LocalDate.now().format(friendlyDate));
@@ -393,4 +479,64 @@ public class HomePage extends JPanel {
         return b;
     }
 
+    // ====== Lógica dinámica ======
+    /**
+     * Refresca las métricas del dashboard.
+     */
+    public void refreshMetrics() {
+        // Por ahora tareas/aprobaciones quedan mock.
+        lblTareasPend.setText("7");
+        lblAprobPend.setText("3");
+
+        // Insumos críticos (stockActual < stockMinimo)
+        if (inventarioService != null) {
+            try {
+                List<Insumo> insumos = inventarioService.listarTodos();
+                int criticos = 0;
+                for (Insumo i : insumos) {
+                    Integer min = i.getStockMinimo();
+                    if (min == null) {
+                        continue;
+                    }
+                    int actual;
+                    try {
+                        actual = inventarioService.stockActual(i.getId());
+                    } catch (Exception ex) {
+                        actual = 0;
+                    }
+                    if (actual < min) {
+                        criticos++;
+                    }
+                }
+                lblInsumosCriticos.setText(String.valueOf(criticos));
+            } catch (Exception ex) {
+                // Si falla la BD, mantené el último valor visible
+            }
+        }
+
+        // Balance dpto: dejar fijo o conectar a servicio de finanzas si existe.
+        lblBalance.setText("$145.200");
+    }
+
+    /**
+     * Navega usando el callback, o informa si no está configurado.
+     */
+    private void navigateOrInfo(String pageKey) {
+        if (onNavigate != null) {
+            onNavigate.accept(pageKey);
+        } else {
+            JOptionPane.showMessageDialog(this,
+                    "Navegación a: " + pageKey + " (configurá onNavigate en ShellFrame).",
+                    "Navegación", JOptionPane.INFORMATION_MESSAGE);
+        }
+    }
+
+    /**
+     * Llamar cuando cierres la ventana para detener el timer.
+     */
+    public void dispose() {
+        if (autoRefreshTimer != null) {
+            autoRefreshTimer.stop();
+        }
+    }
 }
