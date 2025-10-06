@@ -5,18 +5,17 @@ import java.awt.*;
 import java.awt.geom.Path2D;
 
 /**
- * Sidebar panel with a soft blue gradient background and abstract wave
- * decorations inspired by the new SIGA mockups.  It paints the gradient
- * once and reuses it for the navigation column so that any content placed
- * inside the panel keeps the translucent waves behind it.
+ * Sidebar con gradiente azul y ondas suaves. Contraste mejorado para que los
+ * controles blancos se lean bien.
  */
 public class WaveSidebarPanel extends JPanel {
 
-    private final Color top = new Color(26, 86, 198);
-    private final Color bottom = new Color(24, 61, 169);
+    // Azul más contrastado
+    private final Color top = new Color(17, 57, 150);
+    private final Color bottom = new Color(14, 48, 140);
 
-    private final Color waveLight = new Color(255, 255, 255, 60);
-    private final Color waveDark = new Color(15, 77, 170, 140);
+    private final Color waveLight = new Color(255, 255, 255, 40);
+    private final Color waveDark = new Color(255, 255, 255, 25);
 
     public WaveSidebarPanel() {
         setOpaque(false);
@@ -36,20 +35,20 @@ public class WaveSidebarPanel extends JPanel {
         g2.setPaint(gradient);
         g2.fillRect(0, 0, w, h);
 
-        // First light wave.
+        // Onda superior clara
         Path2D wave1 = new Path2D.Double();
-        wave1.moveTo(0, h * 0.15);
-        wave1.curveTo(w * 0.35, h * 0.05, w * 0.65, h * 0.32, w, h * 0.18);
+        wave1.moveTo(0, h * 0.17);
+        wave1.curveTo(w * 0.35, h * 0.07, w * 0.65, h * 0.30, w, h * 0.16);
         wave1.lineTo(w, 0);
         wave1.lineTo(0, 0);
         wave1.closePath();
         g2.setColor(waveLight);
         g2.fill(wave1);
 
-        // Second darker wave (bottom).
+        // Onda inferior muy suave
         Path2D wave2 = new Path2D.Double();
         wave2.moveTo(0, h);
-        wave2.curveTo(w * 0.25, h * 0.82, w * 0.55, h * 0.92, w, h * 0.7);
+        wave2.curveTo(w * 0.25, h * 0.82, w * 0.55, h * 0.92, w, h * 0.70);
         wave2.lineTo(w, h);
         wave2.closePath();
         g2.setColor(waveDark);
@@ -58,4 +57,3 @@ public class WaveSidebarPanel extends JPanel {
         g2.dispose();
     }
 }
-

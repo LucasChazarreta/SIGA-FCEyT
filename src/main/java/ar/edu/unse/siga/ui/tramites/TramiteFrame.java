@@ -52,7 +52,6 @@ public class TramiteFrame extends BaseCrudFrame<Tramite> {
                 int col = switch (cbCampo.getSelectedIndex()) {
                     case 0 -> 1;  // Número
                     case 1 -> 2;  // Asunto
-                        
                     default -> 3; // Estado
                 };
                 sorter.setRowFilter(new RowFilter<TableModel, Integer>() {
@@ -84,9 +83,6 @@ public class TramiteFrame extends BaseCrudFrame<Tramite> {
         cm.getColumn(3).setPreferredWidth(120);  // Estado
         cm.getColumn(4).setPreferredWidth(160);  // Fecha
         cm.getColumn(5).setPreferredWidth(200);  // Solicitante
-        cm.getColumn(6).setPreferredWidth(200);  // Descripcion
-        cm.getColumn(7).setPreferredWidth(200);  // Destino
-        
 
         // ---- Atajos
         var im = table.getInputMap(JComponent.WHEN_ANCESTOR_OF_FOCUSED_COMPONENT);
@@ -128,7 +124,7 @@ public class TramiteFrame extends BaseCrudFrame<Tramite> {
         dlg.setVisible(true);
         if (dlg.isAccepted()) {
             try {
-                service.registrarTramite(dlg.getNro(), dlg.getAsunto(),dlg.getSolicitante(), dlg.getDescripcion(), dlg.getDestino());
+                service.registrarTramite(dlg.getNro(), dlg.getAsunto(), dlg.getSolicitante());
                 loadData();
             } catch (Exception e) { Ui.error(this, e); }
         }

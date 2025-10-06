@@ -51,26 +51,6 @@ CREATE TABLE movimiento (
   FOREIGN KEY (usuario_id) REFERENCES usuario(id)
 );
 
--- Tabla de tramites
-CREATE TABLE tramite (
-  id BIGINT AUTO_INCREMENT PRIMARY KEY,
-  nro VARCHAR(50) UNIQUE NOT NULL,
-  asunto VARCHAR(255) NOT NULL,
-  estado VARCHAR(30) NOT NULL,
-  fecha DATETIME NOT NULL,
-  solicitante VARCHAR(120),
-  descripcion TEXT NULL,
-  destino VARCHAR(120) NOT NULL
-  );
-
 -- Datos iniciales
 INSERT INTO rol(nombre) VALUES ('ADMIN'), ('INVENTARIO');
 INSERT INTO categoria(nombre) VALUES ('Oficina'), ('Limpieza'), ('Eléctrico'), ('Bien mueble');
-
-
--- para ver las tablas
-
-SHOW TABLES;
-SELECT * FROM categoria;
-SELECT * FROM movimiento;
-SELECT * FROM tramite;

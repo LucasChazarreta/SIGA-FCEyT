@@ -3,6 +3,7 @@ package ar.edu.unse.siga.ui.pages;
 import ar.edu.unse.siga.domain.Insumo;
 import ar.edu.unse.siga.domain.Movimiento;
 import ar.edu.unse.siga.service.InventarioService;
+import ar.edu.unse.siga.service.InventarioService.StockCheckResult;
 import ar.edu.unse.siga.ui.base.CardPanel;
 import ar.edu.unse.siga.ui.inventario.MovimientoDialog;
 
@@ -15,11 +16,18 @@ import java.util.List;
 public class InventoryMovementsPage extends JPanel {
 
     private final InventarioService service;
+
+    // selector
     private final DefaultListModel<Insumo> listModel = new DefaultListModel<>();
     private final JList<Insumo> lstInsumos = new JList<>(listModel);
-    private final JLabel lblSeleccion = new JLabel("Seleccioná un insumo");
 
-    // historial real
+    // resumen seleccionado
+    private final JTextArea taSeleccion = new JTextArea();
+    private Color resumenColorNormal;   // para poder alternar rojo/normal según stock
+    private final JButton btnEntrada = new JButton("Registrar ENTRADA");
+    private final JButton btnSalida = new JButton("Registrar SALIDA");
+
+    // historial
     private final DefaultListModel<String> historialModel = new DefaultListModel<>();
     private final JList<String> lstHistorial = new JList<>(historialModel);
 
@@ -32,6 +40,7 @@ public class InventoryMovementsPage extends JPanel {
         add(buildContent(), BorderLayout.CENTER);
 
         loadInsumos("");
+        setActionsEnabled(false);
     }
 
     private JComponent buildHeader() {
@@ -42,13 +51,6 @@ public class InventoryMovementsPage extends JPanel {
         title.setFont(title.getFont().deriveFont(Font.BOLD, 26f));
         title.setForeground(new Color(28, 66, 148));
         header.add(title, BorderLayout.WEST);
-
-        var btnNuevo = new JButton("Nuevo movimiento…");
-        btnNuevo.addActionListener(e -> onNuevoMovimiento());
-        var right = new JPanel(new FlowLayout(FlowLayout.RIGHT, 0, 0));
-        right.setOpaque(false);
-        right.add(btnNuevo);
-        header.add(right, BorderLayout.EAST);
 
         return header;
     }
@@ -102,28 +104,20 @@ public class InventoryMovementsPage extends JPanel {
         north.add(sectionTitle("Seleccionar insumo"));
         north.add(Box.createVerticalStrut(8));
 
-        // --- búsqueda con botón limpiar ---
+        // búsqueda (solo botón Buscar + Enter)
         JPanel searchPanel = new JPanel(new BorderLayout(8, 0));
         searchPanel.setOpaque(false);
-
         var txtSearch = new JTextField();
         txtSearch.putClientProperty("JTextField.placeholderText", "Buscar por código/nombre");
+        txtSearch.addActionListener(e -> loadInsumos(txtSearch.getText()));
 
         JButton btnSearch = new JButton("Buscar");
         btnSearch.setFocusPainted(false);
         btnSearch.addActionListener(e -> loadInsumos(txtSearch.getText()));
 
-        JButton btnClear = new JButton("Limpiar");
-        btnClear.setFocusPainted(false);
-        btnClear.addActionListener(e -> {
-            txtSearch.setText("");
-            loadInsumos("");
-        });
-
         var rightBtns = new JPanel(new FlowLayout(FlowLayout.RIGHT, 6, 0));
         rightBtns.setOpaque(false);
         rightBtns.add(btnSearch);
-        rightBtns.add(btnClear);
 
         searchPanel.add(txtSearch, BorderLayout.CENTER);
         searchPanel.add(rightBtns, BorderLayout.EAST);
@@ -131,8 +125,8 @@ public class InventoryMovementsPage extends JPanel {
 
         card.add(north, BorderLayout.NORTH);
 
-        // --- lista de insumos ---
-        lstInsumos.setVisibleRowCount(10);
+        // lista
+        lstInsumos.setVisibleRowCount(12);
         lstInsumos.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
         lstInsumos.setCellRenderer(new DefaultListCellRenderer() {
             @Override
@@ -152,13 +146,17 @@ public class InventoryMovementsPage extends JPanel {
             if (!e.getValueIsAdjusting()) {
                 Insumo selected = lstInsumos.getSelectedValue();
                 if (selected != null) {
-                    String desc = selected.getDescripcion() == null ? "-" : selected.getDescripcion();
-                    String min = selected.getStockMinimo() == null ? "-" : String.valueOf(selected.getStockMinimo());
-                    lblSeleccion.setText("#" + selected.getId() + " · " + desc + "  |  Stock mín.: " + min);
+                    refreshSelectedSummary();
                     refreshHistorial(selected.getId());
+                    setActionsEnabled(true);
                 } else {
-                    lblSeleccion.setText("Seleccioná un insumo");
+                    setActionsEnabled(false);
+                    taSeleccion.setText("Seleccioná un insumo");
                     historialModel.clear();
+                    // volver a color normal
+                    if (resumenColorNormal != null) {
+                        taSeleccion.setForeground(resumenColorNormal);
+                    }
                 }
             }
         });
@@ -170,11 +168,40 @@ public class InventoryMovementsPage extends JPanel {
     private CardPanel resumenCard() {
         CardPanel card = new CardPanel();
         card.setLayout(new BorderLayout(10, 10));
+
         card.add(sectionTitle("Insumo seleccionado"), BorderLayout.NORTH);
 
-        lblSeleccion.setFont(lblSeleccion.getFont().deriveFont(Font.BOLD, 14f));
-        lblSeleccion.setBorder(new EmptyBorder(8, 8, 8, 8));
-        card.add(lblSeleccion, BorderLayout.CENTER);
+        // Área multilínea para que se vea todo (wrap + scroll si hace falta)
+        taSeleccion.setOpaque(false);
+        taSeleccion.setWrapStyleWord(true);
+        taSeleccion.setLineWrap(true);
+        taSeleccion.setEditable(false);
+        taSeleccion.setFont(taSeleccion.getFont().deriveFont(Font.BOLD, 14f));
+        taSeleccion.setBorder(new EmptyBorder(8, 8, 8, 8));
+
+        var scroll = new JScrollPane(taSeleccion);
+        scroll.setBorder(null);
+        scroll.setOpaque(false);
+        scroll.getViewport().setOpaque(false);
+        scroll.setPreferredSize(new Dimension(10, 90));
+        card.add(scroll, BorderLayout.CENTER);
+
+        // guardar el color por defecto para poder alternar
+        resumenColorNormal = taSeleccion.getForeground();
+
+        // barra de acciones contextual
+        JPanel actions = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 0));
+        actions.setOpaque(false);
+
+        stylePrimary(btnEntrada);
+        stylePrimary(btnSalida);
+
+        btnEntrada.addActionListener(e -> onRegistrarMovimiento("ENTRADA"));
+        btnSalida.addActionListener(e -> onRegistrarMovimiento("SALIDA"));
+
+        actions.add(btnEntrada);
+        actions.add(btnSalida);
+        card.add(actions, BorderLayout.SOUTH);
 
         return card;
     }
@@ -198,6 +225,16 @@ public class InventoryMovementsPage extends JPanel {
         return lbl;
     }
 
+    private void stylePrimary(JButton b) {
+        b.setFocusPainted(false);
+        b.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+    }
+
+    private void setActionsEnabled(boolean enabled) {
+        btnEntrada.setEnabled(enabled);
+        btnSalida.setEnabled(enabled);
+    }
+
     private void loadInsumos(String filtro) {
         listModel.clear();
         try {
@@ -215,16 +252,24 @@ public class InventoryMovementsPage extends JPanel {
         }
     }
 
-    private void onNuevoMovimiento() {
+    private void onRegistrarMovimiento(String tipoInicial) {
         Insumo sel = lstInsumos.getSelectedValue();
         if (sel == null) {
             JOptionPane.showMessageDialog(this, "Seleccioná un insumo primero.", "Atención", JOptionPane.WARNING_MESSAGE);
             return;
         }
 
+        int stock = 0;
+        try {
+            stock = service.stockActual(sel.getId());
+        } catch (Exception ignored) {
+        }
+
         var win = SwingUtilities.getWindowAncestor(this);
-        String ctx = "Insumo: " + sel.getCodigo() + " · " + sel.getDescripcion();
-        MovimientoDialog dlg = new MovimientoDialog(win, ctx, "SALIDA", null, 1);
+        String ctx = "Insumo: " + sel.getCodigo() + " · " + sel.getDescripcion()
+                + "  |  Stock actual: " + stock;
+
+        MovimientoDialog dlg = new MovimientoDialog(win, ctx, tipoInicial, null, 1);
         dlg.setVisible(true);
         if (!dlg.isAccepted()) {
             return;
@@ -239,11 +284,44 @@ public class InventoryMovementsPage extends JPanel {
             return;
         }
 
+        // Pre-chequeo SALIDA
         try {
-            Long id = service.registrarMovimiento(sel.getId(), tipo, cantidad, destino);
-            JOptionPane.showMessageDialog(this, tipo + " registrada (movimiento #" + id + ").",
+            stock = service.stockActual(sel.getId());
+        } catch (Exception ignored) {
+        }
+        if ("SALIDA".equalsIgnoreCase(tipo) && cantidad > stock) {
+            JOptionPane.showMessageDialog(this,
+                    String.format(
+                            "No hay suficiente stock para realizar esta salida.\n\n"
+                            + "Cantidad disponible: %d\n"
+                            + "Cantidad solicitada: %d\n\n"
+                            + "Podés registrar una cantidad menor o agregar más stock con una ENTRADA.",
+                            stock, cantidad),
+                    "Error", JOptionPane.ERROR_MESSAGE);
+            return;
+        }
+
+        try {
+            // NUEVO: usamos el resultado de control de stock del servicio
+            StockCheckResult res = service.registrarMovimiento(sel.getId(), tipo, cantidad, destino);
+
+            // Mensaje principal
+            JOptionPane.showMessageDialog(this,
+                    String.format("%s registrada.\nStock actual: %d",
+                            tipo, res.stockActual),
                     "OK", JOptionPane.INFORMATION_MESSAGE);
-            refreshHistorial(sel.getId()); // << refrescamos al finalizar
+
+            // Alerta si quedó por debajo del mínimo
+            if (res.bajoMinimo) {
+                JOptionPane.showMessageDialog(this,
+                        String.format("⚠ Stock por debajo del mínimo.\nActual: %d  |  Mínimo: %s",
+                                res.stockActual,
+                                res.stockMinimo == null ? "-" : res.stockMinimo),
+                        "Alerta de reposición", JOptionPane.WARNING_MESSAGE);
+            }
+
+            refreshHistorial(sel.getId());
+            refreshSelectedSummary();
         } catch (IllegalArgumentException | IllegalStateException ex) {
             JOptionPane.showMessageDialog(this, ex.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
         } catch (Exception ex) {
@@ -265,12 +343,52 @@ public class InventoryMovementsPage extends JPanel {
                 String fecha = (m.getFecha() != null ? m.getFecha().format(fmt) : "");
                 String linea = String.format(
                         "%s · x%d %s · Destino: %s",
-                        fecha, m.getCantidad(), m.getTipo(), (m.getDestinoFuente() == null ? "-" : m.getDestinoFuente())
+                        fecha, m.getCantidad(), m.getTipo(),
+                        (m.getDestinoFuente() == null || m.getDestinoFuente().isBlank()) ? "-" : m.getDestinoFuente()
                 );
                 historialModel.addElement(linea);
             }
         } catch (Exception ex) {
             JOptionPane.showMessageDialog(this, "No se pudieron cargar los movimientos.", "Error", JOptionPane.ERROR_MESSAGE);
+        }
+    }
+
+    /**
+     * Actualiza panel derecho con descripción y stock actual y resalta en rojo
+     * si está por debajo del mínimo.
+     */
+    private void refreshSelectedSummary() {
+        Insumo sel = lstInsumos.getSelectedValue();
+        if (sel == null) {
+            taSeleccion.setText("Seleccioná un insumo");
+            if (resumenColorNormal != null) {
+                taSeleccion.setForeground(resumenColorNormal);
+            }
+            return;
+        }
+        int stockAct = 0;
+        try {
+            stockAct = service.stockActual(sel.getId());
+        } catch (Exception ignored) {
+        }
+
+        String cod = sel.getCodigo() == null ? "-" : sel.getCodigo();
+        String desc = sel.getDescripcion() == null ? "-" : sel.getDescripcion();
+        String min = sel.getStockMinimo() == null ? "-" : String.valueOf(sel.getStockMinimo());
+
+        taSeleccion.setText(
+                String.format("#%d · %s · %s%nStock mín.: %s  |  Stock actual: %d",
+                        sel.getId(), cod, desc, min, stockAct)
+        );
+        taSeleccion.setCaretPosition(0);
+        taSeleccion.setToolTipText(desc.length() > 40 ? desc : null); // tooltip si es largo
+
+        // Pintar en rojo si está bajo mínimo
+        boolean bajoMinimo = (sel.getStockMinimo() != null) && (stockAct < sel.getStockMinimo());
+        if (bajoMinimo) {
+            taSeleccion.setForeground(new Color(176, 0, 32)); // rojo alerta
+        } else if (resumenColorNormal != null) {
+            taSeleccion.setForeground(resumenColorNormal);
         }
     }
 }
