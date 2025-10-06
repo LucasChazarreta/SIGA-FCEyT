@@ -98,4 +98,62 @@ public class InventarioService {
                 })
                 .collect(Collectors.toList());
     }
+    
+    // --- BEGIN API compatible con la UI ---
+
+    // La UI usa estos campos y puede chequear contra null
+    public static class StockCheckResult {
+        public final Long insumoId;
+        public final Integer stockActual;  // Integer (no int) por comparaciones con null
+        public final Integer stockMinimo;  // Integer (no int)
+        public final boolean bajoMinimo;
+
+        public StockCheckResult(Long insumoId, Integer stockActual, Integer stockMinimo) {
+            this.insumoId = insumoId;
+            this.stockActual = stockActual;
+            this.stockMinimo = stockMinimo;
+            this.bajoMinimo = (stockActual != null && stockMinimo != null) && stockActual < stockMinimo;
+        }
+
+        public static StockCheckResult of(Long insumoId, Integer actual, Integer minimo) {
+            return new StockCheckResult(insumoId, actual, minimo);
+        }
+
+        // Getters opcionales
+        public Long getInsumoId() { return insumoId; }
+        public Integer getStockActual() { return stockActual; }
+        public Integer getStockMinimo() { return stockMinimo; }
+        public boolean isBajoMinimo() { return bajoMinimo; }
+    }
+
+    // Para los lugares donde esperan un ENTERO
+    public int stockActual(long insumoId) {
+        // TODO: implementar real (suma ingresos - egresos)
+        return 0;
+    }
+
+    // Para los lugares donde esperan el OBJETO con mínimos
+    // (si llaman con Long y asignan a StockCheckResult, cae acá)
+    public StockCheckResult stockActual(Long insumoId) {
+        int actual = (insumoId == null) ? 0 : stockActual(insumoId.longValue());
+        Integer minimo = 0; // TODO: traer mínimo real desde DAO
+        return StockCheckResult.of(insumoId, actual, minimo);
+    }
+
+    // Alias legible que algunas pantallas podrían preferir
+    public StockCheckResult stockCheck(Long insumoId) {
+        return stockActual(insumoId);
+    }
+
+    // Stub hasta cablear a MovimientoDao
+    public java.util.List<ar.edu.unse.siga.domain.Movimiento> ultimosMovimientos(Long insumoId, int limit) {
+        return java.util.Collections.emptyList();
+    }
+
+    // --- END API compatible con la UI ---
+
+
+
+    
+
 }

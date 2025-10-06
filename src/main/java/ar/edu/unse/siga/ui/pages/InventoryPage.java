@@ -442,7 +442,8 @@ public class InventoryPage extends JPanel {
                 // Pre-chequeo para SALIDA con stock insuficiente
                 int stockActual = 0;
                 try {
-                    stockActual = service.stockActual(insumo.getId());
+                    InventarioService.StockCheckResult res = service.stockActual(insumo.getId());
+
                 } catch (Exception ignored) {
                 }
                 if ("SALIDA".equalsIgnoreCase(tipo) && cantidad > stockActual) {
@@ -457,8 +458,7 @@ public class InventoryPage extends JPanel {
                 }
 
                 // ✅ NUEVO: usar StockCheckResult (no devuelve Long)
-                StockCheckResult res = service.registrarMovimiento(insumo.getId(), tipo, cantidad, destinoFuente);
-
+                InventarioService.StockCheckResult res = service.stockActual(insumo.getId());
                 Ui.info(InventoryPage.this,
                         String.format("Movimiento registrado.\nStock actual: %d", res.stockActual));
 

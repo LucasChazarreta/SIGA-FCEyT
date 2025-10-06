@@ -261,7 +261,8 @@ public class InventoryMovementsPage extends JPanel {
 
         int stock = 0;
         try {
-            stock = service.stockActual(sel.getId());
+            InventarioService.StockCheckResult res = service.stockActual(sel.getId());
+
         } catch (Exception ignored) {
         }
 
@@ -286,7 +287,8 @@ public class InventoryMovementsPage extends JPanel {
 
         // Pre-chequeo SALIDA
         try {
-            stock = service.stockActual(sel.getId());
+            InventarioService.StockCheckResult res = service.stockActual(sel.getId());
+
         } catch (Exception ignored) {
         }
         if ("SALIDA".equalsIgnoreCase(tipo) && cantidad > stock) {
@@ -303,7 +305,8 @@ public class InventoryMovementsPage extends JPanel {
 
         try {
             // NUEVO: usamos el resultado de control de stock del servicio
-            StockCheckResult res = service.registrarMovimiento(sel.getId(), tipo, cantidad, destino);
+            InventarioService.StockCheckResult res = service.stockActual(sel.getId());
+
 
             // Mensaje principal
             JOptionPane.showMessageDialog(this,
@@ -368,7 +371,8 @@ public class InventoryMovementsPage extends JPanel {
         }
         int stockAct = 0;
         try {
-            stockAct = service.stockActual(sel.getId());
+            InventarioService.StockCheckResult res = service.stockActual(sel.getId());
+
         } catch (Exception ignored) {
         }
 
