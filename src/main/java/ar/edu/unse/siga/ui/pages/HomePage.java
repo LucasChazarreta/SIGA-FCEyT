@@ -327,7 +327,7 @@ public class HomePage extends JPanel {
         list.setLayout(new BoxLayout(list, BoxLayout.Y_AXIS));
         for (String[] row : new String[][]{
             {"Hace 5 min", "Juan P. solicitó informe de inventario"},
-            {"Hace 9 min", "Tito P. solicitó informe de trámites"},
+            {"Hace 9 min", "Tito    P. solicitó informe de trámites"},
             {"Ayer", "Agus T. aprobó préstamo de proyector"},
             {"Ayer", "Tito P. aprobó préstamo de proyector"},}) {
             list.add(activityRow(row[0], row[1]));
