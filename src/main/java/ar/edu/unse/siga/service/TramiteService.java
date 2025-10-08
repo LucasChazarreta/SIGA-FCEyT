@@ -19,14 +19,25 @@ public class TramiteService {
     }
 
     public Long registrarTramite(String nro, String asunto, String solicitante, String descripcion, String destino) {
-        if (nro == null || nro.isBlank()) throw new IllegalArgumentException("Número obligatorio");
-        if (asunto == null || asunto.isBlank()) throw new IllegalArgumentException("Asunto obligatorio");
-
+        if (nro == null || nro.isBlank()) {
+            throw new IllegalArgumentException("Número obligatorio");
+        }
+        if (asunto == null || asunto.isBlank()) {
+            throw new IllegalArgumentException("Asunto obligatorio");
+        }
+        if (descripcion == null || descripcion.isBlank()) {
+            throw new IllegalArgumentException("Descripcion obligatorio");
+        }
+        if (destino == null || destino.isBlank()) {
+            throw new IllegalArgumentException("Destino obligatorio");
+        }
         Tramite t = new Tramite();
-        t.setNro(nro.trim());
-        t.setAsunto(asunto.trim());
-        t.setSolicitante(solicitante != null ? solicitante.trim() : "Desconocido");
-        t.setEstado("PENDIENTE");
+        t.setNro(nro);
+        t.setAsunto(asunto);
+        t.setSolicitante(solicitante);
+        t.setDescripcion(descripcion);
+        t.setDestino(destino);        
+        t.setEstado("NUEVO");
         t.setFecha(LocalDateTime.now());
         t.setDescripcion(descripcion != null ? descripcion.trim() : null);
         t.setDestino(destino != null && !destino.isBlank() ? destino.trim() : "Secretaria FCEyT");

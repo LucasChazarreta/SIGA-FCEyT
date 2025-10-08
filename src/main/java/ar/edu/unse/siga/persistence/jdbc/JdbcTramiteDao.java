@@ -32,10 +32,7 @@ public class JdbcTramiteDao implements TramiteDao {
 
     @Override
     public Long create(Tramite t) {
-        final String sql = """
-            INSERT INTO tramite (nro, asunto, estado, fecha, solicitante, descripcion, destino)
-            VALUES (?,?,?,?,?,?,?)
-            """;
+        String sql = "INSERT INTO tramite"+"(nro, asunto, estado, fecha, solicitante, descripcion, destino) VALUES (?,?,?,?,?,?,?)";
         try (Connection cn = DataSourceFactory.getConnection();
              PreparedStatement ps = cn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
 
