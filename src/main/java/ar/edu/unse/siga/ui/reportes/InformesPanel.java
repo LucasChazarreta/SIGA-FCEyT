@@ -36,24 +36,24 @@ import com.lowagie.text.pdf.PdfPCell;
 import com.lowagie.text.pdf.PdfPTable;
 import com.lowagie.text.pdf.PdfWriter;
 
+/**
+ * Solo UI/estilos. La lógica de carga/filtrado/exportación permanece igual.
+ */
 public class InformesPanel extends JPanel {
 
-    // ======= Estilos =======
-    private static final Color COL_BG = new Color(0xE9, 0xEB, 0xEF);
-    private static final Color COL_TEXT_PRIMARY = new Color(0x0B, 0x0B, 0x0C);
-    private static final Color COL_BRAND = new Color(0x2F, 0x6B, 0xE4);
-    private static final Color COL_BRAND_SOFT = new Color(0xC7, 0xD7, 0xEA);
-    private static final Color COL_CARD = new Color(0xF1, 0xF3, 0xF6);
+    // ======= Colores base (coinciden con la captura) =======
+    private static final Color BRAND        = new Color(58, 96, 224);
+    private static final Color BRAND_SOFT   = new Color(206, 218, 255);
+    private static final Color CARD_BORDER  = new Color(225, 230, 246);
+    private static final Color HEADER_TXT   = new Color(24, 63, 150);
+    private static final Color TITLE_TXT    = new Color(35, 55, 110);
 
     private final InventarioService invService;
     private final TramiteService traService;
 
     // Métricas
-    private final JLabel lblTotalInsumos = new JLabel("-");
-    private final JLabel lblTotalTramites = new JLabel("-");
-    private final JLabel lblPendientes = new JLabel("-");
-    private final JLabel lblGastos = new JLabel("$-");
-    private final JLabel lblPendientesMini = new JLabel();
+    private final JLabel lblTotalInsumos  = bigValueLabel("-");
+    private final JLabel lblTotalTramites = bigValueLabel("-");
 
     // Filtros TRÁMITES
     private final JTextField filterSearch = new JTextField(18);
@@ -66,22 +66,12 @@ public class InformesPanel extends JPanel {
     private final DateField dfHasta = new DateField();
     private final DefaultTableModel modelInv = new DefaultTableModel(
             new Object[]{"Código", "Descripción", "Estado", "Fecha"}, 0
-    ) {
-        @Override
-        public boolean isCellEditable(int r, int c) {
-            return false;
-        }
-    };
+    ) { @Override public boolean isCellEditable(int r, int c) { return false; } };
 
     // --- TRÁMITES ---
     private final DefaultTableModel modelTra = new DefaultTableModel(
             new Object[]{"ID Trámite", "Asunto", "Fecha actualización", "Última actualización", "Descripción", "Estado"}, 0
-    ) {
-        @Override
-        public boolean isCellEditable(int r, int c) {
-            return false;
-        }
-    };
+    ) { @Override public boolean isCellEditable(int r, int c) { return false; } };
 
     // UI de contenido por tabs
     private final CardLayout contentCards = new CardLayout();
@@ -100,17 +90,13 @@ public class InformesPanel extends JPanel {
         add(buildHeader(), BorderLayout.NORTH);
         add(buildContentScrollable(), BorderLayout.CENTER);
 
-        // Ocultar título duplicado en el header global (si existe)
+        // Ocultar título duplicado del shell si lo hubiera
         SwingUtilities.invokeLater(() -> {
             Window w = SwingUtilities.getWindowAncestor(InformesPanel.this);
             if (w instanceof JFrame frame) {
                 Container root = frame.getContentPane();
                 JLabel headerTitle = findHeaderTitleLabel(root);
-                if (headerTitle != null) {
-                    headerTitle.setText("");
-                    headerTitle.getParent().revalidate();
-                    headerTitle.getParent().repaint();
-                }
+                if (headerTitle != null) headerTitle.setText("");
             }
         });
         this.addHierarchyListener(e -> {
@@ -119,9 +105,7 @@ public class InformesPanel extends JPanel {
                     Window w = SwingUtilities.getWindowAncestor(InformesPanel.this);
                     if (w instanceof JFrame frame) {
                         JLabel headerTitle = findHeaderTitleLabel(frame.getContentPane());
-                        if (headerTitle != null) {
-                            headerTitle.setText("");
-                        }
+                        if (headerTitle != null) headerTitle.setText("");
                     }
                 });
             }
@@ -134,14 +118,14 @@ public class InformesPanel extends JPanel {
         installFiltersTramites();
     }
 
-    // ====== Header con export ======
+    // ====== Header (título centrado + export) ======
     private JComponent buildHeader() {
         JPanel header = new JPanel(new BorderLayout());
         header.setOpaque(false);
 
         JLabel title = new JLabel("INFORMES", SwingConstants.CENTER);
         title.setFont(title.getFont().deriveFont(Font.BOLD, 34f));
-        title.setForeground(new Color(24, 63, 150));
+        title.setForeground(HEADER_TXT);
 
         JPanel center = new JPanel(new GridBagLayout());
         center.setOpaque(false);
@@ -150,26 +134,21 @@ public class InformesPanel extends JPanel {
         JPanel actions = new JPanel(new FlowLayout(FlowLayout.RIGHT, 10, 0));
         actions.setOpaque(false);
         JButton exportPdf = primaryButton("Exportar PDF");
-        JButton exportCsv = secondaryButton("Exportar CSV");
+        JButton exportCsv = outlineButton("Exportar CSV");
 
         exportPdf.addActionListener(e -> {
-            if (btnTramites != null && btnTramites.isSelected()) {
-                exportTramitesToPdf();
-            } else {
-                exportInventarioToPdf();
-            }
+            if (btnTramites != null && btnTramites.isSelected()) exportTramitesToPdf();
+            else exportInventarioToPdf();
         });
         exportCsv.addActionListener(e -> {
-            if (btnTramites != null && btnTramites.isSelected()) {
-                exportTramitesToCsv();
-            } else {
-                exportInventarioToCsv();
-            }
+            if (btnTramites != null && btnTramites.isSelected()) exportTramitesToCsv();
+            else exportInventarioToCsv();
         });
 
         actions.add(exportPdf);
         actions.add(exportCsv);
 
+        // separador izquierdo para centrar visualmente
         JPanel spacer = new JPanel();
         spacer.setOpaque(false);
         spacer.setPreferredSize(actions.getPreferredSize());
@@ -184,34 +163,41 @@ public class InformesPanel extends JPanel {
     // ====== Contenido con scroll general ======
     private JComponent buildContentScrollable() {
         JPanel wrapper = new JPanel(new BorderLayout(8, 18));
-        wrapper.setOpaque(false);
+        wrapper.setOpaque(true);
+        wrapper.setBackground(Color.WHITE);
 
+        // Tabs tipo "pill"
         ButtonGroup tabs = new ButtonGroup();
         btnInventario = pill("INVENTARIO");
-        btnTramites = pill("TRÁMITES");
+        btnTramites   = pill("TRÁMITES");
         btnInventario.setSelected(true);
         tabs.add(btnInventario);
         tabs.add(btnTramites);
 
         JPanel tabRow = new JPanel(new FlowLayout(FlowLayout.CENTER, 18, 6));
-        tabRow.setOpaque(false);
+        tabRow.setOpaque(true);
+        tabRow.setBackground(Color.WHITE);
         tabRow.add(btnInventario);
         tabRow.add(btnTramites);
         wrapper.add(tabRow, BorderLayout.NORTH);
 
         // INVENTARIO
         JPanel invPanel = new JPanel(new BorderLayout());
-        invPanel.setOpaque(false);
+        invPanel.setOpaque(true);
+        invPanel.setBackground(Color.WHITE);
         invPanel.add(buildMetrics(), BorderLayout.NORTH);
         invPanel.add(buildInventarioSplit(), BorderLayout.CENTER);
 
         // TRÁMITES
         JPanel traPanel = new JPanel(new BorderLayout(12, 12));
-        traPanel.setOpaque(false);
+        traPanel.setOpaque(true);
+        traPanel.setBackground(Color.WHITE);
         traPanel.add(buildTramitesFilters(), BorderLayout.NORTH);
         traPanel.add(buildTramitesTableScroll(), BorderLayout.CENTER);
 
-        content.setOpaque(false);
+        // Contenedor central
+        content.setOpaque(true);
+        content.setBackground(Color.WHITE);
         content.add(invPanel, "INV");
         content.add(traPanel, "TRA");
 
@@ -223,223 +209,365 @@ public class InformesPanel extends JPanel {
             loadTableDataTramites();
         });
 
-        // 🔑 Scroll general para todo el contenido (si la ventana se achica)
-        JScrollPane scroller = new JScrollPane(wrapper,
+        // Fondo blanco para todo el panel
+        setOpaque(true);
+        setBackground(Color.WHITE);
+
+        // Scroll general
+        JScrollPane scroller = new JScrollPane(
+                wrapper,
                 ScrollPaneConstants.VERTICAL_SCROLLBAR_AS_NEEDED,
-                ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
+                ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER
+        );
         scroller.setBorder(BorderFactory.createEmptyBorder());
+        scroller.getViewport().setBackground(Color.WHITE);
+        scroller.setBackground(Color.WHITE);
         scroller.getVerticalScrollBar().setUnitIncrement(18);
+
         return scroller;
     }
 
-    // ====== INVENTARIO ======
-    private JPanel buildInventarioSplit() {
-        JPanel split = new JPanel(new GridBagLayout());
-        split.setOpaque(false);
+    // ====== INVENTARIO: división filtros/tabla ======
+// --- INVENTARIO: división filtros/tabla ---
+// === INVENTARIO: división filtros / tabla (simple, sin scroll a la izquierda)
+// === INVENTARIO: división filtros / tabla (bajo filtros y quito tags)
+private JPanel buildInventarioSplit() {
+    JPanel split = new JPanel(new GridBagLayout());
+    split.setOpaque(true);
+    split.setBackground(Color.WHITE);
 
-        GridBagConstraints gc = new GridBagConstraints();
-        gc.insets = new Insets(0, 0, 0, 12);
-        gc.fill = GridBagConstraints.BOTH;
-        gc.weighty = 1;
+    GridBagConstraints gc = new GridBagConstraints();
+    gc.gridy = 0;
+    gc.fill = GridBagConstraints.BOTH;
+    gc.weighty = 1.0;
 
-        // Lado filtros con SU PROPIO scroll (para que "APLICAR FILTROS" siempre sea accesible)
-        CardPanel filtrosCard = buildFiltrosPanelInventario();
-        JScrollPane filtrosScroll = new JScrollPane(filtrosCard,
-                ScrollPaneConstants.VERTICAL_SCROLLBAR_AS_NEEDED,
-                ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
-        filtrosScroll.setBorder(BorderFactory.createEmptyBorder());
-        filtrosScroll.setMinimumSize(new Dimension(260, 180));
-        filtrosScroll.setPreferredSize(new Dimension(300, 300));
-        gc.gridx = 0;
-        gc.weightx = 0.32;
-        split.add(filtrosScroll, gc);
+    // IZQ: filtros (ya SIN CardPanel)
+    JPanel filtros = buildFiltrosPanelInventario();  // <-- ahora devuelve JPanel
+    JPanel holder = new JPanel(new FlowLayout(FlowLayout.CENTER, 0, 0));
+    holder.setOpaque(false);
+    holder.add(filtros);
 
-        // Lado tabla
-        CardPanel tabla = buildTablaPanelInventario();
-        gc.gridx = 1;
-        gc.weightx = 0.68;
-        gc.insets = new Insets(0, 0, 0, 0);
-        split.add(tabla, gc);
+    gc.gridx = 0;
+    gc.weightx = 0.33;
+    gc.insets  = new Insets(16, 0, 0, 12);
+    split.add(holder, gc);
 
-        return split;
-    }
+    // DER: tabla
+    CardPanel tabla = buildTablaPanelInventario();
+    tabla.setOpaque(true);
+    tabla.setBackground(Color.WHITE);
 
-    private CardPanel buildFiltrosPanelInventario() {
-        CardPanel card = new CardPanel();
-        card.setBorder(BorderFactory.createEmptyBorder(12, 12, 12, 12));
-        card.setLayout(new BorderLayout(10, 10));
+    gc.gridx = 1;
+    gc.weightx = 0.67;
+    gc.insets  = new Insets(0, 0, 0, 0);
+    split.add(tabla, gc);
 
-        JLabel title = new JLabel("FILTROS");
-        title.setFont(title.getFont().deriveFont(Font.BOLD, 16f));
-        title.setForeground(new Color(73, 103, 204));
-        card.add(title, BorderLayout.NORTH);
+    return split;
+}
 
-        JPanel fields = new JPanel();
-        fields.setOpaque(false);
-        fields.setLayout(new BoxLayout(fields, BoxLayout.Y_AXIS));
 
-        Dimension fieldSize = new Dimension(220, 34);
 
-        cbCategoria.setAlignmentX(Component.LEFT_ALIGNMENT);
-        cbCategoria.setMaximumSize(fieldSize);
-        cbCategoria.setPreferredSize(fieldSize);
 
-        dfDesde.getComponent().setAlignmentX(Component.LEFT_ALIGNMENT);
-        dfDesde.getComponent().setMaximumSize(fieldSize);
-        dfDesde.getComponent().setPreferredSize(fieldSize);
+// === Panel de filtros limpio, sin fondo ni sombra ===
+// === Panel de filtros limpio (sin CardPanel, sin fondo) ===
+private JPanel buildFiltrosPanelInventario() {
+    JPanel card = new JPanel(new BorderLayout());
+    card.setOpaque(false);                       // sin fondo
+    card.setBorder(BorderFactory.createEmptyBorder());
 
-        dfHasta.getComponent().setAlignmentX(Component.LEFT_ALIGNMENT);
-        dfHasta.getComponent().setMaximumSize(fieldSize);
-        dfHasta.getComponent().setPreferredSize(fieldSize);
+    // Título
+    JLabel title = new JLabel("FILTROS");
+    title.setFont(title.getFont().deriveFont(Font.BOLD, 18f));
+    title.setForeground(new Color(73, 103, 204));
+    JPanel titleRow = new JPanel(new FlowLayout(FlowLayout.CENTER, 0, 0));
+    titleRow.setBorder(BorderFactory.createEmptyBorder(120, 0, 0, 0)); // margen arriba de 10 px
 
-        fields.add(filterField("Categoría", cbCategoria));
-        fields.add(Box.createVerticalStrut(12));
-        fields.add(filterField("Desde", dfDesde.getComponent()));
-        fields.add(Box.createVerticalStrut(12));
-        fields.add(filterField("Hasta", dfHasta.getComponent()));
-        fields.add(Box.createVerticalStrut(16));
+    titleRow.setOpaque(false);
+    titleRow.add(title);
+    card.add(titleRow, BorderLayout.NORTH);
 
-        JButton apply = primaryButton("APLICAR FILTROS");
-        apply.addActionListener(e -> runQueryInventario());
-        apply.setAlignmentX(Component.LEFT_ALIGNMENT);
-        fields.add(apply);
+    // Campos (alineados a la IZQUIERDA del campo, como pediste)
+    JPanel fields = new JPanel();
+    fields.setOpaque(false);
+    fields.setLayout(new BoxLayout(fields, BoxLayout.Y_AXIS));
 
-        fields.add(Box.createVerticalStrut(16));
+    Dimension fieldSize = new Dimension(260, 34);
+    cbCategoria.setPreferredSize(fieldSize);
+    cbCategoria.setMaximumSize(fieldSize);
 
-        JPanel tags = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
-        tags.setOpaque(false);
-        tags.add(tag("Insumos"));
-        tags.add(tag("Oficina"));
-        tags.add(tag("Bienes"));
-        tags.setAlignmentX(Component.LEFT_ALIGNMENT);
-        fields.add(tags);
+    JComponent desdeComp = dfDesde.getComponent();
+    desdeComp.setPreferredSize(fieldSize);
+    desdeComp.setMaximumSize(fieldSize);
+    // asegura que la fecha se vea completa
+    desdeComp.setMinimumSize(fieldSize);
 
-        // glue para que el scroll funcione bien cuando hay espacio
-        fields.add(Box.createVerticalGlue());
+    JComponent hastaComp = dfHasta.getComponent();
+    hastaComp.setPreferredSize(fieldSize);
+    hastaComp.setMaximumSize(fieldSize);
+    hastaComp.setMinimumSize(fieldSize);
+    
+    fields.add(Box.createVerticalStrut(40));
+    fields.add(leftField("Categoría", cbCategoria));
+    fields.add(Box.createVerticalStrut(18));
+    fields.add(leftField("Desde", desdeComp));
+    fields.add(Box.createVerticalStrut(18));
+    fields.add(leftField("Hasta", hastaComp));
+    fields.add(Box.createVerticalStrut(28));
 
-        card.add(fields, BorderLayout.CENTER);
-        return card;
-    }
+    // Botón centrado
+    JButton apply = primaryButton("APLICAR FILTROS");
+    apply.addActionListener(e -> runQueryInventario());
+    JPanel btnRow = new JPanel(new FlowLayout(FlowLayout.CENTER, 0, 0));
+    btnRow.setOpaque(false);
+    btnRow.add(apply);
+    fields.add(btnRow);
 
-    private CardPanel buildTablaPanelInventario() {
-        CardPanel card = new CardPanel();
-        card.setLayout(new BorderLayout(10, 10));
+    // Centrado vertical “suave”
+    JPanel center = new JPanel();
+    center.setOpaque(false);
+    center.setLayout(new BoxLayout(center, BoxLayout.Y_AXIS));
+    center.add(Box.createVerticalGlue());
+    center.add(fields);
+    center.add(Box.createVerticalGlue());
 
-        JLabel title = new JLabel("RESULTADOS");
-        title.setFont(title.getFont().deriveFont(Font.BOLD, 18f));
-        title.setForeground(new Color(73, 103, 204));
-        card.add(title, BorderLayout.NORTH);
+    card.add(center, BorderLayout.CENTER);
+    return card;
+}
 
-        JTable table = new JTable(modelInv) {
-            @Override
-            public boolean getScrollableTracksViewportWidth() {
-                // permite scroll horizontal si columnas exceden el viewport
-                return getParent() instanceof JViewport
-                        && getPreferredSize().width < getParent().getWidth();
-            }
-        };
-        table.setAutoResizeMode(JTable.AUTO_RESIZE_OFF); // 🔑 habilita scroll horizontal
-        table.setRowHeight(38);
-        table.setIntercellSpacing(new Dimension(0, 6));
-        table.setShowGrid(true);
-        table.setGridColor(new Color(232, 232, 232));
-        table.setFillsViewportHeight(true);
-        table.setDefaultEditor(Object.class, null);
+// Etiqueta a la izquierda + campo
+private JPanel leftField(String label, JComponent field) {
+    JPanel p = new JPanel();
+    p.setOpaque(false);
+    p.setLayout(new BoxLayout(p, BoxLayout.Y_AXIS));
 
-        // Anchos razonables
-        TableColumnModel tcm = table.getColumnModel();
-        if (tcm.getColumnCount() >= 4) {
-            tcm.getColumn(0).setPreferredWidth(180);
-            tcm.getColumn(1).setPreferredWidth(280);
-            tcm.getColumn(2).setPreferredWidth(120);
-            tcm.getColumn(3).setPreferredWidth(120);
+    JLabel lbl = new JLabel(label.toUpperCase());
+    lbl.setFont(lbl.getFont().deriveFont(Font.PLAIN, 12f));
+    lbl.setForeground(new Color(35, 55, 110));
+    lbl.setAlignmentX(Component.LEFT_ALIGNMENT);
+
+    field.setAlignmentX(Component.LEFT_ALIGNMENT);
+    field.setBorder(BorderFactory.createLineBorder(new Color(225, 230, 246))); // borde limpio
+
+    p.add(lbl);
+    p.add(Box.createVerticalStrut(4));
+    p.add(field);
+    return p;
+}
+
+
+// 🔹 Etiqueta + campo alineados a la izquierda
+// Reemplazá por completo tu método filterField actual por este:
+private JPanel filterField(String label, JComponent field) {
+    JPanel panel = new JPanel();
+    panel.setOpaque(false);
+    panel.setLayout(new BoxLayout(panel, BoxLayout.Y_AXIS));
+
+    JLabel lbl = new JLabel(label.toUpperCase());
+    lbl.setFont(lbl.getFont().deriveFont(Font.PLAIN, 12f));
+    lbl.setForeground(new Color(35, 55, 110));
+    lbl.setAlignmentX(Component.LEFT_ALIGNMENT);
+
+    // ancho cómodo para que la fecha no se corte
+    Dimension fieldSize = new Dimension(260, 34);
+    field.setPreferredSize(fieldSize);
+    field.setMaximumSize(fieldSize);
+    field.setMinimumSize(fieldSize);
+    field.setAlignmentX(Component.LEFT_ALIGNMENT);
+
+    // borde simple y limpio
+    field.setBorder(BorderFactory.createLineBorder(new Color(225, 230, 246)));
+
+    panel.add(lbl);
+    panel.add(Box.createVerticalStrut(4));
+    panel.add(field);
+    return panel;
+}
+
+
+
+
+
+// Helper: centra un label + campo
+private JPanel centerField(String label, JComponent field) {
+    JPanel panel = new JPanel();
+    panel.setOpaque(false);
+    panel.setLayout(new BoxLayout(panel, BoxLayout.Y_AXIS));
+
+    JLabel lbl = new JLabel(label.toUpperCase(), SwingConstants.CENTER);
+    lbl.setFont(lbl.getFont().deriveFont(Font.PLAIN, 12f));
+    lbl.setForeground(new Color(35, 55, 110));
+    lbl.setAlignmentX(Component.CENTER_ALIGNMENT);
+    field.setAlignmentX(Component.CENTER_ALIGNMENT);
+
+    panel.add(lbl);
+    panel.add(Box.createVerticalStrut(4));
+    panel.add(field);
+    return panel;
+}
+
+
+
+private CardPanel buildTablaPanelInventario() {
+    CardPanel card = new CardPanel();
+    card.setLayout(new BorderLayout(10, 10));
+
+    JLabel title = new JLabel("RESULTADOS");
+    title.setFont(title.getFont().deriveFont(Font.BOLD, 18f));
+    title.setForeground(BRAND);
+    card.add(title, BorderLayout.NORTH);
+
+    JTable table = new JTable(modelInv) {
+        @Override public boolean getScrollableTracksViewportWidth() {
+            return getParent() instanceof JViewport
+                    && getPreferredSize().width < getParent().getWidth();
         }
+    };
+    table.setAutoResizeMode(JTable.AUTO_RESIZE_OFF);
+    table.setRowHeight(40);
+    table.setIntercellSpacing(new Dimension(0, 6));
+    table.setShowGrid(true);
+    table.setGridColor(new Color(232, 232, 232));
+    table.setFillsViewportHeight(true);
+    table.setDefaultEditor(Object.class, null);
+    table.setFont(new Font("Segoe UI", Font.PLAIN, 13));
 
-        // Renderers
-        JTableHeader header = table.getTableHeader();
-        header.setReorderingAllowed(false);
-        header.setDefaultRenderer(new DefaultTableCellRenderer() {
-            @Override
-            public Component getTableCellRendererComponent(JTable t, Object v, boolean s, boolean f, int r, int c) {
-                JLabel lbl = (JLabel) super.getTableCellRendererComponent(t, v, s, f, r, c);
-                lbl.setHorizontalAlignment(SwingConstants.CENTER);
-                lbl.setBackground(new Color(230, 230, 230));
-                lbl.setOpaque(true);
-                lbl.setFont(lbl.getFont().deriveFont(Font.BOLD));
-                lbl.setBorder(UIManager.getBorder("TableHeader.cellBorder"));
-                return lbl;
-            }
-        });
-
-        DefaultTableCellRenderer center = new DefaultTableCellRenderer();
-        center.setHorizontalAlignment(SwingConstants.CENTER);
-        for (int i = 0; i < table.getColumnCount(); i++) {
-            table.getColumnModel().getColumn(i).setCellRenderer(i == 2 ? statusRenderer() : center);
-        }
-
-        JScrollPane scroll = new JScrollPane(table,
-                ScrollPaneConstants.VERTICAL_SCROLLBAR_AS_NEEDED,
-                ScrollPaneConstants.HORIZONTAL_SCROLLBAR_AS_NEEDED);
-        scroll.setBorder(BorderFactory.createCompoundBorder(
-                new javax.swing.border.LineBorder(new Color(232, 232, 232), 1, true),
-                BorderFactory.createEmptyBorder(6, 6, 6, 6)
-        ));
-        card.add(scroll, BorderLayout.CENTER);
-        return card;
+    // Anchos
+    TableColumnModel tcm = table.getColumnModel();
+    if (tcm.getColumnCount() >= 4) {
+        tcm.getColumn(0).setPreferredWidth(200);
+        tcm.getColumn(1).setPreferredWidth(330);
+        tcm.getColumn(2).setPreferredWidth(140);
+        tcm.getColumn(3).setPreferredWidth(140);
     }
+
+    // Header azul con texto blanco
+    JTableHeader header = table.getTableHeader();
+    header.setPreferredSize(new Dimension(header.getPreferredSize().width, 42));
+    header.setReorderingAllowed(false);
+    header.setDefaultRenderer(new DefaultTableCellRenderer() {
+        @Override
+        public Component getTableCellRendererComponent(JTable t, Object v, boolean s, boolean f, int r, int c) {
+            JLabel lbl = (JLabel) super.getTableCellRendererComponent(t, v, s, f, r, c);
+            lbl.setHorizontalAlignment(SwingConstants.CENTER);
+            lbl.setForeground(Color.WHITE);
+            lbl.setBackground(new Color(58, 96, 224));
+            lbl.setFont(lbl.getFont().deriveFont(Font.BOLD, 13f));
+            lbl.setBorder(new EmptyBorder(10, 6, 10, 6));
+            return lbl;
+        }
+    });
+
+    // 1) Centrar TODO el contenido por defecto (zebra suave)
+    table.setDefaultRenderer(Object.class, new DefaultTableCellRenderer() {
+        @Override
+        public Component getTableCellRendererComponent(JTable t, Object v, boolean s, boolean f, int r, int c) {
+            Component comp = super.getTableCellRendererComponent(t, v, s, f, r, c);
+            setHorizontalAlignment(SwingConstants.CENTER);
+            if (!s) comp.setBackground((r % 2 == 0) ? new Color(250, 252, 255) : Color.WHITE);
+            return comp;
+        }
+    });
+
+    // 2) Renderer ESPECIAL para "Estado": banda completa verde/roja y texto centrado
+    int estadoCol = table.getColumnModel().getColumnIndex("Estado");
+    table.getColumnModel().getColumn(estadoCol).setCellRenderer(new DefaultTableCellRenderer() {
+        // Colores estilo captura
+        private final Color ACTIVE_BG = new Color(0xCFE8D1); // verde suave
+        private final Color ACTIVE_FG = new Color(0x0B4D2B); // verde oscuro
+        private final Color INACT_BG  = new Color(0xF3D0D0); // rojo suave
+        private final Color INACT_FG  = new Color(0x7A1212); // rojo oscuro
+        private final Color OTHER_BG  = new Color(0xE6E9F5); // fallback
+        private final Color OTHER_FG  = new Color(0x344054);
+
+        @Override
+        public Component getTableCellRendererComponent(JTable t, Object v, boolean s, boolean f, int r, int c) {
+            JLabel lbl = (JLabel) super.getTableCellRendererComponent(t, v, s, f, r, c);
+
+            String texto = (v == null ? "-" : v.toString().trim()).toUpperCase(Locale.ROOT);
+            lbl.setText(texto);
+            lbl.setHorizontalAlignment(SwingConstants.CENTER);
+            lbl.setFont(lbl.getFont().deriveFont(Font.PLAIN));
+            lbl.setOpaque(true);
+
+            // Padding vertical para que se vea como una "banda"
+            lbl.setBorder(new EmptyBorder(8, 0, 8, 0));
+
+            // Colores según estado (sin perder selección)
+            if (texto.equals("ACTIVO")) {
+                lbl.setBackground(s ? ACTIVE_BG.darker() : ACTIVE_BG);
+                lbl.setForeground(ACTIVE_FG);
+            } else if (texto.equals("INACTIVO")) {
+                lbl.setBackground(s ? INACT_BG.darker() : INACT_BG);
+                lbl.setForeground(INACT_FG);
+            } else {
+                lbl.setBackground(s ? OTHER_BG.darker() : OTHER_BG);
+                lbl.setForeground(OTHER_FG);
+            }
+            return lbl;
+        }
+    });
+
+    JScrollPane scroll = new JScrollPane(table,
+            ScrollPaneConstants.VERTICAL_SCROLLBAR_AS_NEEDED,
+            ScrollPaneConstants.HORIZONTAL_SCROLLBAR_AS_NEEDED);
+    beautifyScroll(scroll);
+    scroll.setBorder(BorderFactory.createCompoundBorder(
+            new javax.swing.border.LineBorder(new Color(232, 232, 232), 1, true),
+            BorderFactory.createEmptyBorder(6, 6, 6, 6)
+    ));
+    scroll.getViewport().setBackground(Color.WHITE);
+
+    card.add(scroll, BorderLayout.CENTER);
+    return card;
+}
+
+
 
     private DefaultTableCellRenderer statusRenderer() {
         return new DefaultTableCellRenderer() {
             @Override
             public Component getTableCellRendererComponent(JTable t, Object v, boolean s, boolean f, int r, int c) {
-                Component comp = super.getTableCellRendererComponent(t, v, s, f, r, c);
+                super.getTableCellRendererComponent(t, v, s, f, r, c);
                 setHorizontalAlignment(CENTER);
-                if (v != null) {
-                    String text = v.toString();
-                    setText(text.toUpperCase());
-                    setOpaque(true);
-                    setBorder(BorderFactory.createEmptyBorder(4, 12, 4, 12));
-                    switch (text.toLowerCase(Locale.ROOT)) {
-                        case "activo" ->
-                            setBackground(new Color(212, 235, 216));
-                        case "pendiente" ->
-                            setBackground(new Color(255, 239, 200));
-                        default ->
-                            setBackground(new Color(220, 228, 255));
-                    }
+                setOpaque(true);
+                setBorder(new EmptyBorder(4, 12, 4, 12));
+                String text = v == null ? "-" : v.toString();
+                setText(text.toUpperCase());
+                // Colores: ACTIVO=verde, INACTIVO=azul suave, PENDIENTE=amarillo
+                Color base;
+                switch (text.toLowerCase(Locale.ROOT)) {
+                    case "activo"    -> base = new Color(190, 225, 200);
+                    case "pendiente" -> base = new Color(255, 239, 200);
+                    default          -> base = new Color(208, 220, 255);
                 }
-                return comp;
+                setBackground(s ? base.darker() : base);
+                return this;
             }
         };
     }
 
-    private JPanel filterField(String label, JComponent component) {
-        JPanel p = new JPanel();
-        p.setOpaque(false);
-        p.setLayout(new BoxLayout(p, BoxLayout.Y_AXIS));
-        JLabel lbl = new JLabel(label.toUpperCase());
-        lbl.setFont(lbl.getFont().deriveFont(Font.PLAIN, 12f));
-        lbl.setAlignmentX(Component.LEFT_ALIGNMENT);
-        component.setAlignmentX(Component.LEFT_ALIGNMENT);
-        p.add(lbl);
-        p.add(Box.createVerticalStrut(4));
-        p.add(component);
-        return p;
-    }
 
-    private JButton primaryButton(String text) {
+    // ===== Botones con estilo =====
+    private static JButton primaryButton(String text) {
         JButton b = new JButton(text);
-        b.setBackground(COL_BRAND);
+        b.setBackground(BRAND);
         b.setForeground(Color.WHITE);
         b.setFont(b.getFont().deriveFont(Font.BOLD, 14f));
         b.setFocusPainted(false);
         b.setBorder(BorderFactory.createEmptyBorder(10, 16, 10, 16));
+        b.putClientProperty("JButton.buttonType", "roundRect");
         return b;
     }
-
-    private JButton secondaryButton(String text) {
+    private static JButton outlineButton(String text) {
         JButton b = new JButton(text);
+        b.setBackground(Color.WHITE);
+        b.setForeground(BRAND);
+        b.setFont(b.getFont().deriveFont(Font.BOLD, 14f));
         b.setFocusPainted(false);
+        b.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createLineBorder(BRAND, 1, true),
+                new EmptyBorder(9, 15, 9, 15)
+        ));
         b.putClientProperty("JButton.buttonType", "roundRect");
         return b;
     }
@@ -453,70 +581,110 @@ public class InformesPanel extends JPanel {
         return l;
     }
 
-    private JToggleButton pill(String text) {
-        JToggleButton t = new JToggleButton(text);
-        t.setFocusPainted(false);
-        t.setOpaque(true);
-        t.setBackground(Color.WHITE);
-        t.setForeground(COL_BRAND);
-        t.setFont(t.getFont().deriveFont(Font.BOLD, 16f));
-        t.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createLineBorder(COL_BRAND, 2, true),
-                BorderFactory.createEmptyBorder(10, 18, 10, 18)
-        ));
-        t.addChangeListener(e -> {
-            if (t.isSelected()) {
-                t.setBackground(COL_BRAND);
-                t.setForeground(Color.WHITE);
-            } else {
-                t.setBackground(Color.WHITE);
-                t.setForeground(COL_BRAND);
+private JToggleButton pill(String text) {
+    final Color blue = new Color(0x0B, 0x2F, 0xB5); // azul fuerte
+
+    JToggleButton t = new JToggleButton(text) {
+        @Override
+        protected void paintComponent(Graphics g) {
+            if (isSelected()) {
+                Graphics2D g2 = (Graphics2D) g.create();
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                g2.setColor(blue);
+                g2.fillRoundRect(0, 0, getWidth(), getHeight(), 8, 8);
+                g2.dispose();
             }
-        });
-        return t;
+            super.paintComponent(g);
+        }
+    };
+
+    t.setFocusPainted(false);
+    t.setOpaque(false);
+    t.setContentAreaFilled(false);
+    t.setFont(t.getFont().deriveFont(Font.BOLD, 16f));
+
+    // no seleccionado
+    t.setBackground(Color.WHITE);
+    t.setForeground(blue);
+    t.setBorder(BorderFactory.createCompoundBorder(
+            BorderFactory.createLineBorder(blue, 1, true),
+            BorderFactory.createEmptyBorder(10, 20, 10, 20)
+    ));
+
+    // texto blanco cuando está seleccionado
+    t.addChangeListener(e -> t.setForeground(t.isSelected() ? Color.WHITE : blue));
+
+    // evita estilos especiales del LAF
+    t.putClientProperty("JButton.buttonType", "square");
+
+    return t;
+}
+
+
+
+
+    private static JLabel bigValueLabel(String txt) {
+        JLabel l = new JLabel(txt);
+        l.setFont(l.getFont().deriveFont(Font.BOLD, 28f));
+        l.setForeground(Color.WHITE);
+        l.setHorizontalAlignment(SwingConstants.LEFT);
+        return l;
     }
 
-    // ==== Métricas ====
+    // ==== Métricas (SOLO 2 tarjetas centradas) ====
     private JComponent buildMetrics() {
-        JPanel row = new JPanel(new GridLayout(1, 3, 16, 0));
+        JPanel row = new JPanel(new FlowLayout(FlowLayout.CENTER, 16, 0));
         row.setOpaque(false);
         row.setBorder(BorderFactory.createEmptyBorder(6, 6, 12, 6));
 
-        CardPanel c1 = metricCard("TOTAL INSUMOS", lblTotalInsumos, COL_BRAND_SOFT, COL_TEXT_PRIMARY, false);
-        CardPanel c2 = metricCard("TRÁMITES", lblTotalTramites, COL_CARD, COL_TEXT_PRIMARY, false);
-        CardPanel c3 = metricCard("GASTOS MENSUALES", lblGastos, COL_BRAND, Color.WHITE, true);
+        CardPanel c1 = metricCardGradient("TOTAL INSUMOS", lblTotalInsumos,
+                new Color(70, 120, 255), new Color(110, 150, 255));
+        CardPanel c2 = metricCardGradient("TRÁMITES", lblTotalTramites,
+                new Color(70, 120, 255), new Color(140, 170, 255));
+
+        // tamaño agradable para centrado visual
+        c1.setPreferredSize(new Dimension(420, 110));
+        c2.setPreferredSize(new Dimension(420, 110));
 
         row.add(c1);
         row.add(c2);
-        row.add(c3);
         return row;
     }
 
-    private CardPanel metricCard(String title, JLabel value, Color bg, Color text, boolean strong) {
-        CardPanel card = new CardPanel();
-        card.setLayout(new BorderLayout());
-        card.setOpaque(false);
-        card.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createEmptyBorder(8, 8, 8, 8),
-                BorderFactory.createLineBorder(new Color(0, 0, 0, 30), 1, true)
-        ));
+private CardPanel metricCardGradient(String title, JLabel value, Color c1, Color c2) {
+    CardPanel card = new CardPanel() {
+        @Override protected void paintComponent(Graphics g) {
+            super.paintComponent(g);
+            Graphics2D g2 = (Graphics2D) g.create();
+            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            GradientPaint gp = new GradientPaint(0, 0, c1, getWidth(), getHeight(), c2);
+            g2.setPaint(gp);
+            g2.fillRoundRect(4, 4, getWidth() - 8, getHeight() - 8, 18, 18);
+            g2.dispose();
+        }
+    };
 
-        JLabel lblTitle = new JLabel(title);
-        lblTitle.setForeground(new Color(30, 50, 100));
-        lblTitle.setFont(lblTitle.getFont().deriveFont(Font.BOLD, 14f));
-        lblTitle.setBorder(BorderFactory.createEmptyBorder(0, 0, 8, 0));
+    card.setLayout(new BorderLayout());
+    card.setOpaque(false);
+    card.setBorder(new EmptyBorder(20, 24, 20, 24));
 
-        value.setForeground(new Color(20, 40, 90));
-        value.setFont(value.getFont().deriveFont(Font.BOLD, strong ? 36f : 28f));
+    // Título (por ejemplo "TOTAL INSUMOS")
+    JLabel lblTitle = new JLabel(title.toUpperCase());
+    lblTitle.setForeground(new Color(230, 240, 255));
+    lblTitle.setFont(lblTitle.getFont().deriveFont(Font.BOLD, 13f));
 
-        JPanel center = new JPanel(new BorderLayout());
-        center.setOpaque(false);
-        center.add(value, BorderLayout.CENTER);
+    // Valor principal (más grande)
+    value.setForeground(Color.WHITE);
+    value.setFont(value.getFont().deriveFont(Font.BOLD, 36f)); // tamaño aumentado
+    value.setHorizontalAlignment(SwingConstants.LEFT);
 
-        card.add(lblTitle, BorderLayout.NORTH);
-        card.add(center, BorderLayout.CENTER);
-        return card;
-    }
+    // Agregar solo título y valor (sin texto adicional debajo)
+    card.add(lblTitle, BorderLayout.NORTH);
+    card.add(value, BorderLayout.CENTER);
+
+    return card;
+}
+
 
     // ==== Carga de datos Inventario ====
     private void cargarCategoriasEnCombo() {
@@ -525,49 +693,32 @@ public class InformesPanel extends JPanel {
 
         try {
             var categorias = invService.listarCategorias();
-            for (Categoria c : categorias) {
-                model.addElement(c);
-            }
+            for (Categoria c : categorias) model.addElement(c);
         } catch (Exception e) {
             System.err.println("No se pudieron cargar categorías: " + e.getMessage());
         }
-
         cbCategoria.setModel(model);
 
         cbCategoria.setRenderer(new DefaultListCellRenderer() {
             @Override
-            public Component getListCellRendererComponent(JList<?> list,
-                    Object value,
-                    int index,
-                    boolean isSelected,
-                    boolean cellHasFocus) {
+            public Component getListCellRendererComponent(JList<?> list, Object value, int index, boolean isSelected, boolean cellHasFocus) {
                 super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus);
-                String texto = (value instanceof Categoria c) ? c.getNombre() : "Todas";
-                setText(texto);
+                setText(value instanceof Categoria c ? c.getNombre() : "Todas");
                 return this;
             }
         });
     }
 
     private void reloadMetrics() {
-        try {
-            lblTotalInsumos.setText(String.valueOf(invService.listarTodos().size()));
-        } catch (Exception e) {
-            lblTotalInsumos.setText("-");
-        }
+        try { lblTotalInsumos.setText(String.valueOf(invService.listarTodos().size())); }
+        catch (Exception e) { lblTotalInsumos.setText("-"); }
 
         try {
             var tramites = traService.listarTodos();
             lblTotalTramites.setText(String.valueOf(tramites.size()));
-            long pend = tramites.stream().filter(t -> "PENDIENTE".equalsIgnoreCase(String.valueOf(t.getEstado()))).count();
-            lblPendientes.setText(String.valueOf(pend));
-            lblPendientesMini.setText(" " + lblPendientes.getText() + " PENDIENTES");
         } catch (Exception e) {
             lblTotalTramites.setText("-");
-            lblPendientes.setText("-");
         }
-
-        lblGastos.setText("+$0"); // placeholder
     }
 
     private void runQueryInventario() {
@@ -575,10 +726,8 @@ public class InformesPanel extends JPanel {
         try {
             Categoria sel = (Categoria) cbCategoria.getSelectedItem();
             String cat = (sel == null ? null : sel.getNombre());
-
             LocalDate d1 = dfDesde.getDate();
             LocalDate d2 = dfHasta.getDate();
-
             DateTimeFormatter fmt = DateTimeFormatter.ofPattern("dd/MM/yyyy");
 
             List<Insumo> data = filtrarLocal(invService.listarTodos(), cat, d1, d2);
@@ -598,20 +747,14 @@ public class InformesPanel extends JPanel {
     private static List<Insumo> filtrarLocal(List<Insumo> base, String cat, LocalDate d1, LocalDate d2) {
         return base.stream().filter(i -> {
             if (cat != null && i.getCategoria() != null) {
-                if (!cat.equalsIgnoreCase(i.getCategoria().getNombre())) {
-                    return false;
-                }
+                if (!cat.equalsIgnoreCase(i.getCategoria().getNombre())) return false;
             }
             LocalDate fa = i.getFechaAlta();
             if (fa == null && i.getCreatedAt() != null) {
                 fa = java.time.ZonedDateTime.ofInstant(i.getCreatedAt(), java.time.ZoneId.systemDefault()).toLocalDate();
             }
-            if (d1 != null && (fa == null || fa.isBefore(d1))) {
-                return false;
-            }
-            if (d2 != null && (fa == null || fa.isAfter(d2))) {
-                return false;
-            }
+            if (d1 != null && (fa == null || fa.isBefore(d1))) return false;
+            if (d2 != null && (fa == null || fa.isAfter(d2))) return false;
             return true;
         }).collect(Collectors.toList());
     }
@@ -623,7 +766,7 @@ public class InformesPanel extends JPanel {
 
         JLabel lbl = new JLabel("FILTRO");
         lbl.setFont(new Font("Segoe UI", Font.BOLD, 16));
-        lbl.setForeground(new Color(45, 66, 132));
+        lbl.setForeground(BRAND);
         panel.add(lbl, BorderLayout.WEST);
 
         JPanel fields = new JPanel(new FlowLayout(FlowLayout.LEFT, 12, 0));
@@ -640,54 +783,118 @@ public class InformesPanel extends JPanel {
         return panel;
     }
 
-    private JScrollPane buildTramitesTableScroll() {
-        JTable table = new JTable(modelTra) {
-            @Override
-            public boolean getScrollableTracksViewportWidth() {
-                return getParent() instanceof JViewport
-                        && getPreferredSize().width < getParent().getWidth();
-            }
-        };
-        table.setAutoResizeMode(JTable.AUTO_RESIZE_OFF); // 🔑 scroll horizontal si hace falta
-        table.setRowHeight(44);
-        table.setShowHorizontalLines(false);
-        table.setShowVerticalLines(false);
-        table.setIntercellSpacing(new Dimension(0, 0));
-        table.setFillsViewportHeight(true);
-        table.setSelectionBackground(new Color(226, 233, 255));
-        table.setSelectionForeground(new Color(32, 48, 105));
-        table.setFont(new Font("Segoe UI", Font.PLAIN, 13));
-        table.setAutoCreateRowSorter(true);
-
-        // anchos base
-        TableColumnModel tcm = table.getColumnModel();
-        if (tcm.getColumnCount() >= 6) {
-            tcm.getColumn(0).setPreferredWidth(120);
-            tcm.getColumn(1).setPreferredWidth(240);
-            tcm.getColumn(2).setPreferredWidth(160);
-            tcm.getColumn(3).setPreferredWidth(170);
-            tcm.getColumn(4).setPreferredWidth(300);
-            tcm.getColumn(5).setPreferredWidth(130);
+private JScrollPane buildTramitesTableScroll() {
+    JTable table = new JTable(modelTra) {
+        @Override
+        public boolean getScrollableTracksViewportWidth() {
+            return getParent() instanceof JViewport
+                    && getPreferredSize().width < getParent().getWidth();
         }
+    };
+    table.setAutoResizeMode(JTable.AUTO_RESIZE_OFF);
+    table.setRowHeight(44);
+    table.setShowHorizontalLines(false);
+    table.setShowVerticalLines(false);
+    table.setIntercellSpacing(new Dimension(0, 0));
+    table.setFillsViewportHeight(true);
+    table.setSelectionBackground(new Color(226, 233, 255));
+    table.setSelectionForeground(new Color(32, 48, 105));
+    table.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+    table.setAutoCreateRowSorter(true);
 
-        JTableHeader header = table.getTableHeader();
-        header.setPreferredSize(new Dimension(header.getPreferredSize().width, 46));
-        header.setDefaultRenderer(new TableHeaderRenderer());
-
-        table.getColumnModel().getColumn(5).setCellRenderer(new BadgeRenderer(BadgeRenderer.Type.STATUS));
-
-        JScrollPane scroll = new JScrollPane(table,
-                ScrollPaneConstants.VERTICAL_SCROLLBAR_AS_NEEDED,
-                ScrollPaneConstants.HORIZONTAL_SCROLLBAR_AS_NEEDED);
-        scroll.setBorder(BorderFactory.createEmptyBorder());
-        scroll.getViewport().setBackground(Color.WHITE);
-        return scroll;
+    // Anchos de columnas
+    TableColumnModel tcm = table.getColumnModel();
+    if (tcm.getColumnCount() >= 6) {
+        tcm.getColumn(0).setPreferredWidth(120);
+        tcm.getColumn(1).setPreferredWidth(240);
+        tcm.getColumn(2).setPreferredWidth(160);
+        tcm.getColumn(3).setPreferredWidth(170);
+        tcm.getColumn(4).setPreferredWidth(300);
+        tcm.getColumn(5).setPreferredWidth(130);
     }
+
+    JTableHeader header = table.getTableHeader();
+    header.setPreferredSize(new Dimension(header.getPreferredSize().width, 46));
+    header.setDefaultRenderer(new TableHeaderRenderer());
+
+    table.getColumnModel().getColumn(5).setCellRenderer(new BadgeRenderer(BadgeRenderer.Type.STATUS));
+
+    // Zebra para el resto
+    DefaultTableCellRenderer zebra = new DefaultTableCellRenderer() {
+        @Override
+        public Component getTableCellRendererComponent(JTable t, Object v, boolean s, boolean f, int r, int c) {
+            Component comp = super.getTableCellRendererComponent(t, v, s, f, r, c);
+            setHorizontalAlignment(CENTER);
+            if (!s) comp.setBackground((r % 2 == 0) ? new Color(250, 252, 255) : Color.WHITE);
+            return comp;
+        }
+    };
+    for (int i = 0; i < 5; i++) table.getColumnModel().getColumn(i).setCellRenderer(zebra);
+
+    JScrollPane scroll = new JScrollPane(table,
+            ScrollPaneConstants.VERTICAL_SCROLLBAR_AS_NEEDED,
+            ScrollPaneConstants.HORIZONTAL_SCROLLBAR_AS_NEEDED);
+    beautifyScroll(scroll);
+
+    scroll.setBorder(BorderFactory.createEmptyBorder());
+    scroll.getViewport().setBackground(Color.WHITE);
+
+    // 🎨 Scrollbar moderno y azul
+    scroll.getVerticalScrollBar().setUI(new javax.swing.plaf.basic.BasicScrollBarUI() {
+    // Colores propios
+    private final Color TRACK = new Color(240, 245, 255);
+    private final Color THUMB = new Color(58, 96, 224);
+    private final Color THUMB_HOVER = new Color(40, 70, 190);
+
+    @Override
+    protected JButton createDecreaseButton(int orientation) {
+        return createZeroButton();
+    }
+
+    @Override
+    protected JButton createIncreaseButton(int orientation) {
+        return createZeroButton();
+    }
+
+    private JButton createZeroButton() {
+        JButton b = new JButton();
+        b.setPreferredSize(new Dimension(0, 0));
+        b.setMinimumSize(new Dimension(0, 0));
+        b.setMaximumSize(new Dimension(0, 0));
+        return b;
+    }
+
+    @Override
+    protected void paintThumb(Graphics g, JComponent c, Rectangle thumbBounds) {
+        if (!scrollbar.isEnabled() || thumbBounds.width > thumbBounds.height) return; // solo vertical
+        Graphics2D g2 = (Graphics2D) g.create();
+        g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+        g2.setPaint(isThumbRollover() ? THUMB_HOVER : THUMB);
+        g2.fillRoundRect(thumbBounds.x + 2, thumbBounds.y + 2,
+                         thumbBounds.width - 4, thumbBounds.height - 4, 10, 10);
+        g2.dispose();
+    }
+
+    @Override
+    protected void paintTrack(Graphics g, JComponent c, Rectangle trackBounds) {
+        g.setColor(TRACK);
+        g.fillRect(trackBounds.x, trackBounds.y, trackBounds.width, trackBounds.height);
+    }
+});
+
+scroll.getVerticalScrollBar().setPreferredSize(new Dimension(10, 0));
+
+    scroll.setBackground(Color.WHITE);
+
+    return scroll;
+}
+
 
     private void styleFilterField(JComponent c, int w) {
         Dimension d = new Dimension(w, 32);
         c.setPreferredSize(d);
         c.setMinimumSize(d);
+        c.setBorder(BorderFactory.createLineBorder(CARD_BORDER));
     }
 
     private void loadTableDataTramites() {
@@ -697,26 +904,19 @@ public class InformesPanel extends JPanel {
             String estadoFiltro = (String) filterEstado.getSelectedItem();
 
             List<Tramite> tramites = traService.listarTodos();
-            if (tramites == null) {
-                return;
-            }
+            if (tramites == null) return;
 
             DateTimeFormatter fmt = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
             for (Tramite t : tramites) {
                 if (!search.isEmpty()) {
-                    String texto = (String.valueOf(t.getAsunto()) + " " + String.valueOf(t.getNro()) + " "
-                            + (t.getDescripcion() != null ? t.getDescripcion() : ""))
-                            .toLowerCase(Locale.ROOT);
-                    if (!texto.contains(search)) {
-                        continue;
-                    }
+                    String texto = (String.valueOf(t.getAsunto()) + " " + String.valueOf(t.getNro()) + " " +
+                            (t.getDescripcion() != null ? t.getDescripcion() : "")).toLowerCase(Locale.ROOT);
+                    if (!texto.contains(search)) continue;
                 }
 
                 String estado = estadoFriendly(t.getEstado());
-                if (!"Todos".equals(estadoFiltro) && !estado.equalsIgnoreCase(estadoFiltro)) {
-                    continue;
-                }
+                if (!"Todos".equals(estadoFiltro) && !estado.equalsIgnoreCase(estadoFiltro)) continue;
 
                 String actualizacion = t.getFecha() == null ? "-" : t.getFecha().format(fmt);
                 String ultima = t.getFecha() == null ? "-" : t.getFecha().plusDays(1).format(fmt); // placeholder
@@ -733,74 +933,59 @@ public class InformesPanel extends JPanel {
     private void installFiltersTramites() {
         if (filterSearch.getDocument() != null) {
             filterSearch.getDocument().addDocumentListener(new SimpleDocumentListener() {
-                @Override
-                public void update() {
-                    loadTableDataTramites();
-                }
+                @Override public void update() { loadTableDataTramites(); }
             });
         }
         filterEstado.addActionListener(e -> loadTableDataTramites());
     }
 
     private String extraerDescripcionTramite(Object t) {
-        if (t == null) {
-            return "-";
-        }
+        if (t == null) return "-";
         try {
             Method m = t.getClass().getMethod("getDescripcion");
             Object val = m.invoke(t);
             if (val != null) {
                 String s = val.toString().trim();
-                if (!s.isEmpty()) {
-                    return s;
-                }
+                if (!s.isEmpty()) return s;
             }
         } catch (NoSuchMethodException ignore) {
-        } catch (Throwable ignore) {
-        }
+        } catch (Throwable ignore) { }
 
-        String v = tryGetter(t, "getDescripción", "getDetalle", "getDetalles", "getObservacion", "getObservación", "getObservaciones",
-                "getNota", "getNotas", "getComentario", "getComentarios", "getMotivo", "getResumen", "getInfo", "getInformacion", "getInformación");
-        if (v != null && !v.isBlank()) {
-            return v.trim();
-        }
+        String v = tryGetter(t, "getDescripción", "getDetalle", "getDetalles", "getObservacion", "getObservación",
+                "getObservaciones", "getNota", "getNotas", "getComentario", "getComentarios",
+                "getMotivo", "getResumen", "getInfo", "getInformacion", "getInformación");
+        if (v != null && !v.isBlank()) return v.trim();
 
         try {
             for (Method m : t.getClass().getMethods()) {
                 if (m.getParameterCount() == 0 && m.getName().startsWith("get") && m.getReturnType() == String.class) {
                     String name = m.getName().toLowerCase(Locale.ROOT);
-                    if (name.contains("desc") || name.contains("detalle") || name.contains("observ") || name.contains("nota")
-                            || name.contains("coment") || name.contains("motivo")) {
+                    if (name.contains("desc") || name.contains("detalle") || name.contains("observ") ||
+                            name.contains("nota") || name.contains("coment") || name.contains("motivo")) {
                         Object val = m.invoke(t);
                         if (val != null) {
                             String s = val.toString().trim();
-                            if (!s.isEmpty()) {
-                                return s;
-                            }
+                            if (!s.isEmpty()) return s;
                         }
                     }
                 }
             }
-        } catch (Throwable ignore) {
-        }
+        } catch (Throwable ignore) { }
 
         try {
             for (java.lang.reflect.Field f : t.getClass().getDeclaredFields()) {
                 String n = f.getName().toLowerCase(Locale.ROOT);
-                if (n.contains("desc") || n.contains("detalle") || n.contains("observ") || n.contains("nota")
-                        || n.contains("coment") || n.contains("motivo")) {
+                if (n.contains("desc") || n.contains("detalle") || n.contains("observ") ||
+                        n.contains("nota") || n.contains("coment") || n.contains("motivo")) {
                     f.setAccessible(true);
                     Object val = f.get(t);
                     if (val != null) {
                         String s = val.toString().trim();
-                        if (!s.isEmpty()) {
-                            return s;
-                        }
+                        if (!s.isEmpty()) return s;
                     }
                 }
             }
-        } catch (Throwable ignore) {
-        }
+        } catch (Throwable ignore) { }
         return "-";
     }
 
@@ -811,40 +996,26 @@ public class InformesPanel extends JPanel {
                 Object val = m.invoke(obj);
                 if (val != null) {
                     String s = val.toString().trim();
-                    if (!s.isEmpty()) {
-                        return s;
-                    }
+                    if (!s.isEmpty()) return s;
                 }
             } catch (NoSuchMethodException ignore) {
-            } catch (Throwable ignore) {
-            }
+            } catch (Throwable ignore) { }
         }
         return null;
     }
 
     private String estadoFriendly(String estado) {
-        if (estado == null) {
-            return "Pendiente";
-        }
+        if (estado == null) return "Pendiente";
         String e = estado.trim().toLowerCase(Locale.ROOT);
-        if (e.contains("comp")) {
-            return "Completado";
-        }
-        if (e.contains("proc")) {
-            return "En proceso";
-        }
-        if (e.contains("pend")) {
-            return "Pendiente";
-        }
-        if (e.contains("alta")) {
-            return "Alta";
-        }
+        if (e.contains("comp")) return "Completado";
+        if (e.contains("proc")) return "En proceso";
+        if (e.contains("pend")) return "Pendiente";
+        if (e.contains("alta")) return "Alta";
         return "Pendiente";
     }
 
-    // Encabezado y badges
+    // Encabezado y badges (TRÁMITES)
     static class TableHeaderRenderer extends DefaultTableCellRenderer {
-
         TableHeaderRenderer() {
             setHorizontalAlignment(LEFT);
             setFont(new Font("Segoe UI", Font.BOLD, 13));
@@ -852,7 +1023,6 @@ public class InformesPanel extends JPanel {
             setBackground(new Color(238, 242, 255));
             setBorder(new EmptyBorder(12, 14, 12, 14));
         }
-
         @Override
         public Component getTableCellRendererComponent(JTable t, Object v, boolean s, boolean f, int r, int c) {
             super.getTableCellRendererComponent(t, v, s, f, r, c);
@@ -862,18 +1032,13 @@ public class InformesPanel extends JPanel {
     }
 
     static class BadgeRenderer extends DefaultTableCellRenderer {
-
-        enum Type {
-            PRIORITY, STATUS
-        }
+        enum Type { PRIORITY, STATUS }
         private final Type type;
-
         BadgeRenderer(Type type) {
             this.type = type;
             setHorizontalAlignment(CENTER);
             setFont(new Font("Segoe UI", Font.BOLD, 12));
         }
-
         @Override
         public Component getTableCellRendererComponent(JTable t, Object v, boolean s, boolean f, int r, int c) {
             super.getTableCellRendererComponent(t, v, s, f, r, c);
@@ -884,23 +1049,14 @@ public class InformesPanel extends JPanel {
             Color base;
             String normalized = text.toLowerCase(Locale.ROOT);
             if (type == Type.PRIORITY) {
-                if (normalized.contains("alta")) {
-                    base = new Color(255, 120, 102);
-                } else if (normalized.contains("media")) {
-                    base = new Color(255, 188, 75);
-                } else {
-                    base = new Color(140, 198, 62);
-                }
+                if (normalized.contains("alta"))       base = new Color(255, 120, 102);
+                else if (normalized.contains("media")) base = new Color(255, 188, 75);
+                else                                   base = new Color(140, 198, 62);
             } else {
-                if (normalized.contains("complet")) {
-                    base = new Color(28, 184, 113);
-                } else if (normalized.contains("proceso")) {
-                    base = new Color(58, 96, 224);
-                } else if (normalized.contains("alta")) {
-                    base = new Color(220, 84, 84);
-                } else {
-                    base = new Color(180, 180, 180);
-                }
+                if (normalized.contains("complet"))      base = new Color(28, 184, 113);
+                else if (normalized.contains("proceso")) base = new Color(58, 96, 224);
+                else if (normalized.contains("alta"))    base = new Color(220, 84, 84);
+                else                                     base = new Color(180, 180, 180);
             }
             setForeground(Color.WHITE);
             setBackground(s ? base.darker() : base);
@@ -912,34 +1068,28 @@ public class InformesPanel extends JPanel {
     private void exportInventarioToPdf() {
         exportModelToPdf("INFORME DE INVENTARIO", new String[]{"Código", "Descripción", "Estado", "Fecha"}, modelInv);
     }
-
     private void exportTramitesToPdf() {
         exportModelToPdf("INFORME DE TRÁMITES",
                 new String[]{"ID Trámite", "Asunto", "Fecha actualización", "Última actualización", "Descripción", "Estado"},
                 modelTra);
     }
-
     private void exportModelToPdf(String titulo, String[] headers, DefaultTableModel model) {
         JFileChooser fc = new JFileChooser();
         fc.setDialogTitle("Guardar informe en PDF");
         fc.setFileFilter(new FileNameExtensionFilter("Archivo PDF (*.pdf)", "pdf"));
         fc.setSelectedFile(new File(titulo.toLowerCase().replace(" ", "-") + ".pdf"));
         int opt = fc.showSaveDialog(this);
-        if (opt != JFileChooser.APPROVE_OPTION) {
-            return;
-        }
+        if (opt != JFileChooser.APPROVE_OPTION) return;
 
         File out = fc.getSelectedFile();
-        if (!out.getName().toLowerCase().endsWith(".pdf")) {
-            out = new File(out.getParentFile(), out.getName() + ".pdf");
-        }
+        if (!out.getName().toLowerCase().endsWith(".pdf")) out = new File(out.getParentFile(), out.getName() + ".pdf");
 
         Document doc = new Document(PageSize.A4.rotate(), 36, 36, 36, 36);
         try (FileOutputStream fos = new FileOutputStream(out)) {
             PdfWriter.getInstance(doc, fos);
             doc.open();
 
-            com.lowagie.text.Font fTitle = new com.lowagie.text.Font(com.lowagie.text.Font.HELVETICA, 18, com.lowagie.text.Font.BOLD, new Color(24, 63, 150));
+            com.lowagie.text.Font fTitle = new com.lowagie.text.Font(com.lowagie.text.Font.HELVETICA, 18, com.lowagie.text.Font.BOLD, HEADER_TXT);
             Paragraph title = new Paragraph(titulo, fTitle);
             title.setAlignment(Element.ALIGN_CENTER);
             title.setSpacingAfter(8f);
@@ -947,15 +1097,13 @@ public class InformesPanel extends JPanel {
 
             PdfPTable table = new PdfPTable(headers.length);
             table.setWidthPercentage(100);
-            float[] w = new float[headers.length];
-            Arrays.fill(w, 1f);
-            table.setWidths(w);
+            float[] w = new float[headers.length]; Arrays.fill(w, 1f); table.setWidths(w);
 
             com.lowagie.text.Font fHeader = new com.lowagie.text.Font(com.lowagie.text.Font.HELVETICA, 11, com.lowagie.text.Font.BOLD, Color.WHITE);
             for (String h : headers) {
                 PdfPCell cell = new PdfPCell(new Phrase(h, fHeader));
                 cell.setHorizontalAlignment(Element.ALIGN_CENTER);
-                cell.setBackgroundColor(new Color(47, 107, 228));
+                cell.setBackgroundColor(BRAND);
                 cell.setPadding(6f);
                 table.addCell(cell);
             }
@@ -976,21 +1124,13 @@ public class InformesPanel extends JPanel {
             doc.close();
             JOptionPane.showMessageDialog(this, "PDF generado:\n" + out.getAbsolutePath(), "Exportar PDF", JOptionPane.INFORMATION_MESSAGE);
         } catch (Exception ex) {
-            try {
-                doc.close();
-            } catch (Exception ignore) {
-            }
+            try { doc.close(); } catch (Exception ignore) {}
             JOptionPane.showMessageDialog(this, "No se pudo generar el PDF:\n" + ex.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
         }
     }
 
-    private void exportInventarioToCsv() {
-        exportModelToCsv(modelInv, ',');
-    }
-
-    private void exportTramitesToCsv() {
-        exportModelToCsv(modelTra, ',');
-    }
+    private void exportInventarioToCsv() { exportModelToCsv(modelInv, ','); }
+    private void exportTramitesToCsv()   { exportModelToCsv(modelTra, ','); }
 
     private void exportModelToCsv(DefaultTableModel model, char sep) {
         JFileChooser fc = new JFileChooser();
@@ -998,30 +1138,22 @@ public class InformesPanel extends JPanel {
         fc.setFileFilter(new FileNameExtensionFilter("Archivo CSV (*.csv)", "csv"));
         fc.setSelectedFile(new File("informe.csv"));
         int opt = fc.showSaveDialog(this);
-        if (opt != JFileChooser.APPROVE_OPTION) {
-            return;
-        }
+        if (opt != JFileChooser.APPROVE_OPTION) return;
 
         File out = fc.getSelectedFile();
-        if (!out.getName().toLowerCase().endsWith(".csv")) {
-            out = new File(out.getParentFile(), out.getName() + ".csv");
-        }
+        if (!out.getName().toLowerCase().endsWith(".csv")) out = new File(out.getParentFile(), out.getName() + ".csv");
 
         Charset enc = StandardCharsets.UTF_8;
         try (PrintWriter pw = new PrintWriter(out, enc)) {
             for (int c = 0; c < model.getColumnCount(); c++) {
-                if (c > 0) {
-                    pw.print(sep);
-                }
+                if (c > 0) pw.print(sep);
                 pw.print(csvEscape(model.getColumnName(c)));
             }
             pw.println();
 
             for (int r = 0; r < model.getRowCount(); r++) {
                 for (int c = 0; c < model.getColumnCount(); c++) {
-                    if (c > 0) {
-                        pw.print(sep);
-                    }
+                    if (c > 0) pw.print(sep);
                     Object v = model.getValueAt(r, c);
                     pw.print(csvEscape(v == null ? "" : String.valueOf(v)));
                 }
@@ -1042,11 +1174,9 @@ public class InformesPanel extends JPanel {
 
     // ====== Utilidades ======
     private static class DateField {
-
         private final JComponent comp;
         private final boolean usesFlatPicker;
         private final DateTimeFormatter fmt = DateTimeFormatter.ofPattern("dd/MM/yyyy");
-
         DateField() {
             JComponent c;
             boolean ok = false;
@@ -1069,7 +1199,6 @@ public class InformesPanel extends JPanel {
             comp.setPreferredSize(size);
             comp.setMaximumSize(size);
         }
-
         private static JFormattedTextField createMasked() {
             try {
                 MaskFormatter mf = new MaskFormatter("##/##/####");
@@ -1082,76 +1211,89 @@ public class InformesPanel extends JPanel {
                 return new JFormattedTextField();
             }
         }
-
         LocalDate getDate() {
             if (usesFlatPicker) {
                 try {
                     Method getDate = comp.getClass().getMethod("getDate");
                     Object val = getDate.invoke(comp);
                     return (val instanceof LocalDate) ? (LocalDate) val : null;
-                } catch (Throwable ignore) {
-                    return null;
-                }
+                } catch (Throwable ignore) { return null; }
             } else {
                 String txt = ((JFormattedTextField) comp).getText();
-                if (txt == null) {
-                    return null;
-                }
+                if (txt == null) return null;
                 txt = txt.trim();
-                if (txt.isEmpty() || txt.contains("_")) {
-                    return null;
-                }
-                try {
-                    return LocalDate.parse(txt, fmt);
-                } catch (Exception e) {
-                    return null;
-                }
+                if (txt.isEmpty() || txt.contains("_")) return null;
+                try { return LocalDate.parse(txt, fmt); } catch (Exception e) { return null; }
             }
         }
-
-        JComponent getComponent() {
-            return comp;
-        }
+        JComponent getComponent() { return comp; }
     }
 
-    /**
-     * Busca un JLabel "Informes" que esté en la barra superior
-     */
+    /** Busca un JLabel "Informes" en la barra superior del shell. */
     private static JLabel findHeaderTitleLabel(Container root) {
         for (Component c : root.getComponents()) {
             if (c instanceof JLabel l && "Informes".equals(l.getText())) {
                 Point p = SwingUtilities.convertPoint(l.getParent(), l.getLocation(), root);
-                if (p.y < 120) {
-                    return l;
-                }
+                if (p.y < 120) return l;
             }
             if (c instanceof Container ct) {
                 JLabel r = findHeaderTitleLabel(ct);
-                if (r != null) {
-                    return r;
-                }
+                if (r != null) return r;
             }
         }
         return null;
     }
 
     private static abstract class SimpleDocumentListener implements javax.swing.event.DocumentListener {
-
         public abstract void update();
-
-        @Override
-        public void insertUpdate(javax.swing.event.DocumentEvent e) {
-            update();
-        }
-
-        @Override
-        public void removeUpdate(javax.swing.event.DocumentEvent e) {
-            update();
-        }
-
-        @Override
-        public void changedUpdate(javax.swing.event.DocumentEvent e) {
-            update();
-        }
+        @Override public void insertUpdate(javax.swing.event.DocumentEvent e) { update(); }
+        @Override public void removeUpdate(javax.swing.event.DocumentEvent e) { update(); }
+        @Override public void changedUpdate(javax.swing.event.DocumentEvent e) { update(); }
     }
+    
+    /** Aplica un ScrollBarUI moderno y azul (vertical y horizontal) al JScrollPane dado. */
+private static void beautifyScroll(JScrollPane sp) {
+    java.util.function.Supplier<javax.swing.plaf.basic.BasicScrollBarUI> uiFactory = () ->
+        new javax.swing.plaf.basic.BasicScrollBarUI() {
+            private final Color TRACK = new Color(240, 245, 255);
+            private final Color THUMB = new Color(58, 96, 224);
+            private final Color THUMB_HOVER = new Color(40, 70, 190);
+
+            @Override protected JButton createDecreaseButton(int orientation) { return zeroButton(); }
+            @Override protected JButton createIncreaseButton(int orientation) { return zeroButton(); }
+            private JButton zeroButton() {
+                JButton b = new JButton();
+                b.setPreferredSize(new Dimension(0, 0));
+                b.setMinimumSize(new Dimension(0, 0));
+                b.setMaximumSize(new Dimension(0, 0));
+                b.setFocusable(false);
+                b.setBorderPainted(false);
+                b.setContentAreaFilled(false);
+                return b;
+            }
+
+            @Override protected void paintTrack(Graphics g, JComponent c, Rectangle r) {
+                g.setColor(TRACK);
+                g.fillRect(r.x, r.y, r.width, r.height);
+            }
+
+            @Override protected void paintThumb(Graphics g, JComponent c, Rectangle r) {
+                if (!scrollbar.isEnabled() || r.width <= 0 || r.height <= 0) return;
+                Graphics2D g2 = (Graphics2D) g.create();
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                boolean hover = isThumbRollover();
+                g2.setColor(hover ? THUMB_HOVER : THUMB);
+                int arc = 10;
+                // padding para que no “pegue” a los bordes
+                g2.fillRoundRect(r.x + 2, r.y + 2, r.width - 4, r.height - 4, arc, arc);
+                g2.dispose();
+            }
+        };
+
+    sp.getVerticalScrollBar().setUI(uiFactory.get());
+    sp.getHorizontalScrollBar().setUI(uiFactory.get());
+    sp.getVerticalScrollBar().setPreferredSize(new Dimension(10, 0));
+    sp.getHorizontalScrollBar().setPreferredSize(new Dimension(0, 10));
+}
+
 }
