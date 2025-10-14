@@ -34,6 +34,9 @@ public class ShellFrame extends JFrame {
     private final TramiteService tramiteService;
     private final AuthService authService;
 
+    // === NUEVO: referencia a la página de movimientos para refrescar ===
+    private InventoryMovementsPage movimientosPage;
+
     // mapa de clave de tarjeta -> botón del sidebar
     private final Map<String, NavButton> navByKey = new HashMap<>();
     private final ButtonGroup navGroup = new ButtonGroup();
@@ -67,20 +70,13 @@ public class ShellFrame extends JFrame {
         // ===== Navegación centralizada =====
         Consumer<String> nav = key -> {
             String title = switch (key) {
-                case "home" ->
-                    "Inicio";
-                case "inventario" ->
-                    "Inventario";
-                case "movimientos" ->
-                    "Movimientos";
-                case "reportes" ->
-                    "Informes";
-                case "tramites" ->
-                    "Trámites";
-                case "finanzas" ->
-                    "Finanzas";
-                default ->
-                    key;
+                case "home" -> "Inicio";
+                case "inventario" -> "Inventario";
+                case "movimientos" -> "Movimientos";
+                case "reportes" -> "Informes";
+                case "tramites" -> "Trámites";
+                case "finanzas" -> "Finanzas";
+                default -> key;
             };
             showCard(key, title);
         };
@@ -91,7 +87,11 @@ public class ShellFrame extends JFrame {
 
         addPage("home", homePage);
         addPage("inventario", new InventoryPage(inventarioService));
-        addPage("movimientos", new InventoryMovementsPage(inventarioService));
+
+        // === NUEVO: instanciar y guardar referencia ===
+        movimientosPage = new InventoryMovementsPage(inventarioService);
+        addPage("movimientos", movimientosPage);
+
         addPage("tramites", tramitesPage);
         addPage("reportes", new InformesPanel(inventarioService, tramiteService));
         // addPage("finanzas",    new FinanzasPage()); // si la usás, descomentar
@@ -210,6 +210,7 @@ public class ShellFrame extends JFrame {
 
     /**
      * Muestra la card y resalta el botón activo (pastilla blanca).
+     * Además, si se entra a "movimientos", refresca la lista de insumos.
      */
     private void showCard(String key, String title) {
         cardLayout.show(cards, key);
@@ -220,6 +221,15 @@ public class ShellFrame extends JFrame {
             NavButton b = e.getValue();
             boolean sel = e.getKey().equals(key);
             b.setSelected(sel);
+        }
+
+        // === NUEVO: refrescar insumos al entrar a Movimientos ===
+        if ("movimientos".equals(key) && movimientosPage != null) {
+            try {
+                movimientosPage.refreshInsumos();
+            } catch (Exception ex) {
+                ex.printStackTrace();
+            }
         }
     }
 

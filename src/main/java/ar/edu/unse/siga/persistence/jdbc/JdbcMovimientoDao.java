@@ -191,5 +191,42 @@ public class JdbcMovimientoDao implements MovimientoDao {
             throw new RuntimeException("Error calculando stock actual", e);
         }
     }
+    
+    @Override
+public int totalEntradas(long insumoId) {
+    final String sql = """
+        SELECT COALESCE(SUM(cantidad),0) AS total
+        FROM movimiento
+        WHERE insumo_id = ? AND UPPER(tipo) = 'ENTRADA'
+    """;
+    try (Connection cn = DataSourceFactory.getConnection();
+         PreparedStatement ps = cn.prepareStatement(sql)) {
+        ps.setLong(1, insumoId);
+        try (ResultSet rs = ps.executeQuery()) {
+            return rs.next() ? rs.getInt("total") : 0;
+        }
+    } catch (SQLException e) {
+        throw new RuntimeException("Error consultando total de ENTRADAS", e);
+    }
+}
+
+@Override
+public int totalSalidas(long insumoId) {
+    final String sql = """
+        SELECT COALESCE(SUM(cantidad),0) AS total
+        FROM movimiento
+        WHERE insumo_id = ? AND UPPER(tipo) = 'SALIDA'
+    """;
+    try (Connection cn = DataSourceFactory.getConnection();
+         PreparedStatement ps = cn.prepareStatement(sql)) {
+        ps.setLong(1, insumoId);
+        try (ResultSet rs = ps.executeQuery()) {
+            return rs.next() ? rs.getInt("total") : 0;
+        }
+    } catch (SQLException e) {
+        throw new RuntimeException("Error consultando total de SALIDAS", e);
+    }
+}
+
 
 }

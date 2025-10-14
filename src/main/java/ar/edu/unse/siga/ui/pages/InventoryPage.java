@@ -13,12 +13,24 @@ import ar.edu.unse.siga.persistence.jdbc.JdbcInsumoDao;
 import ar.edu.unse.siga.persistence.jdbc.JdbcCategoriaDao;
 import ar.edu.unse.siga.ui.base.Ui;
 import javax.swing.SpinnerNumberModel;
+import javax.swing.JComboBox;
+import javax.swing.ComboBoxModel;
+
 
 public class InventoryPage extends JPanel {
+    
+    private JComboBox<String> cbUbicacionDelete = buildUbicacionCombo();
+
 
     private final InventarioService service;   // <--- se inyecta desde ShellFrame
     private final CardLayout cardLayout = new CardLayout();
     private final JPanel cards = new JPanel(cardLayout);
+    // Reemplazá el JTextField existente:
+// private JTextField txtUbicacion;
+
+private JComboBox<String> cbUbicacionEdit = buildUbicacionCombo();
+
+    
 
     public InventoryPage(InventarioService service) {
         this.service = service;
@@ -28,6 +40,33 @@ public class InventoryPage extends JPanel {
         add(buildHeader(), BorderLayout.NORTH);
         add(buildCardHolder(), BorderLayout.CENTER);
     }
+    
+    // === Opciones fijas de ubicación (podés cambiar el orden si querés) ===
+private static final String[] UBICACIONES_FIJAS = {
+            "Sede Central",
+            "Sede Zanjon",
+            "Sede Parque Industrial",
+};
+
+// Crea el combo ya estilizado
+private static JComboBox<String> buildUbicacionCombo() {
+    JComboBox<String> cb = new JComboBox<>(UBICACIONES_FIJAS);
+    cb.putClientProperty("JComponent.roundRect", true);
+    return cb;
+}
+
+// Selecciona el valor existente del insumo; si no está en la lista, lo agrega al combo y lo selecciona
+private static void selectOrAdd(JComboBox<String> cb, String ubic) {
+    if (ubic == null || ubic.isBlank()) return;
+    ComboBoxModel<String> m = cb.getModel();
+    boolean exists = false;
+    for (int i = 0; i < m.getSize(); i++) {
+        if (ubic.equalsIgnoreCase(m.getElementAt(i))) { exists = true; break; }
+    }
+    if (!exists) cb.addItem(ubic);
+    cb.setSelectedItem(ubic);
+}
+
 
     private JComponent buildHeader() {
         JPanel header = new JPanel(new BorderLayout(12, 12));
@@ -112,20 +151,30 @@ public class InventoryPage extends JPanel {
         }
 
         // Ubicación
-        JTextField txtUbicacion = new JTextField();
-        txtUbicacion.putClientProperty("JTextField.placeholderText", "Depósito 1, Estante A, etc.");
-        txtUbicacion.putClientProperty("JComponent.roundRect", true);
+        // UBICACIÓN COMO COMBO (opciones fijas)
+        String[] ubicaciones = new String[] {
+            "Sede Central",
+            "Sede Zanjon",
+            "Sede Parque Industrial",
+        };
+
+        JComboBox<String> cbUbicacion = new JComboBox<>(ubicaciones);
+        cbUbicacion.putClientProperty("JComponent.roundRect", true);
+        if (cbUbicacion.getItemCount() > 0) {
+            cbUbicacion.setSelectedIndex(0);
+        }
+
 
         // Stock mínimo
         JSpinner spStockMin = new JSpinner(new SpinnerNumberModel(0, 0, 999999, 1));
         tuneNumericSpinner(spStockMin, 0, 999999);
-
+        
         JPanel form = new JPanel(new GridLayout(0, 2, 18, 18));
         form.setOpaque(false);
         form.add(labeled("CÓDIGO", txtCodigo));
         form.add(labeled("DESCRIPCIÓN", txtDescripcion));
         form.add(labeled("CATEGORÍA", cbCategoria));
-        form.add(labeled("UBICACIÓN", txtUbicacion));
+        form.add(labeled("UBICACIÓN", cbUbicacion));
         form.add(labeled("STOCK MÍNIMO", spStockMin));
         card.add(form, BorderLayout.CENTER);
 
@@ -141,7 +190,8 @@ public class InventoryPage extends JPanel {
                 String codigo = txtCodigo.getText().trim();
                 String desc = txtDescripcion.getText().trim();
                 Categoria cat = (Categoria) cbCategoria.getSelectedItem();
-                String ubic = txtUbicacion.getText().trim();
+                String ubic = java.util.Objects.toString(cbUbicacion.getSelectedItem(), "").trim();
+
 
                 Object v = spStockMin.getValue();
                 if (!(v instanceof Number)) {
@@ -174,7 +224,8 @@ public class InventoryPage extends JPanel {
                 if (cbCategoria.getItemCount() > 0) {
                     cbCategoria.setSelectedIndex(0);
                 }
-                txtUbicacion.setText("");
+                cbUbicacion.setSelectedIndex(0); // o cbUbicacion.setSelectedItem("Facultad de Ciencias Exactas");
+
                 spStockMin.setValue(0);
             } catch (Exception ex) {
                 Ui.error(this, ex);
@@ -251,7 +302,7 @@ public class InventoryPage extends JPanel {
         form.add(labeled("CÓDIGO", txtCodigo));
         form.add(labeled("DESCRIPCIÓN", txtDescripcion));
         form.add(labeled("CATEGORÍA", cbCategoria));
-        form.add(labeled("UBICACIÓN", txtUbicacion));
+        form.add(labeled("UBICACIÓN", cbUbicacionDelete));
         form.add(labeled("STOCK MÍNIMO", spStockMin));
         form.add(labeled("ESTADO", cbEstado));
         card.add(form, BorderLayout.CENTER);
@@ -531,7 +582,9 @@ public class InventoryPage extends JPanel {
         form.add(labeled("CÓDIGO", txtCodigo));
         form.add(labeled("DESCRIPCIÓN", txtDescripcion));
         form.add(labeled("CATEGORÍA", cbCategoria));
-        form.add(labeled("UBICACIÓN", txtUbicacion));
+        // Ubicación (AHORA, como combo)
+form.add(labeled("UBICACIÓN", cbUbicacionEdit));
+
         form.add(labeled("STOCK MÍNIMO", spStockMin));
         form.add(labeled("ESTADO", cbEstado));
         card.add(form, BorderLayout.CENTER);
@@ -591,44 +644,51 @@ public class InventoryPage extends JPanel {
         btnGuardar.setForeground(Color.WHITE);
         btnGuardar.setFocusPainted(false);
 
-        btnGuardar.addActionListener(e -> {
-            try {
-                if (current[0] == null) {
-                    Ui.warn(InventoryPage.this, "Primero buscá un insumo por código.");
-                    return;
-                }
-                if (!Ui.confirm(InventoryPage.this, "¿Confirmás la modificación de " + current[0].getCodigo() + "?")) {
-                    return;
-                }
+       btnGuardar.addActionListener(e -> {
+    try {
+        if (current[0] == null) {
+            Ui.warn(InventoryPage.this, "Primero buscá un insumo por código.");
+            return;
+        }
+        if (!Ui.confirm(InventoryPage.this, "¿Confirmás la modificación de " + current[0].getCodigo() + "?")) {
+            return;
+        }
 
-                current[0].setDescripcion(txtDescripcion.getText().trim());
-                current[0].setCategoria((Categoria) cbCategoria.getSelectedItem());
-                current[0].setUbicacion(txtUbicacion.getText().trim());
+        // --- Actualizar todos los campos editables ---
+        current[0].setDescripcion(txtDescripcion.getText().trim());
+        current[0].setCategoria((Categoria) cbCategoria.getSelectedItem());
 
-                try {
-                    spStockMin.commitEdit();
-                } catch (java.text.ParseException ignore) {
-                }
-                Object v = spStockMin.getValue();
-                if (!(v instanceof Number)) {
-                    Ui.warn(InventoryPage.this, "El stock mínimo debe ser numérico.");
-                    return;
-                }
-                int stockMin = ((Number) v).intValue();
-                if (stockMin < 0) {
-                    Ui.warn(InventoryPage.this, "El stock mínimo no puede ser negativo.");
-                    return;
-                }
-                current[0].setStockMinimo(stockMin);
+        // 🔹 CAMBIO IMPORTANTE: usar el combo de ubicación en vez del txt
+        current[0].setUbicacion((String) cbUbicacionEdit.getSelectedItem());
 
-                current[0].setEstado((String) cbEstado.getSelectedItem());
+        // Validar stock mínimo
+        try {
+            spStockMin.commitEdit();
+        } catch (java.text.ParseException ignore) {}
+        Object v = spStockMin.getValue();
+        if (!(v instanceof Number)) {
+            Ui.warn(InventoryPage.this, "El stock mínimo debe ser numérico.");
+            return;
+        }
+        int stockMin = ((Number) v).intValue();
+        if (stockMin < 0) {
+            Ui.warn(InventoryPage.this, "El stock mínimo no puede ser negativo.");
+            return;
+        }
+        current[0].setStockMinimo(stockMin);
 
-                new JdbcInsumoDao().update(current[0]);
-                Ui.info(InventoryPage.this, "Cambios guardados.");
-            } catch (Exception ex) {
-                Ui.error(InventoryPage.this, ex);
-            }
-        });
+        // Estado
+        current[0].setEstado((String) cbEstado.getSelectedItem());
+
+        // Guardar cambios
+        new JdbcInsumoDao().update(current[0]);
+        Ui.info(InventoryPage.this, "Cambios guardados correctamente.");
+
+    } catch (Exception ex) {
+        Ui.error(InventoryPage.this, ex);
+    }
+});
+
 
         JPanel south = new JPanel(new FlowLayout(FlowLayout.RIGHT));
         south.setOpaque(false);

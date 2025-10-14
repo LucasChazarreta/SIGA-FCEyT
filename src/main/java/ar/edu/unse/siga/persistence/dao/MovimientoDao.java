@@ -12,4 +12,8 @@ public interface MovimientoDao {
 
     // NUEVO: consultar stock actual de un insumo
     int stockActual(long insumoId);
+    // Totales por insumo
+int totalEntradas(long insumoId);
+int totalSalidas(long insumoId);
+
 }

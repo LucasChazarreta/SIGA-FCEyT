@@ -6,7 +6,7 @@ import ar.edu.unse.siga.persistence.jdbc.*;
 import ar.edu.unse.siga.service.AuthService;
 import ar.edu.unse.siga.service.InventarioService;
 import ar.edu.unse.siga.service.TramiteService;
-import ar.edu.unse.siga.persistence.jdbc.JdbcCategoriaDao;
+import ar.edu.unse.siga.persistence.jdbc.JdbcCategoriaDao;  
 
 import javax.swing.*;
 

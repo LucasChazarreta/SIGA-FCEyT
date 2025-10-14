@@ -9,17 +9,26 @@ import java.text.DecimalFormat;
 import java.text.ParseException;
 
 /**
- * Diálogo reutilizable para registrar un movimiento (ENTRADA / SALIDA). - Campo
- * Cantidad SOLO numérico (1 .. 1_000_000) - Diseño con márgenes y tamaños de
- * botón prolijos
+ * Diálogo reutilizable para registrar un movimiento (ENTRADA / SALIDA).
+ * - Campo Cantidad SOLO numérico (1 .. 1_000_000)
+ * - Muestra "Destino/Fuente" SOLO cuando el tipo es SALIDA
  */
 public class MovimientoDialog extends JDialog {
 
     private final JLabel lblContexto = new JLabel();
     private final JComboBox<String> cbTipo = new JComboBox<>(new String[]{"ENTRADA", "SALIDA"});
     private final JSpinner spCantidad = new JSpinner(new SpinnerNumberModel(1, 1, 1_000_000, 1));
-    private final JTextField txtDestino = new JTextField(25);
+
+    // Campo condicional (solo visible para SALIDA)
+    private final JLabel lblDestino = new JLabel("Destino/Fuente:");
+    private final JComboBox<String> cbDestino = new JComboBox<>(new String[]{
+            "Sede Central",
+            "Sede Zanjón",
+            "Sede Parque Industrial"
+    });
+
     private boolean accepted = false;
+    private final JPanel panel = new JPanel(new GridLayout(0, 2, 8, 8));
 
     public MovimientoDialog(Window owner) {
         this(owner, null, "ENTRADA", null, 1);
@@ -38,26 +47,28 @@ public class MovimientoDialog extends JDialog {
         }
 
         // --- panel central ---
-        var panel = new JPanel(new GridLayout(0, 2, 8, 8));
         panel.setBorder(new EmptyBorder(12, 16, 0, 16));
         panel.add(new JLabel("Tipo:"));
         panel.add(cbTipo);
         panel.add(new JLabel("Cantidad:"));
         panel.add(spCantidad);
-        panel.add(new JLabel("Destino/Fuente:"));
-        panel.add(txtDestino);
+
+        // campo destino (solo se añade si tipo = SALIDA)
+        cbDestino.setEditable(false);
+        panel.add(lblDestino);
+        panel.add(cbDestino);
+
         add(panel, BorderLayout.CENTER);
 
-        // === Editor numérico ESTRICTO para el spinner ===
-        //  (impide letras y símbolos; solo dígitos)
+        // === Editor numérico ESTRICTO ===
         JSpinner.NumberEditor numEd = new JSpinner.NumberEditor(spCantidad, "#");
         spCantidad.setEditor(numEd);
         JFormattedTextField tf = numEd.getTextField();
 
         NumberFormatter nf = new NumberFormatter(new DecimalFormat("#"));
         nf.setValueClass(Integer.class);
-        nf.setAllowsInvalid(false);        // bloquea cualquier carácter no numérico
-        nf.setCommitsOnValidEdit(true);    // aplica en Enter/Tab
+        nf.setAllowsInvalid(false);
+        nf.setCommitsOnValidEdit(true);
         nf.setMinimum(1);
         nf.setMaximum(1_000_000);
 
@@ -87,15 +98,32 @@ public class MovimientoDialog extends JDialog {
             cbTipo.setSelectedItem(tipoInicial);
         }
         if (destinoInicial != null) {
-            txtDestino.setText(destinoInicial);
+            cbDestino.setSelectedItem(destinoInicial);
         }
         if (cantidadInicial > 0) {
             spCantidad.setValue(cantidadInicial);
         }
 
+        // comportamiento dinámico
+        cbTipo.addItemListener(e -> actualizarVisibilidadDestino());
+        actualizarVisibilidadDestino(); // inicial
+
         setMinimumSize(new Dimension(680, getMinimumSize().height));
         pack();
         setLocationRelativeTo(owner);
+    }
+
+    // ==== lógica para mostrar u ocultar el campo destino ====
+    private void actualizarVisibilidadDestino() {
+        String tipo = (String) cbTipo.getSelectedItem();
+        boolean esSalida = "SALIDA".equalsIgnoreCase(tipo);
+
+        lblDestino.setVisible(esSalida);
+        cbDestino.setVisible(esSalida);
+
+        // refresca la UI sin necesidad de recrear todo
+        panel.revalidate();
+        panel.repaint();
     }
 
     // ==== getters / setters ====
@@ -107,22 +135,22 @@ public class MovimientoDialog extends JDialog {
         return (String) cbTipo.getSelectedItem();
     }
 
-    /**
-     * Asegura tomar lo tipeado si el usuario confirma muy rápido.
-     */
     public int getCantidad() {
         try {
             JComponent ed = spCantidad.getEditor();
             if (ed instanceof JSpinner.DefaultEditor de) {
                 de.commitEdit();
             }
-        } catch (ParseException ignore) {
-        }
+        } catch (ParseException ignore) {}
         return ((Number) spCantidad.getValue()).intValue();
     }
 
     public String getDestinoFuente() {
-        return txtDestino.getText().trim();
+        String tipo = (String) cbTipo.getSelectedItem();
+        if ("SALIDA".equalsIgnoreCase(tipo)) {
+            return (String) cbDestino.getSelectedItem();
+        }
+        return ""; // si es entrada, devuelve vacío
     }
 
     public void setContexto(String texto) {
