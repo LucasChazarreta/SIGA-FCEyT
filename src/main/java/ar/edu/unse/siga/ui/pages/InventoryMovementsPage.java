@@ -27,6 +27,9 @@ public class InventoryMovementsPage extends JPanel {
 
     private final DefaultListModel<String> historialModel = new DefaultListModel<>();
     private final JList<String> lstHistorial = new JList<>(historialModel);
+    
+    public void refreshInsumos() { /* repoblar la lista desde DAO/Service */ }
+
 
     public InventoryMovementsPage(InventarioService service) {
         this.service = service;

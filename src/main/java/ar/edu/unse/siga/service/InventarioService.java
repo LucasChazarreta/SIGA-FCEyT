@@ -138,4 +138,15 @@ public class InventarioService {
     }
 
     // --- END API compatible con la UI ---
+    
+    public int totalEntradasDeInsumo(long insumoId) {
+    return movimientoDao.totalEntradas(insumoId);
+}
+
+public int totalSalidasDeInsumo(long insumoId) {
+    return movimientoDao.totalSalidas(insumoId);
+}
+
+// ya tenés public int stockActual(long insumoId) { ... } -> se reutiliza
+
 }

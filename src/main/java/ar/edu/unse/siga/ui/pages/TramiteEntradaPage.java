@@ -48,7 +48,7 @@ public class TramiteEntradaPage extends JPanel {
     // --- Filtros de la tabla ---
     private final JTextField filterSearch = new JTextField(18);
     private final JComboBox<String> filterEstado = new JComboBox<>(
-            new String[]{"Todos", "Completado", "En proceso", "Pendiente", "Alta"}
+            new String[]{"Todos", "Completado", "En proceso", "Pendiente"}
     );
 
     private final CardLayout cardLayout = new CardLayout();
@@ -57,7 +57,7 @@ public class TramiteEntradaPage extends JPanel {
     // Tabla (solo columna Estado editable)
     private final JTable table = new JTable(new DefaultTableModel(
             new Object[][]{},
-            new String[]{"ID Trámite", "Asunto", "Fecha actualización", "Última actualización", "Descripcion", "Estado"}
+            new String[]{"ID Trámite", "Asunto", "Fecha creación", "Última actualización", "Descripcion", "Estado"}
     )) {
         @Override
         public boolean isCellEditable(int row, int column) {

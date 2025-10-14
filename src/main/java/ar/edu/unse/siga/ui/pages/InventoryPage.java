@@ -19,6 +19,7 @@ public class InventoryPage extends JPanel {
     private final InventarioService service;   // <--- se inyecta desde ShellFrame
     private final CardLayout cardLayout = new CardLayout();
     private final JPanel cards = new JPanel(cardLayout);
+    
 
     public InventoryPage(InventarioService service) {
         this.service = service;
@@ -112,20 +113,30 @@ public class InventoryPage extends JPanel {
         }
 
         // Ubicación
-        JTextField txtUbicacion = new JTextField();
-        txtUbicacion.putClientProperty("JTextField.placeholderText", "Depósito 1, Estante A, etc.");
-        txtUbicacion.putClientProperty("JComponent.roundRect", true);
+        // UBICACIÓN COMO COMBO (opciones fijas)
+        String[] ubicaciones = new String[] {
+            "Sede Central",
+            "Sede Zanjon",
+            "Sede Parque Industrial",
+        };
+
+        JComboBox<String> cbUbicacion = new JComboBox<>(ubicaciones);
+        cbUbicacion.putClientProperty("JComponent.roundRect", true);
+        if (cbUbicacion.getItemCount() > 0) {
+            cbUbicacion.setSelectedIndex(0);
+        }
+
 
         // Stock mínimo
         JSpinner spStockMin = new JSpinner(new SpinnerNumberModel(0, 0, 999999, 1));
         tuneNumericSpinner(spStockMin, 0, 999999);
-
+        
         JPanel form = new JPanel(new GridLayout(0, 2, 18, 18));
         form.setOpaque(false);
         form.add(labeled("CÓDIGO", txtCodigo));
         form.add(labeled("DESCRIPCIÓN", txtDescripcion));
         form.add(labeled("CATEGORÍA", cbCategoria));
-        form.add(labeled("UBICACIÓN", txtUbicacion));
+        form.add(labeled("UBICACIÓN", cbUbicacion));
         form.add(labeled("STOCK MÍNIMO", spStockMin));
         card.add(form, BorderLayout.CENTER);
 
@@ -141,7 +152,8 @@ public class InventoryPage extends JPanel {
                 String codigo = txtCodigo.getText().trim();
                 String desc = txtDescripcion.getText().trim();
                 Categoria cat = (Categoria) cbCategoria.getSelectedItem();
-                String ubic = txtUbicacion.getText().trim();
+                String ubic = java.util.Objects.toString(cbUbicacion.getSelectedItem(), "").trim();
+
 
                 Object v = spStockMin.getValue();
                 if (!(v instanceof Number)) {
@@ -174,7 +186,8 @@ public class InventoryPage extends JPanel {
                 if (cbCategoria.getItemCount() > 0) {
                     cbCategoria.setSelectedIndex(0);
                 }
-                txtUbicacion.setText("");
+                cbUbicacion.setSelectedIndex(0); // o cbUbicacion.setSelectedItem("Facultad de Ciencias Exactas");
+
                 spStockMin.setValue(0);
             } catch (Exception ex) {
                 Ui.error(this, ex);
