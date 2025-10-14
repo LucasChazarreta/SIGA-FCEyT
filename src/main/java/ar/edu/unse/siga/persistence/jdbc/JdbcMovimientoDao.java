@@ -54,55 +54,70 @@ public class JdbcMovimientoDao implements MovimientoDao {
     """;
 
         try (Connection cn = DataSourceFactory.getConnection()) {
-            cn.setAutoCommit(false);
+            boolean originalAutoCommit = cn.getAutoCommit();
+            try {
+                cn.setAutoCommit(false);
 
-            // stock actual consistente (mismo SQL que el método público)
-            int actual = stockActual(m.getInsumo().getId());
-
-            if (m.getTipo().equalsIgnoreCase("SALIDA") && m.getCantidad() > actual) {
-                cn.rollback();
-                throw new IllegalStateException(
-                        String.format(
-                                "No hay suficiente stock para realizar esta salida.%n%n"
-                                + "Cantidad disponible: %d%n"
-                                + "Cantidad solicitada: %d%n%n"
-                                + "Podés registrar una cantidad menor o agregar más stock con una ENTRADA.",
-                                actual, m.getCantidad()
-                        )
-                );
-            }
-
-            // completar fecha si vino null
-            if (m.getFecha() == null) {
-                m.setFecha(java.time.LocalDateTime.now());
-            }
-
-            try (PreparedStatement ps = cn.prepareStatement(insertSql, Statement.RETURN_GENERATED_KEYS)) {
-                ps.setLong(1, m.getInsumo().getId());
-                ps.setString(2, m.getTipo().toUpperCase());
-                ps.setInt(3, m.getCantidad());
-                ps.setString(4, m.getDestinoFuente());
-                ps.setTimestamp(5, java.sql.Timestamp.valueOf(m.getFecha()));
-
-                if (m.getUsuario() != null && m.getUsuario().getId() != null) {
-                    ps.setLong(6, m.getUsuario().getId());
-                } else {
-                    ps.setNull(6, java.sql.Types.BIGINT);
+                int actual = stockActual(cn, m.getInsumo().getId());
+                if (m.getTipo().equalsIgnoreCase("SALIDA") && m.getCantidad() > actual) {
+                    throw new IllegalStateException(
+                            String.format(
+                                    "No hay suficiente stock para realizar esta salida.%n%n"
+                                            + "Cantidad disponible: %d%n"
+                                            + "Cantidad solicitada: %d%n%n"
+                                            + "Podés registrar una cantidad menor o agregar más stock con una ENTRADA.",
+                                    actual, m.getCantidad()
+                            )
+                    );
                 }
 
-                ps.executeUpdate();
-                try (ResultSet rs = ps.getGeneratedKeys()) {
-                    if (rs.next()) {
-                        long id = rs.getLong(1);
-                        cn.commit();
-                        return id;
+                if (m.getFecha() == null) {
+                    m.setFecha(java.time.LocalDateTime.now());
+                }
+
+                try (PreparedStatement ps = cn.prepareStatement(insertSql, Statement.RETURN_GENERATED_KEYS)) {
+                    ps.setLong(1, m.getInsumo().getId());
+                    ps.setString(2, m.getTipo().toUpperCase());
+                    ps.setInt(3, m.getCantidad());
+                    ps.setString(4, m.getDestinoFuente());
+                    ps.setTimestamp(5, java.sql.Timestamp.valueOf(m.getFecha()));
+
+                    if (m.getUsuario() != null && m.getUsuario().getId() != null) {
+                        ps.setLong(6, m.getUsuario().getId());
+                    } else {
+                        ps.setNull(6, java.sql.Types.BIGINT);
+                    }
+
+                    ps.executeUpdate();
+                    try (ResultSet rs = ps.getGeneratedKeys()) {
+                        if (rs.next()) {
+                            long id = rs.getLong(1);
+                            cn.commit();
+                            return id;
+                        }
                     }
                 }
+
+                cn.rollback();
+                throw new RuntimeException("No se pudo registrar el movimiento.");
+            } catch (SQLException e) {
+                try {
+                    cn.rollback();
+                } catch (SQLException ignored) {
+                }
+                throw new RuntimeException("Error registrando movimiento", e);
+            } catch (RuntimeException e) {
+                try {
+                    cn.rollback();
+                } catch (SQLException ignored) {
+                }
+                throw e;
+            } finally {
+                try {
+                    cn.setAutoCommit(originalAutoCommit);
+                } catch (SQLException ignored) {
+                }
             }
-
-            cn.rollback();
-            throw new RuntimeException("No se pudo registrar el movimiento.");
-
         } catch (SQLException e) {
             throw new RuntimeException("Error registrando movimiento", e);
         }
