@@ -356,7 +356,7 @@ public class HomePage extends JPanel {
                     int actual = 0;
                     if (id != null) {
                         try {
-                            actual = inventarioService.stockActual(id);
+                            actual = inventarioService.stockActual(id.longValue());
                         } catch (Exception ex) {
                             actual = 0;
                         }

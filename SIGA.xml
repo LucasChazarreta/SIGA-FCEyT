@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<launch4jConfig>
+  <dontWrapJar>false</dontWrapJar>
+  <headerType>gui</headerType>
+  <jar>D:\Documentos\NetBeansProjects\SIGA-FCEyT\target\SIGA-1.0-SNAPSHOT.jar</jar>
+  <outfile>D:\Documentos\NetBeansProjects\SIGA-FCEyT\SIGA.exe</outfile>
+  <errTitle></errTitle>
+  <cmdLine></cmdLine>
+  <chdir>.</chdir>
+  <priority>normal</priority>
+  <downloadUrl></downloadUrl>
+  <supportUrl></supportUrl>
+  <stayAlive>false</stayAlive>
+  <restartOnCrash>false</restartOnCrash>
+  <manifest></manifest>
+  <icon>D:\Documentos\NetBeansProjects\SIGA-FCEyT\SIGA_icon.ico</icon>
+  <classPath>
+    <mainClass>ar.edu.unse.siga.ui.AppLauncher</mainClass>
+    <cp>D:\Documentos\NetBeansProjects\SIGA-FCEyT\target\SIGA-1.0-SNAPSHOT.jar</cp>
+  </classPath>
+  <jre>
+    <path>D:\Program FIles(x86)\Java\jdk-24</path>
+    <requiresJdk>false</requiresJdk>
+    <requires64Bit>false</requires64Bit>
+    <minVersion>24</minVersion>
+    <maxVersion></maxVersion>
+  </jre>
+</launch4jConfig>

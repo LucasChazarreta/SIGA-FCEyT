@@ -4,4 +4,7 @@ CREATE TABLE tramite (
   asunto VARCHAR(255) NOT NULL,
   estado VARCHAR(30) NOT NULL,
   fecha DATETIME NOT NULL,
-  solicitante VARCHAR(120)
+  solicitante VARCHAR(120),
+  descripcion TEXT NULL,
+  destino VARCHAR(120) NOT NULL
+  );
