@@ -10,37 +10,37 @@ import ar.edu.unse.siga.ui.base.CardPanel;
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
 import java.awt.*;
-import java.time.LocalDate;
+import java.text.NumberFormat;
+import java.time.Duration;
+import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Locale;
 import java.util.function.Consumer;
 
 /**
- * Dashboard de Inicio con métricas, accesos y “Trámites recientes”.
- * - Usa InventarioService para métricas.
- * - Usa TramiteService para cargar los últimos trámites.
- * - Expone recargarTramitesRecientes() para que TramiteEntradaPage refresque el widget
+ * Dashboard de Inicio con métricas y actividad reciente dinámica.
+ * - Usa InventarioService para métricas en tiempo real.
+ * - Usa TramiteService para cargar los últimos movimientos de trámites.
+ * - Expone recargarTramitesRecientes() para que TramiteEntradaPage actualice la actividad
  *   inmediatamente después de registrar un nuevo trámite.
  */
 public class HomePage extends JPanel {
 
     private final Usuario usuarioActual;
     private final InventarioService inventarioService;
-    private final TramiteService tramiteService;           // NUEVO
+    private final TramiteService tramiteService;
     private final Consumer<String> onNavigate;
-
-    private final DateTimeFormatter friendlyDate =
-            DateTimeFormatter.ofPattern("dd 'de' MMMM yyyy", new Locale("es", "AR"));
 
     // Labels de métricas (para refrescar)
     private JLabel lblTareasPend;
     private JLabel lblAprobPend;
     private JLabel lblInsumosCriticos;
     private JLabel lblBalance;
+    private JLabel lblAlertStock;
 
-    // Contenedor dinámico de “Trámites recientes”
-    private JPanel recientesList;                          // NUEVO
+    // Contenedor dinámico de la tarjeta de actividad
+    private JPanel actividadList;
 
     private Timer autoRefreshTimer;
 
@@ -55,7 +55,7 @@ public class HomePage extends JPanel {
                     Consumer<String> onNavigate) {
         this.usuarioActual = usuarioActual;
         this.inventarioService = inventarioService;
-        this.tramiteService = tramiteService; // NUEVO
+        this.tramiteService = tramiteService;
         this.onNavigate = onNavigate;
 
         setOpaque(false);
@@ -79,22 +79,16 @@ public class HomePage extends JPanel {
         gc.fill = GridBagConstraints.BOTH;
         layout.add(buildDashboardGrid(), gc);
 
-        gc.gridy = 2;
-        gc.insets = new Insets(0, 0, 0, 0);
-        gc.weighty = 0;
-        gc.fill = GridBagConstraints.HORIZONTAL;
-        layout.add(buildQuickActions(), gc);
-
         add(layout, BorderLayout.CENTER);
 
         // Primer refresco
         refreshMetrics();
-        recargarTramitesRecientes(); // NUEVO
+        refrescarActividadReciente();
 
         // Auto-refresco (cada 30 s)
         autoRefreshTimer = new Timer(30_000, e -> {
             refreshMetrics();
-            recargarTramitesRecientes();
+            refrescarActividadReciente();
         });
         autoRefreshTimer.setRepeats(true);
         autoRefreshTimer.start();
@@ -126,7 +120,6 @@ public class HomePage extends JPanel {
         greetings.add(sub);
 
         headerRow.add(greetings, BorderLayout.CENTER);
-        headerRow.add(buildHeaderActions(), BorderLayout.EAST);
         card.add(headerRow, BorderLayout.NORTH);
 
         JPanel body = new JPanel();
@@ -138,37 +131,6 @@ public class HomePage extends JPanel {
         card.add(body, BorderLayout.CENTER);
 
         return card;
-    }
-
-    private Component buildHeaderActions() {
-        JPanel actions = new JPanel(new FlowLayout(FlowLayout.RIGHT, 12, 0));
-        actions.setOpaque(false);
-
-        JButton perfil = headerChip("Perfil");
-        perfil.addActionListener(e -> navigateOrInfo("perfil"));
-
-        JButton notif = headerChip("Notificaciones");
-        notif.addActionListener(e -> JOptionPane.showMessageDialog(
-                this, "Módulo de notificaciones en construcción.", "Info", JOptionPane.INFORMATION_MESSAGE));
-
-        JButton ajustes = headerChip("Ajustes");
-        ajustes.addActionListener(e -> navigateOrInfo("ajustes"));
-
-        actions.add(perfil);
-        actions.add(notif);
-        actions.add(ajustes);
-        return actions;
-    }
-
-    private JButton headerChip(String text) {
-        JButton b = new JButton(text);
-        b.setFocusPainted(false);
-        b.setFont(new Font("Segoe UI", Font.PLAIN, 13));
-        b.setForeground(new Color(52, 83, 169));
-        b.setBackground(new Color(230, 238, 255));
-        b.setBorder(BorderFactory.createEmptyBorder(8, 14, 8, 14));
-        b.putClientProperty("JButton.buttonType", "roundRect");
-        return b;
     }
 
     private JComponent alertBanner() {
@@ -196,8 +158,8 @@ public class HomePage extends JPanel {
         });
 
         banner.add(chip);
-        banner.add(alertMessage("Nuevo protocolo de gastos"));
-        banner.add(alertMessage("Mantenimiento del sistema de 11 PM a 2 AM"));
+        lblAlertStock = alertMessage("-");
+        banner.add(lblAlertStock);
         return banner;
     }
 
@@ -225,13 +187,13 @@ public class HomePage extends JPanel {
         row.setOpaque(false);
 
         row.add(metricCard("Tareas pendientes", lblTareasPend = new JLabel("0"),
-                "Tareas por revisar", new Color(58, 109, 255)));
-        row.add(metricCard("Aprob. pendientes", lblAprobPend = new JLabel("3"),
-                "Órdenes de compra", new Color(86, 127, 255)));
+                "Trámites por resolver", new Color(58, 109, 255)));
+        row.add(metricCard("Aprob. pendientes", lblAprobPend = new JLabel("0"),
+                "Trámites en espera", new Color(86, 127, 255)));
         row.add(metricCard("Insumos críticos", lblInsumosCriticos = new JLabel("0"),
-                "Requieren pedido urgente", new Color(255, 99, 99)));
-        row.add(metricCard("Balance dpto", lblBalance = new JLabel("$145.200"),
-                "Órdenes de compra", new Color(58, 182, 186)));
+                "Stock bajo el mínimo", new Color(255, 99, 99)));
+        row.add(metricCard("Balance dpto", lblBalance = new JLabel("0 u."),
+                "Unidades disponibles", new Color(58, 182, 186)));
         return row;
     }
 
@@ -286,36 +248,17 @@ public class HomePage extends JPanel {
     private JComponent buildDashboardGrid() {
         JPanel grid = new JPanel(new GridBagLayout());
         grid.setOpaque(false);
+
         GridBagConstraints gc = new GridBagConstraints();
+        gc.gridx = 0;
+        gc.gridy = 0;
         gc.insets = new Insets(0, 12, 18, 12);
         gc.fill = GridBagConstraints.BOTH;
-        gc.weightx = 0.5;
-        gc.weighty = 0.5;
+        gc.weightx = 1;
+        gc.weighty = 1;
 
-        gc.gridx = 0; gc.gridy = 0; grid.add(upcomingEventsCard(), gc);
-        gc.gridx = 1; gc.gridy = 0; grid.add(activityCard(), gc);
-        gc.gridx = 0; gc.gridy = 1; grid.add(priorityCard(), gc);
-        gc.gridx = 1; gc.gridy = 1; grid.add(recentTramitesCard(), gc);   // NUEVO: widget dinámico
-
+        grid.add(activityCard(), gc);
         return grid;
-    }
-
-    private CardPanel upcomingEventsCard() {
-        CardPanel card = new CardPanel();
-        card.setLayout(new BorderLayout(0, 12));
-        card.add(sectionTitle("Próximos eventos"), BorderLayout.NORTH);
-
-        JPanel list = new JPanel();
-        list.setOpaque(false);
-        list.setLayout(new BoxLayout(list, BoxLayout.Y_AXIS));
-        list.add(eventRow("10:00 Reunión Dpto.", "Decanato de Ciencias"));
-        list.add(divider());
-        list.add(eventRow("Mañana: Cierre de mes", "Finanzas"));
-        list.add(divider());
-        list.add(eventRow("14:00 Seguimiento Proyectos", "Sala Multimedia"));
-
-        card.add(list, BorderLayout.CENTER);
-        return card;
     }
 
     private CardPanel activityCard() {
@@ -323,97 +266,17 @@ public class HomePage extends JPanel {
         card.setLayout(new BorderLayout(0, 12));
         card.add(sectionTitle("Actividad reciente"), BorderLayout.NORTH);
 
-        JPanel list = new JPanel();
-        list.setOpaque(false);
-        list.setLayout(new BoxLayout(list, BoxLayout.Y_AXIS));
-        for (String[] row : new String[][]{
-                {"Hace 5 min", "Juan P. solicitó informe de inventario"},
-                {"Hace 9 min", "Tito    P. solicitó informe de trámites"},
-                {"Ayer", "Agus T. aprobó préstamo de proyector"},
-                {"Ayer", "Tito P. aprobó préstamo de proyector"},}) {
-            list.add(activityRow(row[0], row[1]));
-            list.add(divider());
-        }
+        actividadList = new JPanel();
+        actividadList.setOpaque(false);
+        actividadList.setLayout(new BoxLayout(actividadList, BoxLayout.Y_AXIS));
 
-        card.add(list, BorderLayout.CENTER);
+        card.add(actividadList, BorderLayout.CENTER);
         return card;
     }
 
-    private CardPanel priorityCard() {
-        CardPanel card = new CardPanel();
-        card.setLayout(new BorderLayout(0, 12));
-        card.add(sectionTitle("Tareas prioritarias"), BorderLayout.NORTH);
-
-        JPanel list = new JPanel();
-        list.setOpaque(false);
-        list.setLayout(new BoxLayout(list, BoxLayout.Y_AXIS));
-        list.add(priorityRow("Revisar solicitud de préstamo de proyector", true));
-        list.add(priorityRow("Aprobar orden #2034-08", false));
-        list.add(priorityRow("Aprobar orden #2034-09", false));
-
-        card.add(list, BorderLayout.CENTER);
-        return card;
-    }
-
-    /* ====================  “Trámites recientes” dinámico  ==================== */
-
-    private CardPanel recentTramitesCard() {
-        CardPanel card = new CardPanel();
-        card.setLayout(new BorderLayout(0, 12));
-        card.add(sectionTitle("Trámites recientes"), BorderLayout.NORTH);
-
-        recientesList = new JPanel();
-        recientesList.setOpaque(false);
-        recientesList.setLayout(new BoxLayout(recientesList, BoxLayout.Y_AXIS));
-        recientesList.setBorder(new EmptyBorder(10, 10, 10, 10)); 
-
-
-        JButton link = subtleLink("Ver historial completo");
-        link.addActionListener(e -> navigateOrInfo("tramites"));
-
-        // inicial: el contenido real lo carga recargarTramitesRecientes()
-        recientesList.add(Box.createVerticalStrut(12));
-        recientesList.add(link);
-
-        card.add(recientesList, BorderLayout.CENTER);
-        return card;
-    }
-
-    /** Público: refresca el listado de recientes desde TramiteService. */
+    /** Público: refresca la tarjeta de actividad desde TramiteService. */
     public void recargarTramitesRecientes() {
-        if (recientesList == null) return;
-
-        // preservar el link final
-        Component last = recientesList.getComponent(recientesList.getComponentCount() - 1);
-        recientesList.removeAll();
-
-        try {
-            List<Tramite> ult = (tramiteService != null)
-                    ? tramiteService.tramitesRecientes(3)
-                    : java.util.List.of();
-
-            for (Tramite t : ult) {
-                String asunto = "Asunto: " + (t.getAsunto() == null ? "-" : t.getAsunto());
-                String estado = "Estado: " + (t.getEstado() == null ? "-" : t.getEstado().toUpperCase(Locale.ROOT));
-
-                String badgeTxt = estadoFriendly(t.getEstado());
-                Color badgeColor = switch (badgeTxt.toLowerCase(Locale.ROOT)) {
-                    case "completado" -> new Color(73, 198, 154);
-                    case "en proceso" -> new Color(86, 127, 255);
-                    default -> new Color(255, 170, 70); // pendiente
-                };
-
-                recientesList.add(recentItem(asunto, estado, badgeTxt, badgeColor));
-                recientesList.add(Box.createVerticalStrut(6));
-            }
-        } catch (Exception ignored) {
-            // si falla, lo dejamos vacío y no rompemos la pantalla
-        }
-
-        recientesList.add(Box.createVerticalStrut(12));
-        recientesList.add(last);
-        recientesList.revalidate();
-        recientesList.repaint();
+        refrescarActividadReciente();
     }
 
     /* =========================  Resto de helpers/estilos  ========================= */
@@ -423,20 +286,6 @@ public class HomePage extends JPanel {
         lbl.setFont(new Font("Segoe UI", Font.BOLD, 16));
         lbl.setForeground(new Color(35, 55, 110));
         return lbl;
-    }
-
-    private Component eventRow(String title, String subtitle) {
-        JPanel row = new JPanel(new BorderLayout());
-        row.setOpaque(false);
-        JLabel lblTitle = new JLabel(title);
-        lblTitle.setFont(new Font("Segoe UI", Font.BOLD, 14));
-        lblTitle.setForeground(new Color(40, 56, 120));
-        JLabel lblSubtitle = new JLabel(subtitle);
-        lblSubtitle.setFont(new Font("Segoe UI", Font.PLAIN, 12));
-        lblSubtitle.setForeground(new Color(120, 136, 180));
-        row.add(lblTitle, BorderLayout.NORTH);
-        row.add(lblSubtitle, BorderLayout.SOUTH);
-        return row;
     }
 
     private Component activityRow(String when, String description) {
@@ -453,15 +302,6 @@ public class HomePage extends JPanel {
         return row;
     }
 
-    private Component priorityRow(String text, boolean completed) {
-        JCheckBox check = new JCheckBox(text);
-        check.setOpaque(false);
-        check.setSelected(completed);
-        check.setFont(new Font("Segoe UI", Font.PLAIN, 13));
-        check.setForeground(new Color(45, 63, 120));
-        return check;
-    }
-
     private JSeparator divider() {
         JSeparator sep = new JSeparator();
         sep.setForeground(new Color(230, 236, 250));
@@ -469,91 +309,123 @@ public class HomePage extends JPanel {
         return sep;
     }
 
-    private CardPanel buildQuickActions() {
-        CardPanel card = new CardPanel();
-        card.setLayout(new BorderLayout(0, 18));
-        card.add(sectionTitle("Accesos rápidos"), BorderLayout.NORTH);
-
-        JPanel buttons = new JPanel(new FlowLayout(FlowLayout.LEFT, 16, 0));
-        buttons.setOpaque(false);
-
-        JButton btnTramite = primaryButton("Registrar nuevo trámite");
-        btnTramite.addActionListener(e -> navigateOrInfo("tramites"));
-
-        JButton btnOC = secondaryButton("Generar orden de compra");
-        btnOC.addActionListener(e -> navigateOrInfo("finanzas"));
-
-        JButton btnReportes = secondaryButton("Ver reportes");
-        btnReportes.addActionListener(e -> navigateOrInfo("reportes"));
-
-        buttons.add(btnTramite);
-        buttons.add(btnOC);
-        buttons.add(btnReportes);
-        card.add(buttons, BorderLayout.CENTER);
-
-        JLabel footer = new JLabel("" + LocalDate.now().format(friendlyDate));
-        footer.setForeground(new Color(125, 139, 170));
-        footer.setFont(new Font("Segoe UI", Font.PLAIN, 12));
-        card.add(footer, BorderLayout.SOUTH);
-        return card;
-    }
-
-    private JButton primaryButton(String text) {
-        JButton b = new JButton(text);
-        b.setFocusPainted(false);
-        b.setFont(new Font("Segoe UI", Font.BOLD, 14));
-        b.setForeground(Color.WHITE);
-        b.setBackground(new Color(52, 99, 240));
-        b.setBorder(BorderFactory.createEmptyBorder(10, 20, 10, 20));
-        b.putClientProperty("JButton.buttonType", "roundRect");
-        return b;
-    }
-
-    private JButton secondaryButton(String text) {
-        JButton b = new JButton(text);
-        b.setFocusPainted(false);
-        b.setFont(new Font("Segoe UI", Font.PLAIN, 14));
-        b.setForeground(new Color(52, 99, 240));
-        b.setBackground(new Color(231, 238, 255));
-        b.setBorder(BorderFactory.createEmptyBorder(10, 20, 10, 20));
-        b.putClientProperty("JButton.buttonType", "roundRect");
-        return b;
-    }
-
     /* =========================  Lógica dinámica ========================= */
 
-/** Refresca las métricas del dashboard. */
-public void refreshMetrics() {
-    // Mock inicial
-    lblTareasPend.setText("7");
-    lblAprobPend.setText("3");
+    /** Refresca las métricas del dashboard. */
+    public void refreshMetrics() {
+        int tareasPendientes = 0;
+        int aprobPendientes = 0;
 
-    // Insumos críticos (stockActual < stockMinimo)
-    if (inventarioService != null) {
-        try {
-            List<Insumo> insumos = inventarioService.listarTodos();
-            int criticos = 0;
-            for (Insumo i : insumos) {
-                Integer min = i.getStockMinimo();
-                if (min == null) continue;
+        if (tramiteService != null) {
+            try {
+                List<Tramite> tramites = tramiteService.listarTodos();
+                tareasPendientes = (int) tramites.stream()
+                        .filter(t -> {
+                            String estado = t.getEstado();
+                            if (estado == null) return true;
+                            String up = estado.trim().toUpperCase(Locale.ROOT);
+                            return !up.equals("COMPLETADO") && !up.equals("CERRADO");
+                        })
+                        .count();
 
-                int actual;
-                try {
-                    actual = inventarioService.stockActual(i.getId() != null ? i.getId().longValue() : 0L);
-                } catch (Exception ex) {
-                    actual = 0;
-                }
-                if (actual < min) criticos++;
+                aprobPendientes = (int) tramites.stream()
+                        .filter(t -> {
+                            String estado = t.getEstado();
+                            if (estado == null) return false;
+                            String up = estado.trim().toUpperCase(Locale.ROOT);
+                            return up.equals("PENDIENTE") || up.equals("NUEVO");
+                        })
+                        .count();
+            } catch (Exception ignored) {
+                // mantenemos valores anteriores ante errores
             }
-            lblInsumosCriticos.setText(String.valueOf(criticos)); // <— OJO: 'criticos' sin cortes
-        } catch (Exception ex) {
-            // si falla, conservamos el último valor visible
+        }
+
+        lblTareasPend.setText(String.valueOf(tareasPendientes));
+        lblAprobPend.setText(String.valueOf(aprobPendientes));
+
+        int criticos = 0;
+        int totalStock = 0;
+
+        if (inventarioService != null) {
+            try {
+                List<Insumo> insumos = inventarioService.listarTodos();
+                for (Insumo i : insumos) {
+                    Integer min = i.getStockMinimo();
+                    Long id = i.getId();
+                    int actual = 0;
+                    if (id != null) {
+                        try {
+                            actual = inventarioService.stockActual(id);
+                        } catch (Exception ex) {
+                            actual = 0;
+                        }
+                    }
+                    if (min != null && actual < min) {
+                        criticos++;
+                    }
+                    totalStock += Math.max(0, actual);
+                }
+            } catch (Exception ignored) {
+                // dejamos los valores previos si algo falla
+            }
+        }
+
+        lblInsumosCriticos.setText(String.valueOf(criticos));
+        updateAlertStock(criticos);
+
+        NumberFormat nf = NumberFormat.getIntegerInstance(new Locale("es", "AR"));
+        lblBalance.setText(nf.format(totalStock) + " u.");
+    }
+
+    private void updateAlertStock(int criticos) {
+        if (lblAlertStock != null) {
+            lblAlertStock.setText("Insumos con stock mínimo: " + criticos);
         }
     }
 
-    // Balance dpto (placeholder)
-    lblBalance.setText("$145.200");
-}
+    private void refrescarActividadReciente() {
+        if (actividadList == null) return;
+
+        Runnable task = () -> {
+            actividadList.removeAll();
+
+            List<Tramite> ultimos = List.of();
+            if (tramiteService != null) {
+                try {
+                    ultimos = tramiteService.tramitesRecientes(5);
+                } catch (Exception ignored) {
+                    ultimos = List.of();
+                }
+            }
+
+            if (ultimos.isEmpty()) {
+                JLabel empty = new JLabel("Sin actividad reciente");
+                empty.setFont(new Font("Segoe UI", Font.ITALIC, 13));
+                empty.setForeground(new Color(120, 136, 180));
+                actividadList.add(empty);
+            } else {
+                for (int i = 0; i < ultimos.size(); i++) {
+                    Tramite t = ultimos.get(i);
+                    String when = tiempoRelativo(t.getFecha());
+                    String desc = descripcionActividad(t);
+                    actividadList.add(activityRow(when, desc));
+                    if (i < ultimos.size() - 1) {
+                        actividadList.add(divider());
+                    }
+                }
+            }
+
+            actividadList.revalidate();
+            actividadList.repaint();
+        };
+
+        if (SwingUtilities.isEventDispatchThread()) {
+            task.run();
+        } else {
+            SwingUtilities.invokeLater(task);
+        }
+    }
 
 
     /** Navega usando el callback, o informa si no está configurado. */
@@ -571,78 +443,50 @@ public void refreshMetrics() {
 
     /* =========================  Sub-helpers visuales  ========================= */
 
-    private JLabel sideTitle(String text) {
-        JLabel lbl = new JLabel(text);
-        lbl.setFont(new Font("Segoe UI", Font.BOLD, 14));
-        lbl.setForeground(new Color(54, 92, 190));
-        return lbl;
-    }
-
-    private Component recentItem(String title, String subtitle, String badge, Color badgeColor) {
-        JPanel row = new JPanel(new BorderLayout());
-        row.setOpaque(false);
-        JLabel lblTitle = new JLabel(title);
-        lblTitle.setFont(new Font("Segoe UI", Font.BOLD, 13));
-        lblTitle.setForeground(new Color(43, 57, 120));
-        JLabel lblSubtitle = new JLabel(subtitle);
-        lblSubtitle.setFont(new Font("Segoe UI", Font.PLAIN, 12));
-        lblSubtitle.setForeground(new Color(118, 133, 182));
-
-        JPanel left = new JPanel();
-        left.setOpaque(false);
-        left.setLayout(new BoxLayout(left, BoxLayout.Y_AXIS));
-        left.add(lblTitle);
-        left.add(Box.createVerticalStrut(4));
-        left.add(lblSubtitle);
-
-        JLabel badgeLabel = new JLabel(badge);
-        badgeLabel.setOpaque(true);
-        badgeLabel.setBackground(badgeColor);
-        badgeLabel.setForeground(Color.WHITE);
-        badgeLabel.setFont(new Font("Segoe UI", Font.BOLD, 11));
-        badgeLabel.setBorder(new EmptyBorder(4, 12, 4, 12));
-        badgeLabel.setHorizontalAlignment(SwingConstants.CENTER);
-        badgeLabel.setAlignmentY(Component.TOP_ALIGNMENT);
-
-        row.add(left, BorderLayout.CENTER);
-        row.add(badgeLabel, BorderLayout.EAST);
-        row.setBorder(new EmptyBorder(4, 0, 4, 0));
-        return row;
-    }
-    
     private String estadoFriendly(String estado) {
-    if (estado == null) return "Pendiente";
-    switch (estado.toUpperCase(java.util.Locale.ROOT)) {
-        case "COMPLETADO":
-        case "CERRADO":
-            return "Completado";
-        case "EN_PROCESO":
-            return "En proceso";
-        case "ALTA":
-            return "Alta";
-        case "PENDIENTE":
-            return "Pendiente";
-        default:
-            return capitalize(estado);
+        if (estado == null) return "Pendiente";
+        switch (estado.toUpperCase(Locale.ROOT)) {
+            case "COMPLETADO":
+            case "CERRADO":
+                return "Completado";
+            case "EN_PROCESO":
+                return "En proceso";
+            case "ALTA":
+                return "Alta";
+            case "PENDIENTE":
+                return "Pendiente";
+            default:
+                return capitalize(estado);
+        }
     }
-}
 
-private String capitalize(String t) {
-    if (t == null || t.isEmpty()) return "";
-    return t.substring(0, 1).toUpperCase(java.util.Locale.ROOT)
-            + t.substring(1).toLowerCase(java.util.Locale.ROOT);
-}
+    private String capitalize(String t) {
+        if (t == null || t.isEmpty()) return "";
+        return t.substring(0, 1).toUpperCase(Locale.ROOT)
+                + t.substring(1).toLowerCase(Locale.ROOT);
+    }
 
-private JButton subtleLink(String text) {
-    JButton b = new JButton(text);
-    b.setContentAreaFilled(false);
-    b.setBorderPainted(false);
-    b.setFocusPainted(false);
-    b.setHorizontalAlignment(SwingConstants.LEFT);
-    b.setForeground(new Color(68, 105, 220));
-    b.setFont(new Font("Segoe UI", Font.BOLD, 12));
-    return b;
-}
+    private String tiempoRelativo(LocalDateTime fecha) {
+        if (fecha == null) return "-";
+        Duration dur = Duration.between(fecha, LocalDateTime.now());
+        long minutos = dur.toMinutes();
+        if (minutos < 1) return "Hace instantes";
+        if (minutos < 60) return "Hace " + minutos + " min";
+        long horas = dur.toHours();
+        if (horas < 24) return "Hace " + horas + " h";
+        long dias = dur.toDays();
+        if (dias == 1) return "Ayer";
+        if (dias < 7) return "Hace " + dias + " días";
+        return fecha.format(DateTimeFormatter.ofPattern("dd/MM/yyyy"));
+    }
 
-
+    private String descripcionActividad(Tramite t) {
+        String nro = (t.getNro() == null || t.getNro().isBlank()) ? "-" : t.getNro();
+        String asunto = (t.getAsunto() == null || t.getAsunto().isBlank()) ? "Trámite sin asunto" : t.getAsunto();
+        String estado = estadoFriendly(t.getEstado());
+        String solicitante = (t.getSolicitante() == null || t.getSolicitante().isBlank())
+                ? ""
+                : " · " + t.getSolicitante();
+        return "#" + nro + " - " + asunto + " (" + estado + ")" + solicitante;
+    }
 }
