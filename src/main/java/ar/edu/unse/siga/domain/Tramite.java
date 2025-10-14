@@ -10,12 +10,13 @@ public class Tramite {
     private String estado; // p.ej. NUEVO, EN_PROCESO, CERRADO
     private LocalDateTime fecha;
     private String solicitante;
-    private String descripcion; //7
-    private String destino; //8
-    
+    private String descripcion;
+    private String destino;
+
 
     public Tramite() {}
-
+    public String getDescripcion() { return descripcion; }
+    public void setDescripcion(String descripcion) { this.descripcion = descripcion; }
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
     public String getNro() { return nro; }
@@ -28,11 +29,15 @@ public class Tramite {
     public void setFecha(LocalDateTime fecha) { this.fecha = fecha; }
     public String getSolicitante() { return solicitante; }
     public void setSolicitante(String solicitante) { this.solicitante = solicitante; }
-    public String getDescripcion() {return descripcion;}
-    public void setDescripcion(String descripcion) {this.descripcion = descripcion;}
-    public String getDestino() {return destino;}
-    public void setDestino(String destino) {this.destino = destino;}
 
+    public String getDestino() {
+        return destino;
+    }
+
+    public void setDestino(String destino) {
+        this.destino = destino;
+    }
+    
     @Override public boolean equals(Object o) {
         if (this == o) return true;
         if (!(o instanceof Tramite)) return false;
@@ -43,7 +48,7 @@ public class Tramite {
     @Override public int hashCode() { return Objects.hash(id, nro); }
 
     @Override public String toString() {
-        return "Tramite{id=" + id + ", nro='" + nro + "', asunto='" + asunto + "', estado='" + estado + "', descripcion= " + descripcion+ "destino= " +destino ;
+        return "Tramite{id=" + id + ", nro='" + nro + "', asunto='" + asunto + "', estado='" + estado + "'}";
     }
 }
 

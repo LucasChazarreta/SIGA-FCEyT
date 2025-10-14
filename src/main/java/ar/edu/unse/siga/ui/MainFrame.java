@@ -13,6 +13,7 @@ import ar.edu.unse.siga.ui.reportes.ReporteMovimientosDialog;
 import ar.edu.unse.siga.ui.tramites.TramiteFrame;
 import ar.edu.unse.siga.ui.usuarios.UsuarioFrame;
 import ar.edu.unse.siga.config.AppServices;
+import ar.edu.unse.siga.persistence.jdbc.JdbcCategoriaDao;
 
 import javax.swing.*;
 import java.awt.*;
@@ -165,18 +166,20 @@ public class MainFrame extends JFrame {
         f.setVisible(true);
     }
 
-    // Wiring por defecto (si alguien da run a este frame directo)
-    public static MainFrame defaultWired() {
-        // DAOs
-        InsumoDao insumoDao = new JdbcInsumoDao();
-        MovimientoDao movDao = new JdbcMovimientoDao();
-        UsuarioDao usuarioDao = new JdbcUsuarioDao();
-        TramiteDao tramiteDao = new JdbcTramiteDao();
-        // Services
-        AuthService auth = new AuthService(usuarioDao);
-        var inv = new InventarioService(insumoDao);
-        inv.setMovimientoDao(movDao);
-        var tra = new TramiteService(tramiteDao);
-        return new MainFrame(inv, tra, auth);
-    }
+// Wiring por defecto (si alguien da run a este frame directo)
+public static MainFrame defaultWired() {
+    // DAOs
+    UsuarioDao usuarioDao = new JdbcUsuarioDao();
+    TramiteDao tramiteDao = new JdbcTramiteDao();
+
+    // Services
+    AuthService auth = new AuthService(usuarioDao);
+
+    // Inventario y Trámite salen de AppServices
+    var inv = AppServices.inventario();
+    var tra = AppServices.tramite();
+
+    return new MainFrame(inv, tra, auth);
+}
+
 }

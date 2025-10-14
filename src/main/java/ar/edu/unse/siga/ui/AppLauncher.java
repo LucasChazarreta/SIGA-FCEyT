@@ -6,6 +6,7 @@ import ar.edu.unse.siga.persistence.jdbc.*;
 import ar.edu.unse.siga.service.AuthService;
 import ar.edu.unse.siga.service.InventarioService;
 import ar.edu.unse.siga.service.TramiteService;
+import ar.edu.unse.siga.persistence.jdbc.JdbcCategoriaDao;  
 
 import javax.swing.*;
 
@@ -22,9 +23,11 @@ public class AppLauncher {
 
         // Services
         AuthService auth = new AuthService(usuarioDao);
-        InventarioService inv = new InventarioService(insumoDao);
-        inv.setMovimientoDao(movDao);
+var categoriaDao = new JdbcCategoriaDao();
+InventarioService inv = new InventarioService(insumoDao, movDao, categoriaDao);
         TramiteService tra = new TramiteService(tramiteDao);
+        
+        
 
         // Login (nueva pantalla)
         var login = new LoginScreen(null, auth);
@@ -40,8 +43,12 @@ public class AppLauncher {
         main.setVisible(true);
 
     }
+    
+    
 
     public static void main(String[] args) {
         SwingUtilities.invokeLater(AppLauncher::launch);
     }
+    
+    
 }

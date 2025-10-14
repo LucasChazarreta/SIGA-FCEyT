@@ -4,8 +4,11 @@ import ar.edu.unse.siga.domain.Tramite;
 import ar.edu.unse.siga.persistence.dao.TramiteDao;
 
 import java.time.LocalDateTime;
+import java.util.Comparator;
 import java.util.List;
+import java.util.Locale;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 public class TramiteService {
 
@@ -36,27 +39,40 @@ public class TramiteService {
         t.setDestino(destino);        
         t.setEstado("NUEVO");
         t.setFecha(LocalDateTime.now());
+        t.setDescripcion(descripcion != null ? descripcion.trim() : null);
+        t.setDestino(destino != null && !destino.isBlank() ? destino.trim() : "Secretaria FCEyT");
+
         return tramiteDao.create(t);
     }
 
-    public void cambiarEstado(Long id, String nuevoEstado) {
-        if (nuevoEstado == null || nuevoEstado.isBlank()) {
-            throw new IllegalArgumentException("Estado inválido");
-        }
-        tramiteDao.updateEstado(id, nuevoEstado);
+    private String canonicalEstado(String estado) {
+        if (estado == null || estado.isBlank()) throw new IllegalArgumentException("Estado inválido");
+        String e = estado.trim().toUpperCase(Locale.ROOT);
+        return switch (e) {
+            case "EN PROCESO" -> "EN_PROCESO";
+            case "COMPLETADO" -> "COMPLETADO";
+            case "PENDIENTE"  -> "PENDIENTE";
+            case "EN_PROCESO", "CERRADO" -> e;
+            default -> e;
+        };
     }
 
-    public Optional<Tramite> buscarPorNro(String nro) {
-        return tramiteDao.findByNro(nro);
+    public void actualizarEstado(Long id, String nuevoEstado) {
+        tramiteDao.updateEstado(id, canonicalEstado(nuevoEstado));
     }
 
-    public List<Tramite> listarTodos() {
-        return tramiteDao.listAll();
+    public void actualizarEstadoPorNro(String nro, String nuevoEstado) {
+        if (nro == null || nro.isBlank()) throw new IllegalArgumentException("Nro inválido");
+        tramiteDao.updateEstadoByNro(nro, canonicalEstado(nuevoEstado));
     }
 
-    public int totalTramites() {
-        return listarTodos().size();
-    }
+    public Optional<Tramite> buscarPorNro(String nro) { return tramiteDao.findByNro(nro); }
+
+    public List<Tramite> listarTodos() { return tramiteDao.listAll(); }
+
+    public List<Tramite> listarActivos() { return tramiteDao.listActivos(); }
+
+    public int totalTramites() { return listarTodos().size(); }
 
     public int totalPendientes() {
         return (int) listarTodos().stream()
@@ -64,4 +80,13 @@ public class TramiteService {
                 .count();
     }
 
+    // ====== NUEVO: últimos N trámites (por fecha descendente) ======
+// En TramiteService
+public java.util.List<Tramite> tramitesRecientes(int limit) {
+    return tramiteDao.listRecientes(limit); // requiere Dao (paso 2)
+}
+
+
+    
+    
 }

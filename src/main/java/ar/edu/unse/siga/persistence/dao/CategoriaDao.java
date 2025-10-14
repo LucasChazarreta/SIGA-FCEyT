@@ -15,5 +15,8 @@ public interface CategoriaDao {
     boolean deleteIfOrphan(int id);   // true si borró, false si tenía insumos asociados
 
     int countUsos(int id);            // cuántos insumos referencian esta categoría
+    
+    List<Categoria> findAllOrderByNombre();
+
 
 }
