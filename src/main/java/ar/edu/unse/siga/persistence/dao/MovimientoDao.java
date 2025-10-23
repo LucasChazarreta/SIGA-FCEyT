@@ -10,10 +10,12 @@ public interface MovimientoDao {
     // ya lo agregamos antes:
     java.util.List<Movimiento> ultimosPorInsumo(long insumoId, int limit);
 
-    // NUEVO: consultar stock actual de un insumo
-    int stockActual(long insumoId);
-    // Totales por insumo
-int totalEntradas(long insumoId);
-int totalSalidas(long insumoId);
+    java.math.BigDecimal stockActual(long insumoId);
+    java.math.BigDecimal totalEntradas(long insumoId);
+    java.math.BigDecimal totalSalidas(long insumoId);
+
+    java.util.List<Movimiento> buscarPorFechaYTipo(java.time.LocalDateTime desde,
+                                                   java.time.LocalDateTime hasta,
+                                                   String tipo);
 
 }

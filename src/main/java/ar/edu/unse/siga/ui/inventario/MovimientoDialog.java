@@ -1,163 +1,163 @@
 package ar.edu.unse.siga.ui.inventario;
 
+import ar.edu.unse.siga.ui.base.CardPanel;
+
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
-import javax.swing.text.DefaultFormatterFactory;
-import javax.swing.text.NumberFormatter;
 import java.awt.*;
-import java.text.DecimalFormat;
-import java.text.ParseException;
+import java.math.BigDecimal;
+import java.util.List;
 
-/**
- * Diálogo reutilizable para registrar un movimiento (ENTRADA / SALIDA).
- * - Campo Cantidad SOLO numérico (1 .. 1_000_000)
- * - Muestra "Destino/Fuente" SOLO cuando el tipo es SALIDA
- */
 public class MovimientoDialog extends JDialog {
 
     private final JLabel lblContexto = new JLabel();
-    private final JComboBox<String> cbTipo = new JComboBox<>(new String[]{"ENTRADA", "SALIDA"});
-    private final JSpinner spCantidad = new JSpinner(new SpinnerNumberModel(1, 1, 1_000_000, 1));
+    private final JLabel lblTipo = new JLabel();
+    private final JTextField txtCantidad = new JTextField();
+    private final JComboBox<String> cbDestino = new JComboBox<>();
 
-    // Campo condicional (solo visible para SALIDA)
-    private final JLabel lblDestino = new JLabel("Destino/Fuente:");
-    private final JComboBox<String> cbDestino = new JComboBox<>(new String[]{
-            "Sede Central",
-            "Sede Zanjón",
-            "Sede Parque Industrial"
-    });
-
+    private final String tipoMovimiento;
+    private final boolean allowDecimal;
     private boolean accepted = false;
-    private final JPanel panel = new JPanel(new GridLayout(0, 2, 8, 8));
 
-    public MovimientoDialog(Window owner) {
-        this(owner, null, "ENTRADA", null, 1);
-    }
+    public MovimientoDialog(Window owner,
+                            String contexto,
+                            String tipoMovimiento,
+                            boolean allowDecimal,
+                            List<String> ubicaciones) {
+        super(owner, "Registrar " + tipoMovimiento, ModalityType.APPLICATION_MODAL);
+        this.tipoMovimiento = tipoMovimiento == null ? "ENTRADA" : tipoMovimiento.trim().toUpperCase();
+        this.allowDecimal = allowDecimal;
 
-    public MovimientoDialog(Window owner, String contexto, String tipoInicial, String destinoInicial, int cantidadInicial) {
-        super(owner, "Registrar Movimiento", ModalityType.APPLICATION_MODAL);
         setLayout(new BorderLayout(10, 10));
+        setMinimumSize(new Dimension(420, 220));
 
-        // --- encabezado opcional ---
         if (contexto != null && !contexto.isBlank()) {
             lblContexto.setText(contexto);
-            lblContexto.setFont(lblContexto.getFont().deriveFont(Font.BOLD));
-            lblContexto.setBorder(new EmptyBorder(10, 12, 0, 12));
+            lblContexto.setBorder(new EmptyBorder(12, 16, 0, 16));
             add(lblContexto, BorderLayout.NORTH);
         }
 
-        // --- panel central ---
-        panel.setBorder(new EmptyBorder(12, 16, 0, 16));
-        panel.add(new JLabel("Tipo:"));
-        panel.add(cbTipo);
-        panel.add(new JLabel("Cantidad:"));
-        panel.add(spCantidad);
+        CardPanel panel = new CardPanel();
+        panel.setLayout(new GridBagLayout());
+        panel.setBorder(new EmptyBorder(16, 16, 0, 16));
 
-        // campo destino (solo se añade si tipo = SALIDA)
-        cbDestino.setEditable(false);
-        panel.add(lblDestino);
-        panel.add(cbDestino);
+        GridBagConstraints gc = new GridBagConstraints();
+        gc.gridx = 0;
+        gc.gridy = 0;
+        gc.anchor = GridBagConstraints.LINE_START;
+        gc.insets = new Insets(0, 0, 10, 0);
+
+        lblTipo.setText("Tipo: " + this.tipoMovimiento);
+        lblTipo.setFont(lblTipo.getFont().deriveFont(Font.BOLD));
+        panel.add(lblTipo, gc);
+
+        gc.gridy++;
+        panel.add(label("Cantidad"), gc);
+
+        gc.gridx = 1;
+        gc.fill = GridBagConstraints.HORIZONTAL;
+        gc.weightx = 1;
+        txtCantidad.putClientProperty("JTextField.placeholderText", allowDecimal ? "Ej: 3.5" : "Ej: 2");
+        panel.add(txtCantidad, gc);
+
+        if (esSalida()) {
+            gc.gridx = 0;
+            gc.gridy++;
+            gc.weightx = 0;
+            gc.fill = GridBagConstraints.NONE;
+            panel.add(label("Destino"), gc);
+
+            gc.gridx = 1;
+            gc.fill = GridBagConstraints.HORIZONTAL;
+            gc.weightx = 1;
+            cbDestino.putClientProperty("JComponent.roundRect", true);
+            panel.add(cbDestino, gc);
+
+            if (ubicaciones != null && !ubicaciones.isEmpty()) {
+                ubicaciones.forEach(cbDestino::addItem);
+            }
+        }
 
         add(panel, BorderLayout.CENTER);
 
-        // === Editor numérico ESTRICTO ===
-        JSpinner.NumberEditor numEd = new JSpinner.NumberEditor(spCantidad, "#");
-        spCantidad.setEditor(numEd);
-        JFormattedTextField tf = numEd.getTextField();
+        JButton btnAceptar = new JButton("Registrar");
+        JButton btnCancelar = new JButton("Cancelar");
+        Dimension size = new Dimension(130, 36);
+        btnAceptar.setPreferredSize(size);
+        btnCancelar.setPreferredSize(size);
 
-        NumberFormatter nf = new NumberFormatter(new DecimalFormat("#"));
-        nf.setValueClass(Integer.class);
-        nf.setAllowsInvalid(false);
-        nf.setCommitsOnValidEdit(true);
-        nf.setMinimum(1);
-        nf.setMaximum(1_000_000);
-
-        tf.setFormatterFactory(new DefaultFormatterFactory(nf));
-        tf.setColumns(8);
-
-        // --- botones ---
-        var ok = new JButton("Registrar");
-        var cancel = new JButton("Cancelar");
-        ok.setPreferredSize(new Dimension(110, 30));
-        cancel.setPreferredSize(new Dimension(110, 30));
-
-        ok.addActionListener(e -> {
-            accepted = true;
-            setVisible(false);
+        btnAceptar.addActionListener(e -> {
+            if (validarCantidad()) {
+                accepted = true;
+                setVisible(false);
+            }
         });
-        cancel.addActionListener(e -> setVisible(false));
+        btnCancelar.addActionListener(e -> setVisible(false));
 
-        var south = new JPanel(new FlowLayout(FlowLayout.RIGHT));
-        south.setBorder(new EmptyBorder(8, 8, 8, 8));
-        south.add(cancel);
-        south.add(ok);
+        JPanel south = new JPanel(new FlowLayout(FlowLayout.RIGHT));
+        south.setBorder(new EmptyBorder(0, 0, 12, 12));
+        south.add(btnCancelar);
+        south.add(btnAceptar);
         add(south, BorderLayout.SOUTH);
 
-        // --- valores iniciales ---
-        if (tipoInicial != null) {
-            cbTipo.setSelectedItem(tipoInicial);
-        }
-        if (destinoInicial != null) {
-            cbDestino.setSelectedItem(destinoInicial);
-        }
-        if (cantidadInicial > 0) {
-            spCantidad.setValue(cantidadInicial);
-        }
-
-        // comportamiento dinámico
-        cbTipo.addItemListener(e -> actualizarVisibilidadDestino());
-        actualizarVisibilidadDestino(); // inicial
-
-        setMinimumSize(new Dimension(680, getMinimumSize().height));
         pack();
         setLocationRelativeTo(owner);
     }
 
-    // ==== lógica para mostrar u ocultar el campo destino ====
-    private void actualizarVisibilidadDestino() {
-        String tipo = (String) cbTipo.getSelectedItem();
-        boolean esSalida = "SALIDA".equalsIgnoreCase(tipo);
-
-        lblDestino.setVisible(esSalida);
-        cbDestino.setVisible(esSalida);
-
-        // refresca la UI sin necesidad de recrear todo
-        panel.revalidate();
-        panel.repaint();
+    private JLabel label(String text) {
+        JLabel lbl = new JLabel(text);
+        lbl.setFont(lbl.getFont().deriveFont(Font.PLAIN, 12f));
+        return lbl;
     }
 
-    // ==== getters / setters ====
+    private boolean esSalida() {
+        return "SALIDA".equalsIgnoreCase(tipoMovimiento);
+    }
+
+    private boolean validarCantidad() {
+        try {
+            BigDecimal qty = getCantidad();
+            if (qty.compareTo(BigDecimal.ZERO) <= 0) {
+                JOptionPane.showMessageDialog(this, "La cantidad debe ser mayor a cero.", "Atención", JOptionPane.WARNING_MESSAGE);
+                return false;
+            }
+            if (!allowDecimal && qty.stripTrailingZeros().scale() > 0) {
+                JOptionPane.showMessageDialog(this, "La cantidad debe ser un entero.", "Atención", JOptionPane.WARNING_MESSAGE);
+                return false;
+            }
+            return true;
+        } catch (IllegalArgumentException ex) {
+            JOptionPane.showMessageDialog(this, ex.getMessage(), "Atención", JOptionPane.WARNING_MESSAGE);
+            return false;
+        }
+    }
+
     public boolean isAccepted() {
         return accepted;
     }
 
     public String getTipo() {
-        return (String) cbTipo.getSelectedItem();
+        return tipoMovimiento;
     }
 
-    public int getCantidad() {
+    public BigDecimal getCantidad() {
+        String text = txtCantidad.getText();
+        if (text == null || text.isBlank()) {
+            throw new IllegalArgumentException("Ingresá una cantidad válida.");
+        }
         try {
-            JComponent ed = spCantidad.getEditor();
-            if (ed instanceof JSpinner.DefaultEditor de) {
-                de.commitEdit();
-            }
-        } catch (ParseException ignore) {}
-        return ((Number) spCantidad.getValue()).intValue();
+            String normalized = text.replace(',', '.');
+            return new BigDecimal(normalized).stripTrailingZeros();
+        } catch (NumberFormatException ex) {
+            throw new IllegalArgumentException("Cantidad inválida.");
+        }
     }
 
     public String getDestinoFuente() {
-        String tipo = (String) cbTipo.getSelectedItem();
-        if ("SALIDA".equalsIgnoreCase(tipo)) {
-            return (String) cbDestino.getSelectedItem();
+        if (!esSalida()) {
+            return "";
         }
-        return ""; // si es entrada, devuelve vacío
-    }
-
-    public void setContexto(String texto) {
-        lblContexto.setText(texto);
-    }
-
-    public void setCantidad(int cant) {
-        spCantidad.setValue(Math.max(1, cant));
+        Object sel = cbDestino.getSelectedItem();
+        return sel == null ? "" : sel.toString();
     }
 }

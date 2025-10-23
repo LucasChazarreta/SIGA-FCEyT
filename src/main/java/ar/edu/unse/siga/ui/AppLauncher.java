@@ -6,7 +6,8 @@ import ar.edu.unse.siga.persistence.jdbc.*;
 import ar.edu.unse.siga.service.AuthService;
 import ar.edu.unse.siga.service.InventarioService;
 import ar.edu.unse.siga.service.TramiteService;
-import ar.edu.unse.siga.persistence.jdbc.JdbcCategoriaDao;  
+import ar.edu.unse.siga.persistence.jdbc.JdbcCategoriaDao;
+import ar.edu.unse.siga.persistence.jdbc.JdbcUbicacionDao;
 
 import javax.swing.*;
 
@@ -20,11 +21,12 @@ public class AppLauncher {
         MovimientoDao movDao = new JdbcMovimientoDao();
         UsuarioDao usuarioDao = new JdbcUsuarioDao();
         TramiteDao tramiteDao = new JdbcTramiteDao();
+        CategoriaDao categoriaDao = new JdbcCategoriaDao();
+        UbicacionDao ubicacionDao = new JdbcUbicacionDao();
 
         // Services
         AuthService auth = new AuthService(usuarioDao);
-var categoriaDao = new JdbcCategoriaDao();
-InventarioService inv = new InventarioService(insumoDao, movDao, categoriaDao);
+        InventarioService inv = new InventarioService(insumoDao, movDao, categoriaDao, ubicacionDao);
         TramiteService tra = new TramiteService(tramiteDao);
         
         

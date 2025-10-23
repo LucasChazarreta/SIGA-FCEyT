@@ -14,6 +14,7 @@ import javax.swing.filechooser.FileNameExtensionFilter;
 import javax.swing.table.*;
 import javax.swing.text.MaskFormatter;
 import java.awt.*;
+import java.math.BigDecimal;
 import java.lang.reflect.Method;
 import java.text.ParseException;
 import java.time.LocalDate;
@@ -60,6 +61,7 @@ public class InformesPanel extends JPanel {
     private final JComboBox<Categoria> cbCategoria = new JComboBox<>();
     private final DateField dfDesde = new DateField();
     private final DateField dfHasta = new DateField();
+    private final JCheckBox chkSoloBajoMinimo = new JCheckBox("Solo bajo mínimo");
     private final DefaultTableModel modelInv = new DefaultTableModel(
             new Object[]{"Código", "Descripción", "Estado", "Fecha"}, 0
     ) {
@@ -85,7 +87,7 @@ public class InformesPanel extends JPanel {
     // --- MOVIMIENTOS (similar a Trámites de UI) ---
     private final JTextField filterSearchMov = new JTextField(18);
     private final DefaultTableModel modelMov = new DefaultTableModel(
-            new Object[]{"Código", "Descripción", "Ubicación", "Entrada", "Salida", "Stock actual", "Fecha"}, 0
+            new Object[]{"Fecha", "Tipo", "Cantidad", "Código", "Descripción", "Ubicación", "Destino/Fuente"}, 0
     ) {
         @Override
         public boolean isCellEditable(int r, int c) {
@@ -144,6 +146,26 @@ public class InformesPanel extends JPanel {
 
         loadTableDataMovimientos();
         installFiltersMovimientos();
+    }
+
+    public void mostrarInventarioBajoMinimo() {
+        if (btnInventario != null) {
+            btnInventario.setSelected(true);
+            contentCards.show(content, "INV");
+        }
+        chkSoloBajoMinimo.setSelected(true);
+        runQueryInventario();
+    }
+
+    public void mostrarMovimientosSalidasHoy() {
+        if (btnMovimientos != null) {
+            btnMovimientos.setSelected(true);
+            contentCards.show(content, "MOV");
+        }
+        cbTipoMov.setSelectedItem("Salida");
+        cbPeriodoMov.setSelectedItem("Hoy");
+        txtFiltroMov.setText("");
+        loadTableDataMovimientos();
     }
 
     // ====== Header (título centrado + export) ======
@@ -356,6 +378,10 @@ public class InformesPanel extends JPanel {
         fields.add(leftField("Desde", desdeComp));
         fields.add(Box.createVerticalStrut(18));
         fields.add(leftField("Hasta", hastaComp));
+        chkSoloBajoMinimo.setOpaque(false);
+        chkSoloBajoMinimo.addActionListener(e -> runQueryInventario());
+        fields.add(Box.createVerticalStrut(18));
+        fields.add(chkSoloBajoMinimo);
         fields.add(Box.createVerticalStrut(28));
 
         // Botón
@@ -577,6 +603,20 @@ public class InformesPanel extends JPanel {
             DateTimeFormatter fmt = DateTimeFormatter.ofPattern("dd/MM/yyyy");
 
             List<Insumo> data = filtrarLocal(invService.listarTodos(), cat, d1, d2);
+            if (chkSoloBajoMinimo.isSelected()) {
+                data = data.stream()
+                        .filter(i -> {
+                            Integer minimo = i.getStockMinimo();
+                            if (minimo == null || i.getId() == null) return false;
+                            try {
+                                BigDecimal stock = invService.stockActualExacto(i.getId());
+                                return stock.compareTo(BigDecimal.valueOf(minimo)) < 0;
+                            } catch (Exception ex) {
+                                return false;
+                            }
+                        })
+                        .collect(Collectors.toList());
+            }
             for (Insumo i : data) {
                 LocalDate fa = i.getFechaAlta();
                 if (fa == null && i.getCreatedAt() != null) {
@@ -864,6 +904,8 @@ public class InformesPanel extends JPanel {
     private final JTextField filterMovSearch = new JTextField(18);
     private final JComboBox<String> filterMovTipo
             = new JComboBox<>(new String[]{"Todos", "Entrada", "Salida"});
+    private final JComboBox<String> cbPeriodoMov
+            = new JComboBox<>(new String[]{"Todos", "Hoy", "Últimos 7 días"});
 
     // == MOVIMIENTOS: fila de filtros (usa SIEMPRE los campos txtFiltroMov y cbTipoMov) ==
     private JComponent buildMovimientosFilters() {
@@ -886,6 +928,9 @@ public class InformesPanel extends JPanel {
         styleFilterField(cbTipoMov, 140); // {Todos, Entrada, Salida}
         fields.add(cbTipoMov);
 
+        styleFilterField(cbPeriodoMov, 140);
+        fields.add(cbPeriodoMov);
+
         // Listeners para refrescar:
         if (txtFiltroMov.getDocument() != null) {
             txtFiltroMov.getDocument().addDocumentListener(new SimpleDocumentListener() {
@@ -896,6 +941,7 @@ public class InformesPanel extends JPanel {
             });
         }
         cbTipoMov.addActionListener(e -> loadTableDataMovimientos());
+        cbPeriodoMov.addActionListener(e -> loadTableDataMovimientos());
 
         panel.add(fields, BorderLayout.CENTER);
         return panel;
@@ -923,13 +969,13 @@ public class InformesPanel extends JPanel {
         // Anchos
         TableColumnModel tcm = table.getColumnModel();
         if (tcm.getColumnCount() >= 7) {
-            tcm.getColumn(0).setPreferredWidth(140); // Código
-            tcm.getColumn(1).setPreferredWidth(240); // Descripción
-            tcm.getColumn(2).setPreferredWidth(160); // Ubicación
-            tcm.getColumn(3).setPreferredWidth(110); // Entrada
-            tcm.getColumn(4).setPreferredWidth(110); // Salida
-            tcm.getColumn(5).setPreferredWidth(120); // Stock actual
-            tcm.getColumn(6).setPreferredWidth(140); // Fecha
+            tcm.getColumn(0).setPreferredWidth(160); // Fecha
+            tcm.getColumn(1).setPreferredWidth(90);  // Tipo
+            tcm.getColumn(2).setPreferredWidth(110); // Cantidad
+            tcm.getColumn(3).setPreferredWidth(140); // Código
+            tcm.getColumn(4).setPreferredWidth(220); // Descripción
+            tcm.getColumn(5).setPreferredWidth(160); // Ubicación
+            tcm.getColumn(6).setPreferredWidth(200); // Destino
         }
 
         JTableHeader header = table.getTableHeader();
@@ -967,7 +1013,6 @@ public class InformesPanel extends JPanel {
     private void loadTableDataMovimientos() {
         modelMov.setRowCount(0);
         try {
-            // Leer filtros
             String search = (txtFiltroMov != null && txtFiltroMov.getText() != null)
                     ? txtFiltroMov.getText().trim().toLowerCase()
                     : "";
@@ -976,59 +1021,69 @@ public class InformesPanel extends JPanel {
                     ? cbTipoMov.getSelectedItem().toString().trim()
                     : "Todos";
 
-            String tipoNorm = tipoSel.toLowerCase(); // "todos" | "entrada" | "salida"
+            String periodoSel = (cbPeriodoMov != null && cbPeriodoMov.getSelectedItem() != null)
+                    ? cbPeriodoMov.getSelectedItem().toString().trim()
+                    : "Todos";
 
-            DateTimeFormatter fmt = DateTimeFormatter.ofPattern("dd/MM/yyyy");
+            String tipoFiltro = switch (tipoSel.toUpperCase()) {
+                case "ENTRADA" -> "ENTRADA";
+                case "SALIDA" -> "SALIDA";
+                default -> null;
+            };
 
-            for (Insumo i : invService.listarTodos()) {
+            java.time.LocalDate hoy = java.time.LocalDate.now();
+            java.time.LocalDate desde = null;
+            java.time.LocalDate hasta = null;
+            switch (periodoSel.toUpperCase()) {
+                case "HOY" -> {
+                    desde = hoy;
+                    hasta = hoy;
+                }
+                case "ÚLTIMOS 7 DÍAS" -> {
+                    hasta = hoy;
+                    desde = hoy.minusDays(6);
+                }
+            }
 
-                // Filtro por texto libre
+            DateTimeFormatter fmt = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm");
+
+            List<Movimiento> movimientos = invService.movimientosPorFechaYTipo(desde, hasta, tipoFiltro);
+            for (Movimiento m : movimientos) {
+                String codigo = (m.getInsumo() != null && m.getInsumo().getCodigo() != null)
+                        ? m.getInsumo().getCodigo() : "-";
+                String desc = (m.getInsumo() != null && m.getInsumo().getDescripcion() != null)
+                        ? m.getInsumo().getDescripcion() : "-";
+                String ubic = (m.getInsumo() != null && m.getInsumo().getUbicacion() != null
+                        && !m.getInsumo().getUbicacion().isBlank())
+                        ? m.getInsumo().getUbicacion() : "-";
+
                 if (!search.isEmpty()) {
-                    String src = ((i.getCodigo() == null ? "" : i.getCodigo())
-                            + " " + (i.getDescripcion() == null ? "" : i.getDescripcion()))
+                    String src = (codigo + " " + desc + " " + ubic
+                            + " " + (m.getDestinoFuente() == null ? "" : m.getDestinoFuente()))
                             .toLowerCase();
                     if (!src.contains(search)) {
                         continue;
                     }
                 }
 
-                // Datos base
-                String codigo = i.getCodigo() == null ? "-" : i.getCodigo();
-                String desc = i.getDescripcion() == null ? "-" : i.getDescripcion();
-                String ubicacion = (i.getUbicacion() == null || i.getUbicacion().isBlank())
-                        ? "-" : i.getUbicacion();
+                String fecha = m.getFecha() != null ? m.getFecha().format(fmt) : "-";
+                String cantidad = formatCantidad(m.getCantidad());
+                String destino = (m.getDestinoFuente() == null || m.getDestinoFuente().isBlank())
+                        ? "-" : m.getDestinoFuente();
 
-                String fechaAlta = "-";
-                if (i.getFechaAlta() != null) {
-                    fechaAlta = i.getFechaAlta().format(fmt);
-                } else if (i.getCreatedAt() != null) {
-                    var ld = java.time.ZonedDateTime.ofInstant(i.getCreatedAt(),
-                            java.time.ZoneId.systemDefault()).toLocalDate();
-                    fechaAlta = ld.format(fmt);
-                }
-
-                long insumoId = i.getId();
-                int entradas = invService.totalEntradasDeInsumo(insumoId);
-                int salidas = invService.totalSalidasDeInsumo(insumoId);
-                int stock = invService.stockActual(insumoId);
-
-                // Filtro por tipo (descarta los 0 cuando corresponde)
-                if ("entrada".equals(tipoNorm) && entradas <= 0) {
-                    continue;
-                }
-                if ("salida".equals(tipoNorm) && salidas <= 0) {
-                    continue;
-                }
-
-                modelMov.addRow(new Object[]{codigo, desc, ubicacion, entradas, salidas, stock, fechaAlta});
+                modelMov.addRow(new Object[]{fecha, m.getTipo(), cantidad, codigo, desc, ubic, destino});
             }
 
         } catch (Exception ex) {
-            ex.printStackTrace();
             JOptionPane.showMessageDialog(this,
                     "Error cargando informe de movimientos:\n" + ex.getMessage(),
                     "Error", JOptionPane.ERROR_MESSAGE);
         }
+    }
+
+    private String formatCantidad(java.math.BigDecimal valor) {
+        if (valor == null) return "0";
+        return valor.stripTrailingZeros().toPlainString();
     }
 
     // --- MOVIMIENTOS (filtros) ---

@@ -48,11 +48,13 @@ public class TramiteEntradaPage extends JPanel {
     // --- Filtros de la tabla ---
     private final JTextField filterSearch = new JTextField(18);
     private final JComboBox<String> filterEstado = new JComboBox<>(
-            new String[]{"Todos", "Completado", "En proceso", "Pendiente"}
+            new String[]{"Todos", "Completado", "En proceso", "Pendiente", "Nuevo"}
     );
 
     private final CardLayout cardLayout = new CardLayout();
     private final JPanel cards = new JPanel(cardLayout);
+    private JToggleButton tabRegistrar;
+    private JToggleButton tabActivos;
 
     // Tabla (solo columna Estado editable)
     private final JTable table = new JTable(new DefaultTableModel(
@@ -156,20 +158,20 @@ public class TramiteEntradaPage extends JPanel {
         header.add(title, BorderLayout.WEST);
 
         ButtonGroup tabs = new ButtonGroup();
-        JToggleButton btnRegistrar = tabButton("Registrar nuevo trámite");
-        JToggleButton btnActivos   = tabButton("Trámites activos");
-        tabs.add(btnRegistrar);
-        tabs.add(btnActivos);
-        btnRegistrar.setSelected(true);
+        tabRegistrar = tabButton("Registrar nuevo trámite");
+        tabActivos   = tabButton("Trámites activos");
+        tabs.add(tabRegistrar);
+        tabs.add(tabActivos);
+        tabRegistrar.setSelected(true);
 
         JPanel switches = new JPanel(new FlowLayout(FlowLayout.RIGHT, 12, 0));
         switches.setOpaque(false);
-        switches.add(btnRegistrar);
-        switches.add(btnActivos);
+        switches.add(tabRegistrar);
+        switches.add(tabActivos);
         header.add(switches, BorderLayout.EAST);
 
-        btnRegistrar.addActionListener(e -> cardLayout.show(cards, "registro"));
-        btnActivos.addActionListener(e -> {
+        tabRegistrar.addActionListener(e -> cardLayout.show(cards, "registro"));
+        tabActivos.addActionListener(e -> {
             loadTableData();
             cardLayout.show(cards, "activos");
         });
@@ -471,6 +473,28 @@ private CardPanel recentTramitesCard() {
         } catch (Exception ex) {
             Ui.error(this, ex);
         }
+    }
+
+    public void mostrarTramitesEstado(String estado) {
+        SwingUtilities.invokeLater(() -> {
+            if (tabActivos != null) {
+                tabActivos.setSelected(true);
+            }
+            cardLayout.show(cards, "activos");
+
+            String friendly = estadoFriendly(estado);
+            if (friendly != null) {
+                for (int i = 0; i < filterEstado.getItemCount(); i++) {
+                    String item = filterEstado.getItemAt(i);
+                    if (item != null && item.equalsIgnoreCase(friendly)) {
+                        filterEstado.setSelectedIndex(i);
+                        break;
+                    }
+                }
+            }
+            filterSearch.setText("");
+            loadTableData();
+        });
     }
 
     private boolean estadoMatches(String estado, String filtro) {

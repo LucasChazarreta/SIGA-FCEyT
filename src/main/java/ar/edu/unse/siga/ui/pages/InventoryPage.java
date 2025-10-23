@@ -1,36 +1,39 @@
 package ar.edu.unse.siga.ui.pages;
 
+import ar.edu.unse.siga.common.CurrentSession;
+import ar.edu.unse.siga.domain.Categoria;
+import ar.edu.unse.siga.domain.Insumo;
+import ar.edu.unse.siga.domain.Ubicacion;
+import ar.edu.unse.siga.domain.Usuario;
 import ar.edu.unse.siga.service.InventarioService;
-import ar.edu.unse.siga.service.InventarioService.StockCheckResult;
 import ar.edu.unse.siga.ui.base.CardPanel;
+import ar.edu.unse.siga.ui.base.Ui;
 
 import javax.swing.*;
+import javax.swing.border.EmptyBorder;
+import javax.swing.event.ListSelectionEvent;
+import javax.swing.event.ListSelectionListener;
 import java.awt.*;
-
-import ar.edu.unse.siga.domain.Insumo;
-import ar.edu.unse.siga.domain.Categoria;
-import ar.edu.unse.siga.persistence.jdbc.JdbcInsumoDao;
-import ar.edu.unse.siga.persistence.jdbc.JdbcCategoriaDao;
-import ar.edu.unse.siga.ui.base.Ui;
-import javax.swing.SpinnerNumberModel;
-import javax.swing.JComboBox;
-import javax.swing.ComboBoxModel;
-
+import java.math.BigDecimal;
+import java.util.Comparator;
+import java.util.List;
+import java.util.Locale;
+import java.util.Objects;
 
 public class InventoryPage extends JPanel {
-    
-    private JComboBox<String> cbUbicacionDelete = buildUbicacionCombo();
 
+    private static final Dimension BUTTON_SIZE = new Dimension(180, 42);
 
-    private final InventarioService service;   // <--- se inyecta desde ShellFrame
+    private final InventarioService service;
     private final CardLayout cardLayout = new CardLayout();
     private final JPanel cards = new JPanel(cardLayout);
-    // Reemplazá el JTextField existente:
-// private JTextField txtUbicacion;
+    private JToggleButton tabRegistrar;
+    private JToggleButton tabModificar;
+    private JToggleButton tabEliminar;
 
-private JComboBox<String> cbUbicacionEdit = buildUbicacionCombo();
-
-    
+    private final RegistroPanel registroPanel = new RegistroPanel();
+    private final ModificarPanel modificarPanel = new ModificarPanel();
+    private final EliminarPanel eliminarPanel = new EliminarPanel();
 
     public InventoryPage(InventarioService service) {
         this.service = service;
@@ -38,721 +41,75 @@ private JComboBox<String> cbUbicacionEdit = buildUbicacionCombo();
         setLayout(new BorderLayout(16, 16));
 
         add(buildHeader(), BorderLayout.NORTH);
-        add(buildCardHolder(), BorderLayout.CENTER);
+        add(buildContent(), BorderLayout.CENTER);
     }
-    
-    // === Opciones fijas de ubicación (podés cambiar el orden si querés) ===
-private static final String[] UBICACIONES_FIJAS = {
-            "Sede Central",
-            "Sede Zanjon",
-            "Sede Parque Industrial",
-};
-
-// Crea el combo ya estilizado
-private static JComboBox<String> buildUbicacionCombo() {
-    JComboBox<String> cb = new JComboBox<>(UBICACIONES_FIJAS);
-    cb.putClientProperty("JComponent.roundRect", true);
-    return cb;
-}
-
-// Selecciona el valor existente del insumo; si no está en la lista, lo agrega al combo y lo selecciona
-private static void selectOrAdd(JComboBox<String> cb, String ubic) {
-    if (ubic == null || ubic.isBlank()) return;
-    ComboBoxModel<String> m = cb.getModel();
-    boolean exists = false;
-    for (int i = 0; i < m.getSize(); i++) {
-        if (ubic.equalsIgnoreCase(m.getElementAt(i))) { exists = true; break; }
-    }
-    if (!exists) cb.addItem(ubic);
-    cb.setSelectedItem(ubic);
-}
-
 
     private JComponent buildHeader() {
         JPanel header = new JPanel(new BorderLayout(12, 12));
         header.setOpaque(false);
 
         JLabel title = new JLabel("Gestión de inventario");
-        title.setForeground(new Color(24, 63, 150));
         title.setFont(title.getFont().deriveFont(Font.BOLD, 28f));
+        title.setForeground(new Color(24, 63, 150));
         header.add(title, BorderLayout.WEST);
 
         return header;
     }
 
-    private JComponent buildCardHolder() {
+    private JComponent buildContent() {
         JPanel wrapper = new JPanel(new BorderLayout(16, 24));
         wrapper.setOpaque(false);
 
         ButtonGroup group = new ButtonGroup();
-        var bar = new JPanel(new FlowLayout(FlowLayout.LEFT, 12, 0));
-        bar.setOpaque(false);
+        JPanel tabs = new JPanel(new FlowLayout(FlowLayout.LEFT, 12, 0));
+        tabs.setOpaque(false);
 
-        JToggleButton btnRegistrar = pillButton("Cargar");
-        JToggleButton btnModificar = pillButton("Modificar");
-        JToggleButton btnEliminar = pillButton("Eliminar");
-        //JToggleButton btnMovimiento = pillButton("Registrar movimiento");
+        tabRegistrar = pillButton("Cargar");
+        tabModificar = pillButton("Modificar");
+        tabEliminar = pillButton("Eliminar");
 
-        group.add(btnRegistrar);
-        group.add(btnModificar);
-        group.add(btnEliminar);
-        //group.add(btnMovimiento);
-        btnRegistrar.setSelected(true);
+        tabRegistrar.setSelected(true);
+        group.add(tabRegistrar);
+        group.add(tabModificar);
+        group.add(tabEliminar);
 
-        bar.add(btnRegistrar);
-        bar.add(btnModificar);
-        bar.add(btnEliminar);
-        //bar.add(btnMovimiento);
+        tabs.add(tabRegistrar);
+        tabs.add(tabModificar);
+        tabs.add(tabEliminar);
 
-        wrapper.add(bar, BorderLayout.NORTH);
+        wrapper.add(tabs, BorderLayout.NORTH);
 
         cards.setOpaque(false);
-        cards.add(buildRegistroCard(), "reg");
-        cards.add(buildModificarCard(), "mod");
-        cards.add(buildEliminarCard(), "del");
-        //cards.add(buildMovimientoCard(), "mov");
-
-        btnRegistrar.addActionListener(e -> cardLayout.show(cards, "reg"));
-        btnModificar.addActionListener(e -> cardLayout.show(cards, "mod"));
-        btnEliminar.addActionListener(e -> cardLayout.show(cards, "del"));
-        //btnMovimiento.addActionListener(e -> cardLayout.show(cards, "mov"));
-
+        cards.add(registroPanel, "reg");
+        cards.add(modificarPanel, "mod");
+        cards.add(eliminarPanel, "del");
         wrapper.add(cards, BorderLayout.CENTER);
-        cardLayout.show(cards, "reg");
 
+        tabRegistrar.addActionListener(e -> {
+            registroPanel.refreshCombos();
+            cardLayout.show(cards, "reg");
+        });
+        tabModificar.addActionListener(e -> {
+            modificarPanel.refreshData();
+            cardLayout.show(cards, "mod");
+        });
+        tabEliminar.addActionListener(e -> {
+            eliminarPanel.refreshData();
+            cardLayout.show(cards, "del");
+        });
+
+        cardLayout.show(cards, "reg");
         return wrapper;
     }
 
-    private CardPanel buildRegistroCard() {
-        CardPanel card = new CardPanel();
-        card.setLayout(new BorderLayout(12, 16));
-
-        JLabel lbl = new JLabel("REGISTRO DE INVENTARIO");
-        lbl.setFont(lbl.getFont().deriveFont(Font.BOLD, 16f));
-        lbl.setForeground(new Color(70, 96, 180));
-        card.add(lbl, BorderLayout.NORTH);
-
-        // --- Campos
-        JTextField txtCodigo = new JTextField();
-        txtCodigo.putClientProperty("JTextField.placeholderText", "Ej: INS001");
-        txtCodigo.putClientProperty("JComponent.roundRect", true);
-
-        JTextField txtDescripcion = new JTextField();
-        txtDescripcion.putClientProperty("JTextField.placeholderText", "Descripción...");
-        txtDescripcion.putClientProperty("JComponent.roundRect", true);
-
-        // CATEGORÍA COMO COMBO (llenado desde BD)
-        var catDao = new JdbcCategoriaDao();
-        var categorias = catDao.listAll();
-        JComboBox<Categoria> cbCategoria = new JComboBox<>(categorias.toArray(new Categoria[0]));
-        cbCategoria.putClientProperty("JComponent.roundRect", true);
-        if (cbCategoria.getItemCount() > 0) {
-            cbCategoria.setSelectedIndex(0);
-        }
-
-        // Ubicación
-        // UBICACIÓN COMO COMBO (opciones fijas)
-        String[] ubicaciones = new String[] {
-            "Sede Central",
-            "Sede Zanjon",
-            "Sede Parque Industrial",
-        };
-
-        JComboBox<String> cbUbicacion = new JComboBox<>(ubicaciones);
-        cbUbicacion.putClientProperty("JComponent.roundRect", true);
-        if (cbUbicacion.getItemCount() > 0) {
-            cbUbicacion.setSelectedIndex(0);
-        }
-
-
-        // Stock mínimo
-        JSpinner spStockMin = new JSpinner(new SpinnerNumberModel(0, 0, 999999, 1));
-        tuneNumericSpinner(spStockMin, 0, 999999);
-        
-        JPanel form = new JPanel(new GridLayout(0, 2, 18, 18));
-        form.setOpaque(false);
-        form.add(labeled("CÓDIGO", txtCodigo));
-        form.add(labeled("DESCRIPCIÓN", txtDescripcion));
-        form.add(labeled("CATEGORÍA", cbCategoria));
-        form.add(labeled("UBICACIÓN", cbUbicacion));
-        form.add(labeled("STOCK MÍNIMO", spStockMin));
-        card.add(form, BorderLayout.CENTER);
-
-        // --- Botón Aceptar
-        JButton btn = new JButton("Aceptar");
-        btn.setPreferredSize(new Dimension(160, 40));
-        btn.setBackground(new Color(58, 96, 224));
-        btn.setForeground(Color.WHITE);
-        btn.setFocusPainted(false);
-
-        btn.addActionListener(e -> {
-            try {
-                String codigo = txtCodigo.getText().trim();
-                String desc = txtDescripcion.getText().trim();
-                Categoria cat = (Categoria) cbCategoria.getSelectedItem();
-                String ubic = java.util.Objects.toString(cbUbicacion.getSelectedItem(), "").trim();
-
-
-                Object v = spStockMin.getValue();
-                if (!(v instanceof Number)) {
-                    Ui.warn(this, "El stock mínimo debe ser numérico.");
-                    return;
-                }
-                int stockMin = ((Number) v).intValue();
-
-                if (codigo.isEmpty() || desc.isEmpty()) {
-                    throw new IllegalArgumentException("Código y descripción son obligatorios.");
-                }
-                if (cat == null) {
-                    throw new IllegalArgumentException("Seleccioná una categoría.");
-                }
-
-                Insumo ins = new Insumo();
-                ins.setCodigo(codigo);
-                ins.setDescripcion(desc);
-                ins.setCategoria(cat);
-                ins.setUbicacion(ubic);
-                ins.setStockMinimo(stockMin);
-                ins.setEstado("ACTIVO");
-
-                Long id = new JdbcInsumoDao().create(ins);
-                Ui.info(this, "Insumo guardado. ID = " + id);
-
-                // limpiar
-                txtCodigo.setText("");
-                txtDescripcion.setText("");
-                if (cbCategoria.getItemCount() > 0) {
-                    cbCategoria.setSelectedIndex(0);
-                }
-                cbUbicacion.setSelectedIndex(0); // o cbUbicacion.setSelectedItem("Facultad de Ciencias Exactas");
-
-                spStockMin.setValue(0);
-            } catch (Exception ex) {
-                Ui.error(this, ex);
+    public void mostrarInsumosBajoMinimo() {
+        SwingUtilities.invokeLater(() -> {
+            if (tabModificar != null) {
+                tabModificar.setSelected(true);
             }
+            cardLayout.show(cards, "mod");
+            modificarPanel.mostrarSoloBajoMinimo();
         });
-
-        JPanel south = new JPanel(new FlowLayout(FlowLayout.CENTER));
-        south.setOpaque(false);
-        south.add(btn);
-        card.add(south, BorderLayout.SOUTH);
-
-        return card;
-    }
-
-    // Helper para spinners numéricos
-    private static void tuneNumericSpinner(JSpinner spinner, int min, int max) {
-        if (!(spinner.getModel() instanceof SpinnerNumberModel)) {
-            spinner.setModel(new SpinnerNumberModel(0, min, max, 1));
-        }
-        JSpinner.NumberEditor editor = new JSpinner.NumberEditor(spinner, "#");
-        spinner.setEditor(editor);
-        JFormattedTextField tf = editor.getTextField();
-        if (tf.getFormatter() instanceof javax.swing.text.NumberFormatter nf) {
-            nf.setAllowsInvalid(false);
-            nf.setCommitsOnValidEdit(true);
-            nf.setMinimum(min);
-            nf.setMaximum(max);
-        }
-    }
-
-    private CardPanel buildEliminarCard() {
-        CardPanel card = new CardPanel();
-        card.setLayout(new BorderLayout(12, 16));
-
-        JLabel lbl = new JLabel("ELIMINACIÓN DE INVENTARIO");
-        lbl.setFont(lbl.getFont().deriveFont(Font.BOLD, 16f));
-        lbl.setForeground(new Color(180, 70, 70));
-        card.add(lbl, BorderLayout.NORTH);
-
-        // ---- Búsqueda por código
-        JPanel top = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
-        top.setOpaque(false);
-        JTextField txtBuscarCodigo = new JTextField(18);
-        txtBuscarCodigo.putClientProperty("JTextField.placeholderText", "Código a buscar (ej: INS001)");
-        JButton btnBuscar = new JButton("Buscar");
-        top.add(new JLabel("Código:"));
-        top.add(txtBuscarCodigo);
-        top.add(btnBuscar);
-        card.add(top, BorderLayout.PAGE_START);
-
-        // ---- Campos solo lectura
-        JTextField txtCodigo = new JTextField();
-        txtCodigo.setEditable(false);
-        JTextField txtDescripcion = new JTextField();
-        txtDescripcion.setEditable(false);
-        JComboBox<Categoria> cbCategoria = new JComboBox<>();
-        cbCategoria.setEnabled(false);
-        JTextField txtUbicacion = new JTextField();
-        txtUbicacion.setEditable(false);
-        JSpinner spStockMin = new JSpinner(new SpinnerNumberModel(0, 0, 999999, 1));
-        spStockMin.setEnabled(false);
-        JComboBox<String> cbEstado = new JComboBox<>(new String[]{"ACTIVO", "INACTIVO"});
-        cbEstado.setEnabled(false);
-
-        for (Categoria c : new JdbcCategoriaDao().listAll()) {
-            cbCategoria.addItem(c);
-        }
-        if (cbCategoria.getItemCount() > 0) {
-            cbCategoria.setSelectedIndex(0);
-        }
-
-        JPanel form = new JPanel(new GridLayout(0, 2, 18, 18));
-        form.setOpaque(false);
-        form.add(labeled("CÓDIGO", txtCodigo));
-        form.add(labeled("DESCRIPCIÓN", txtDescripcion));
-        form.add(labeled("CATEGORÍA", cbCategoria));
-        form.add(labeled("UBICACIÓN", cbUbicacionDelete));
-        form.add(labeled("STOCK MÍNIMO", spStockMin));
-        form.add(labeled("ESTADO", cbEstado));
-        card.add(form, BorderLayout.CENTER);
-
-        final Insumo[] current = new Insumo[1];
-
-        final JButton btnEliminar = new JButton("Eliminar");
-        btnEliminar.setPreferredSize(new Dimension(140, 40));
-        btnEliminar.setBackground(new Color(200, 60, 60));
-        btnEliminar.setForeground(Color.WHITE);
-        btnEliminar.setFocusPainted(false);
-        btnEliminar.setEnabled(false);
-
-        btnBuscar.addActionListener(e -> {
-            try {
-                btnEliminar.setEnabled(false);
-                String codigo = txtBuscarCodigo.getText().trim();
-                if (codigo.isEmpty()) {
-                    Ui.warn(InventoryPage.this, "Ingresá un código para buscar.");
-                    return;
-                }
-                var dao = new JdbcInsumoDao();
-                var opt = dao.findByCodigo(codigo);
-                if (opt.isEmpty()) {
-                    Ui.warn(InventoryPage.this, "No se encontró un insumo con código: " + codigo);
-                    current[0] = null;
-                    txtCodigo.setText("");
-                    txtDescripcion.setText("");
-                    txtUbicacion.setText("");
-                    spStockMin.setValue(0);
-                    if (cbCategoria.getItemCount() > 0) {
-                        cbCategoria.setSelectedIndex(0);
-                    }
-                    cbEstado.setSelectedIndex(0);
-                    return;
-                }
-
-                current[0] = opt.get();
-                String estado = current[0].getEstado() == null ? "ACTIVO" : current[0].getEstado();
-
-                if (!"ACTIVO".equalsIgnoreCase(estado)) {
-                    Ui.warn(InventoryPage.this, "El insumo " + codigo + " ya está INACTIVO; no se puede dar de baja.");
-                    current[0] = null;
-                    txtCodigo.setText("");
-                    txtDescripcion.setText("");
-                    txtUbicacion.setText("");
-                    spStockMin.setValue(0);
-                    if (cbCategoria.getItemCount() > 0) {
-                        cbCategoria.setSelectedIndex(0);
-                    }
-                    cbEstado.setSelectedIndex(1);
-                    return;
-                }
-
-                txtCodigo.setText(current[0].getCodigo());
-                txtDescripcion.setText(current[0].getDescripcion() == null ? "" : current[0].getDescripcion());
-                txtUbicacion.setText(current[0].getUbicacion() == null ? "" : current[0].getUbicacion());
-                Integer sm = current[0].getStockMinimo();
-                spStockMin.setValue(sm == null ? 0 : sm);
-
-                var cat = current[0].getCategoria();
-                if (cat != null) {
-                    for (int i = 0; i < cbCategoria.getItemCount(); i++) {
-                        if (cbCategoria.getItemAt(i).getId() == cat.getId()) {
-                            cbCategoria.setSelectedIndex(i);
-                            break;
-                        }
-                    }
-                }
-                cbEstado.setSelectedItem(estado);
-                btnEliminar.setEnabled(true);
-            } catch (Exception ex) {
-                Ui.error(InventoryPage.this, ex);
-            }
-        });
-
-        btnEliminar.addActionListener(e -> {
-            try {
-                if (current[0] == null) {
-                    Ui.warn(InventoryPage.this, "Primero buscá un insumo por código.");
-                    return;
-                }
-                String estado = current[0].getEstado() == null ? "ACTIVO" : current[0].getEstado();
-                if (!"ACTIVO".equalsIgnoreCase(estado)) {
-                    Ui.warn(InventoryPage.this, "El insumo ya está INACTIVO.");
-                    return;
-                }
-                String cod = current[0].getCodigo();
-                if (!Ui.confirm(InventoryPage.this, "¿Confirmás la eliminación (baja) de " + cod + "?")) {
-                    return;
-                }
-                new JdbcInsumoDao().softDelete(current[0].getId());
-                Ui.info(InventoryPage.this, "El insumo " + cod + " fue dado de baja (INACTIVO).");
-
-                current[0] = null;
-                txtCodigo.setText("");
-                txtDescripcion.setText("");
-                txtUbicacion.setText("");
-                spStockMin.setValue(0);
-                if (cbCategoria.getItemCount() > 0) {
-                    cbCategoria.setSelectedIndex(0);
-                }
-                cbEstado.setSelectedIndex(0);
-                txtBuscarCodigo.setText("");
-                btnEliminar.setEnabled(false);
-            } catch (Exception ex) {
-                Ui.error(InventoryPage.this, ex);
-            }
-        });
-
-        JPanel south = new JPanel(new FlowLayout(FlowLayout.RIGHT));
-        south.setOpaque(false);
-        south.add(btnEliminar);
-        card.add(south, BorderLayout.SOUTH);
-
-        return card;
-    }
-
-    private CardPanel buildMovimientoCard() {
-        CardPanel card = new CardPanel();
-        card.setLayout(new BorderLayout(12, 16));
-
-        JLabel lbl = new JLabel("REGISTRO DE MOVIMIENTO");
-        lbl.setFont(lbl.getFont().deriveFont(Font.BOLD, 16f));
-        lbl.setForeground(new Color(70, 96, 180));
-        card.add(lbl, BorderLayout.NORTH);
-
-        // --- Campos
-        JComboBox<Insumo> cbInsumo = new JComboBox<>();
-        for (Insumo i : service.listarTodos()) {
-            cbInsumo.addItem(i);
-        }
-        if (cbInsumo.getItemCount() > 0) {
-            cbInsumo.setSelectedIndex(0);
-        }
-
-        JComboBox<String> cbTipo = new JComboBox<>(new String[]{"ENTRADA", "SALIDA"});
-
-        JSpinner spCantidad = new JSpinner(new SpinnerNumberModel(1, 1, 999999, 1));
-        tuneNumericSpinner(spCantidad, 1, 999999);
-
-        JTextField txtDestinoFuente = new JTextField(); // destino (salida) / fuente (entrada)
-
-        JPanel form = new JPanel(new GridLayout(0, 2, 18, 18));
-        form.setOpaque(false);
-        form.add(labeled("INSUMO", cbInsumo));
-        form.add(labeled("TIPO", cbTipo));
-        form.add(labeled("CANTIDAD", spCantidad));
-        form.add(labeled("DESTINO / FUENTE", txtDestinoFuente));
-        card.add(form, BorderLayout.CENTER);
-
-        JButton btnRegistrar = new JButton("Registrar");
-        btnRegistrar.setPreferredSize(new Dimension(140, 40));
-        btnRegistrar.setBackground(new Color(58, 96, 224));
-        btnRegistrar.setForeground(Color.WHITE);
-        btnRegistrar.setFocusPainted(false);
-
-        btnRegistrar.addActionListener(e -> {
-            try {
-                if (cbInsumo.getSelectedItem() == null) {
-                    Ui.warn(InventoryPage.this, "No hay insumos para registrar.");
-                    return;
-                }
-                Insumo insumo = (Insumo) cbInsumo.getSelectedItem();
-                String tipo = (String) cbTipo.getSelectedItem();
-
-                try {
-                    spCantidad.commitEdit();
-                } catch (java.text.ParseException ignore) {
-                }
-                Object vc = spCantidad.getValue();
-                if (!(vc instanceof Number)) {
-                    Ui.warn(InventoryPage.this, "La cantidad debe ser numérica.");
-                    return;
-                }
-                int cantidad = ((Number) vc).intValue();
-                if (cantidad <= 0) {
-                    Ui.warn(InventoryPage.this, "La cantidad debe ser mayor que cero.");
-                    return;
-                }
-
-                String destinoFuente = txtDestinoFuente.getText().trim();
-                if (destinoFuente.isEmpty()) {
-                    Ui.warn(InventoryPage.this, "Indicá el destino (salida) o la fuente (entrada).");
-                    return;
-                }
-
-                // Pre-chequeo para SALIDA con stock insuficiente
-                int stockActual = 0;
-                try {
-                    InventarioService.StockCheckResult res = service.stockActual(insumo.getId());
-
-                } catch (Exception ignored) {
-                }
-                if ("SALIDA".equalsIgnoreCase(tipo) && cantidad > stockActual) {
-                    JOptionPane.showMessageDialog(
-                            InventoryPage.this,
-                            "No hay suficiente stock para esta salida.\n"
-                            + "Disponible: " + stockActual + " | Solicitado: " + cantidad,
-                            "Error",
-                            JOptionPane.ERROR_MESSAGE
-                    );
-                    return;
-                }
-
-                // ✅ NUEVO: usar StockCheckResult (no devuelve Long)
-                InventarioService.StockCheckResult res = service.stockActual(insumo.getId());
-                Ui.info(InventoryPage.this,
-                        String.format("Movimiento registrado.\nStock actual: %d", res.stockActual));
-
-                if (res.bajoMinimo) {
-                    JOptionPane.showMessageDialog(InventoryPage.this,
-                            String.format("⚠ Stock por debajo del mínimo.\nActual: %d  |  Mínimo: %s",
-                                    res.stockActual,
-                                    res.stockMinimo == null ? "-" : res.stockMinimo),
-                            "Alerta de reposición", JOptionPane.WARNING_MESSAGE);
-                }
-
-                // Limpiar
-                cbTipo.setSelectedIndex(0);
-                spCantidad.setValue(1);
-                txtDestinoFuente.setText("");
-            } catch (Exception ex) {
-                Ui.error(InventoryPage.this, ex);
-            }
-        });
-
-        JPanel south = new JPanel(new FlowLayout(FlowLayout.RIGHT));
-        south.setOpaque(false);
-        south.add(btnRegistrar);
-        card.add(south, BorderLayout.SOUTH);
-
-        return card;
-    }
-
-    private CardPanel buildModificarCard() {
-        CardPanel card = new CardPanel();
-        card.setLayout(new BorderLayout(12, 16));
-
-        JLabel lbl = new JLabel("MODIFICACIÓN DE INVENTARIO");
-        lbl.setFont(lbl.getFont().deriveFont(Font.BOLD, 16f));
-        lbl.setForeground(new Color(70, 96, 180));
-        card.add(lbl, BorderLayout.NORTH);
-
-        // ---- Búsqueda por código
-        JPanel top = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
-        top.setOpaque(false);
-        JTextField txtBuscarCodigo = new JTextField(18);
-        txtBuscarCodigo.putClientProperty("JTextField.placeholderText", "Código a buscar (ej: INS001)");
-        JButton btnBuscar = new JButton("Buscar");
-        top.add(new JLabel("Código:"));
-        top.add(txtBuscarCodigo);
-        top.add(btnBuscar);
-        card.add(top, BorderLayout.PAGE_START);
-
-        // ---- Campos editables
-        JTextField txtCodigo = new JTextField();
-        txtCodigo.setEditable(false);
-        JTextField txtDescripcion = new JTextField();
-
-        JComboBox<Categoria> cbCategoria = new JComboBox<>();
-        for (Categoria c : new JdbcCategoriaDao().listAll()) {
-            cbCategoria.addItem(c);
-        }
-        if (cbCategoria.getItemCount() > 0) {
-            cbCategoria.setSelectedIndex(0);
-        }
-
-        JTextField txtUbicacion = new JTextField();
-        JSpinner spStockMin = new JSpinner(new SpinnerNumberModel(0, 0, 999999, 1));
-        tuneNumericSpinner(spStockMin, 0, 999999);
-
-        JComboBox<String> cbEstado = new JComboBox<>(new String[]{"ACTIVO", "INACTIVO"});
-
-        JPanel form = new JPanel(new GridLayout(0, 2, 18, 18));
-        form.setOpaque(false);
-        form.add(labeled("CÓDIGO", txtCodigo));
-        form.add(labeled("DESCRIPCIÓN", txtDescripcion));
-        form.add(labeled("CATEGORÍA", cbCategoria));
-        // Ubicación (AHORA, como combo)
-form.add(labeled("UBICACIÓN", cbUbicacionEdit));
-
-        form.add(labeled("STOCK MÍNIMO", spStockMin));
-        form.add(labeled("ESTADO", cbEstado));
-        card.add(form, BorderLayout.CENTER);
-
-        final Insumo[] current = new Insumo[1];
-
-        btnBuscar.addActionListener(e -> {
-            try {
-                String codigo = txtBuscarCodigo.getText().trim();
-                if (codigo.isEmpty()) {
-                    Ui.warn(InventoryPage.this, "Ingresá un código para buscar.");
-                    return;
-                }
-                var dao = new JdbcInsumoDao();
-                var opt = dao.findByCodigo(codigo);
-                if (opt.isEmpty()) {
-                    Ui.warn(InventoryPage.this, "No se encontró un insumo con código: " + codigo);
-                    // limpiar
-                    current[0] = null;
-                    txtCodigo.setText("");
-                    txtDescripcion.setText("");
-                    txtUbicacion.setText("");
-                    spStockMin.setValue(0);
-                    if (cbCategoria.getItemCount() > 0) {
-                        cbCategoria.setSelectedIndex(0);
-                    }
-                    cbEstado.setSelectedIndex(0);
-                    return;
-                }
-                // cargar datos
-                current[0] = opt.get();
-                txtCodigo.setText(current[0].getCodigo());
-                txtDescripcion.setText(current[0].getDescripcion() == null ? "" : current[0].getDescripcion());
-                txtUbicacion.setText(current[0].getUbicacion() == null ? "" : current[0].getUbicacion());
-
-                Integer sm = current[0].getStockMinimo();
-                spStockMin.setValue(sm == null ? 0 : sm);
-
-                var cat = current[0].getCategoria();
-                if (cat != null) {
-                    for (int i = 0; i < cbCategoria.getItemCount(); i++) {
-                        if (cbCategoria.getItemAt(i).getId() == cat.getId()) {
-                            cbCategoria.setSelectedIndex(i);
-                            break;
-                        }
-                    }
-                }
-                cbEstado.setSelectedItem(current[0].getEstado() == null ? "ACTIVO" : current[0].getEstado());
-            } catch (Exception ex) {
-                Ui.error(InventoryPage.this, ex);
-            }
-        });
-
-        JButton btnGuardar = new JButton("Guardar cambios");
-        btnGuardar.setPreferredSize(new Dimension(180, 40));
-        btnGuardar.setBackground(new Color(58, 96, 224));
-        btnGuardar.setForeground(Color.WHITE);
-        btnGuardar.setFocusPainted(false);
-
-       btnGuardar.addActionListener(e -> {
-    try {
-        if (current[0] == null) {
-            Ui.warn(InventoryPage.this, "Primero buscá un insumo por código.");
-            return;
-        }
-        if (!Ui.confirm(InventoryPage.this, "¿Confirmás la modificación de " + current[0].getCodigo() + "?")) {
-            return;
-        }
-
-        // --- Actualizar todos los campos editables ---
-        current[0].setDescripcion(txtDescripcion.getText().trim());
-        current[0].setCategoria((Categoria) cbCategoria.getSelectedItem());
-
-        // 🔹 CAMBIO IMPORTANTE: usar el combo de ubicación en vez del txt
-        current[0].setUbicacion((String) cbUbicacionEdit.getSelectedItem());
-
-        // Validar stock mínimo
-        try {
-            spStockMin.commitEdit();
-        } catch (java.text.ParseException ignore) {}
-        Object v = spStockMin.getValue();
-        if (!(v instanceof Number)) {
-            Ui.warn(InventoryPage.this, "El stock mínimo debe ser numérico.");
-            return;
-        }
-        int stockMin = ((Number) v).intValue();
-        if (stockMin < 0) {
-            Ui.warn(InventoryPage.this, "El stock mínimo no puede ser negativo.");
-            return;
-        }
-        current[0].setStockMinimo(stockMin);
-
-        // Estado
-        current[0].setEstado((String) cbEstado.getSelectedItem());
-
-        // Guardar cambios
-        new JdbcInsumoDao().update(current[0]);
-        Ui.info(InventoryPage.this, "Cambios guardados correctamente.");
-
-    } catch (Exception ex) {
-        Ui.error(InventoryPage.this, ex);
-    }
-});
-
-
-        JPanel south = new JPanel(new FlowLayout(FlowLayout.RIGHT));
-        south.setOpaque(false);
-        south.add(btnGuardar);
-        card.add(south, BorderLayout.SOUTH);
-
-        return card;
-    }
-
-    private CardPanel buildForm(String title, String[][] fields) {
-        CardPanel card = new CardPanel();
-        card.setLayout(new BorderLayout(12, 16));
-
-        JLabel lbl = new JLabel(title.toUpperCase());
-        lbl.setFont(lbl.getFont().deriveFont(Font.BOLD, 16f));
-        lbl.setForeground(new Color(70, 96, 180));
-        card.add(lbl, BorderLayout.NORTH);
-
-        JPanel form = new JPanel(new GridLayout(0, 2, 18, 18));
-        form.setOpaque(false);
-
-        for (String[] field : fields) {
-            form.add(fieldPanel(field[0], field[1]));
-        }
-
-        card.add(form, BorderLayout.CENTER);
-
-        JButton btn = new JButton("Aceptar");
-        btn.setPreferredSize(new Dimension(160, 40));
-        btn.setBackground(new Color(58, 96, 224));
-        btn.setForeground(Color.WHITE);
-        btn.setFocusPainted(false);
-
-        JPanel south = new JPanel(new FlowLayout(FlowLayout.CENTER));
-        south.setOpaque(false);
-        south.add(btn);
-        card.add(south, BorderLayout.SOUTH);
-
-        return card;
-    }
-
-    private JPanel fieldPanel(String label, String placeholder) {
-        JPanel p = new JPanel(new BorderLayout(6, 6));
-        p.setOpaque(false);
-        JLabel lbl = new JLabel(label.toUpperCase());
-        lbl.setFont(lbl.getFont().deriveFont(Font.PLAIN, 12f));
-        p.add(lbl, BorderLayout.NORTH);
-        JTextField txt = new JTextField();
-        txt.putClientProperty("JTextField.placeholderText", placeholder);
-        txt.putClientProperty("JComponent.roundRect", true);
-        txt.setPreferredSize(new Dimension(200, 40));
-        p.add(txt, BorderLayout.CENTER);
-        return p;
-    }
-
-    private JPanel labeled(String titulo, JComponent field) {
-        JPanel p = new JPanel(new BorderLayout(6, 6));
-        p.setOpaque(false);
-        JLabel lbl = new JLabel(titulo);
-        lbl.setFont(lbl.getFont().deriveFont(Font.PLAIN, 12f));
-        p.add(lbl, BorderLayout.NORTH);
-        field.setPreferredSize(new Dimension(180, 28));
-        p.add(field, BorderLayout.CENTER);
-        return p;
     }
 
     private JToggleButton pillButton(String text) {
@@ -780,30 +137,538 @@ form.add(labeled("UBICACIÓN", cbUbicacionEdit));
         return b;
     }
 
-    // Agrega una fila "Etiqueta | Componente" al panel con GridBagLayout.
-    private void addFormRow(JPanel form, int row, String label, JComponent field) {
-        GridBagConstraints gc = new GridBagConstraints();
-        gc.gridy = row;
-
-        gc.gridx = 0;
-        gc.anchor = GridBagConstraints.LINE_END;
-        gc.insets = new Insets(6, 0, 6, 12);
-        form.add(new JLabel(label), gc);
-
-        gc.gridx = 1;
-        gc.anchor = GridBagConstraints.LINE_START;
-        gc.fill = GridBagConstraints.HORIZONTAL;
-        gc.weightx = 1.0;
-        form.add(field, gc);
+    private List<Categoria> categorias() {
+        return service.listarCategorias();
     }
 
-    // Fuerza tamaño compacto para campos
-    private void compactField(JComponent c) {
-        c.setFont(c.getFont().deriveFont(12f));
-        Dimension d = new Dimension(220, 26);
-        c.setPreferredSize(d);
-        c.setMinimumSize(new Dimension(120, 26));
-        c.setMaximumSize(new Dimension(Short.MAX_VALUE, 26));
-        c.putClientProperty("JComponent.sizeVariant", "small");
+    private List<String> ubicaciones() {
+        return service.listarUbicaciones().stream()
+                .map(Ubicacion::getNombre)
+                .filter(Objects::nonNull)
+                .sorted(String.CASE_INSENSITIVE_ORDER)
+                .toList();
+    }
+
+    private boolean isAdmin() {
+        Usuario u = CurrentSession.getUser();
+        return u != null && u.getRol() != null && u.getRol().getNombre() != null
+                && "ADMIN".equalsIgnoreCase(u.getRol().getNombre());
+    }
+
+    private List<Insumo> buscarInsumos(String query) {
+        String q = query == null ? "" : query.trim().toLowerCase(Locale.ROOT);
+        return service.listarTodos().stream()
+                .filter(i -> {
+                    if (q.isEmpty()) return true;
+                    String cod = i.getCodigo() == null ? "" : i.getCodigo().toLowerCase(Locale.ROOT);
+                    String desc = i.getDescripcion() == null ? "" : i.getDescripcion().toLowerCase(Locale.ROOT);
+                    return cod.contains(q) || desc.contains(q);
+                })
+                .sorted(Comparator.comparing(i -> i.getCodigo() == null ? "" : i.getCodigo()))
+                .toList();
+    }
+
+    private void stylePrimaryButton(JButton b) {
+        b.setPreferredSize(BUTTON_SIZE);
+        b.setBackground(new Color(58, 96, 224));
+        b.setForeground(Color.WHITE);
+        b.setFocusPainted(false);
+    }
+
+    private class RegistroPanel extends CardPanel {
+        private final JTextField txtCodigo = new JTextField();
+        private final JTextField txtDescripcion = new JTextField();
+        private final JComboBox<Categoria> cbCategoria = new JComboBox<>();
+        private final JComboBox<String> cbUbicacion = new JComboBox<>();
+        private final JComboBox<String> cbTipo = new JComboBox<>(new String[]{"INSUMO", "BIEN"});
+        private final JSpinner spStockMin = new JSpinner(new SpinnerNumberModel(0, 0, 999999, 1));
+        private final JButton btnGuardar = new JButton("Guardar");
+
+        RegistroPanel() {
+            setLayout(new BorderLayout(12, 16));
+            setBorder(new EmptyBorder(12, 12, 12, 12));
+
+            JLabel title = new JLabel("Registro de inventario");
+            title.setFont(title.getFont().deriveFont(Font.BOLD, 16f));
+            title.setForeground(new Color(70, 96, 180));
+            add(title, BorderLayout.NORTH);
+
+            JPanel form = new JPanel(new GridLayout(0, 2, 18, 18));
+            form.setOpaque(false);
+
+            txtCodigo.putClientProperty("JTextField.placeholderText", "Ej: INS001");
+            txtDescripcion.putClientProperty("JTextField.placeholderText", "Descripción...");
+            cbUbicacion.putClientProperty("JComponent.roundRect", true);
+            cbCategoria.putClientProperty("JComponent.roundRect", true);
+            cbTipo.putClientProperty("JComponent.roundRect", true);
+            spStockMin.setEditor(new JSpinner.NumberEditor(spStockMin, "#"));
+
+            form.add(labeled("CÓDIGO", txtCodigo));
+            form.add(labeled("DESCRIPCIÓN", txtDescripcion));
+            form.add(labeled("CATEGORÍA", cbCategoria));
+            form.add(labeled("UBICACIÓN", cbUbicacion));
+            form.add(labeled("TIPO", cbTipo));
+            form.add(labeled("STOCK MÍNIMO", spStockMin));
+            add(form, BorderLayout.CENTER);
+
+            stylePrimaryButton(btnGuardar);
+            btnGuardar.addActionListener(e -> guardar());
+
+            JPanel south = new JPanel(new FlowLayout(FlowLayout.RIGHT));
+            south.setOpaque(false);
+            south.add(btnGuardar);
+            add(south, BorderLayout.SOUTH);
+
+            refreshCombos();
+        }
+
+        void refreshCombos() {
+            cbCategoria.removeAllItems();
+            for (Categoria c : categorias()) {
+                cbCategoria.addItem(c);
+            }
+
+            cbUbicacion.removeAllItems();
+            for (String nombre : ubicaciones()) {
+                cbUbicacion.addItem(nombre);
+            }
+            if (cbUbicacion.getItemCount() == 0) {
+                cbUbicacion.addItem("-");
+            }
+            cbUbicacion.setSelectedIndex(0);
+        }
+
+        private void guardar() {
+            try {
+                String codigo = txtCodigo.getText().trim();
+                String desc = txtDescripcion.getText().trim();
+                if (codigo.isEmpty() || desc.isEmpty()) {
+                    Ui.warn(this, "Código y descripción son obligatorios.");
+                    return;
+                }
+
+                Categoria categoria = (Categoria) cbCategoria.getSelectedItem();
+                if (categoria == null) {
+                    Ui.warn(this, "Seleccioná una categoría.");
+                    return;
+                }
+
+                Object v = spStockMin.getValue();
+                if (!(v instanceof Number)) {
+                    Ui.warn(this, "El stock mínimo debe ser numérico.");
+                    return;
+                }
+                int stockMin = ((Number) v).intValue();
+
+                Insumo ins = new Insumo();
+                ins.setCodigo(codigo);
+                ins.setDescripcion(desc);
+                ins.setCategoria(categoria);
+                ins.setUbicacion((String) cbUbicacion.getSelectedItem());
+                ins.setStockMinimo(stockMin);
+                ins.setEstado("ACTIVO");
+                ins.setTipo((String) cbTipo.getSelectedItem());
+
+                Long id = service.registrarInsumo(ins);
+                Ui.info(this, "Insumo guardado. ID = " + id);
+
+                txtCodigo.setText("");
+                txtDescripcion.setText("");
+                spStockMin.setValue(0);
+                cbTipo.setSelectedIndex(0);
+                refreshCombos();
+            } catch (IllegalArgumentException ex) {
+                Ui.warn(this, ex.getMessage());
+            } catch (Exception ex) {
+                Ui.error(this, ex);
+            }
+        }
+    }
+
+    private class ModificarPanel extends CardPanel {
+        private final JTextField txtBuscar = new JTextField(18);
+        private final DefaultListModel<Insumo> listModel = new DefaultListModel<>();
+        private final JList<Insumo> lstResultados = new JList<>(listModel);
+
+        private final JTextField txtCodigo = new JTextField();
+        private final JTextField txtDescripcion = new JTextField();
+        private final JComboBox<Categoria> cbCategoria = new JComboBox<>();
+        private final JComboBox<String> cbUbicacion = new JComboBox<>();
+        private final JComboBox<String> cbTipo = new JComboBox<>(new String[]{"INSUMO", "BIEN"});
+        private final JSpinner spStockMin = new JSpinner(new SpinnerNumberModel(0, 0, 999999, 1));
+        private final JComboBox<String> cbEstado = new JComboBox<>(new String[]{"ACTIVO", "INACTIVO"});
+        private final JButton btnGuardar = new JButton("Guardar cambios");
+
+        private Insumo seleccionado;
+
+        ModificarPanel() {
+            setLayout(new BorderLayout(12, 16));
+            setBorder(new EmptyBorder(12, 12, 12, 12));
+
+            JLabel title = new JLabel("Modificar insumo existente");
+            title.setFont(title.getFont().deriveFont(Font.BOLD, 16f));
+            title.setForeground(new Color(70, 96, 180));
+            add(title, BorderLayout.NORTH);
+
+            JPanel content = new JPanel(new BorderLayout(12, 12));
+            content.setOpaque(false);
+            add(content, BorderLayout.CENTER);
+
+            JPanel search = new JPanel(new BorderLayout(8, 0));
+            search.setOpaque(false);
+            txtBuscar.putClientProperty("JTextField.placeholderText", "Código o descripción");
+            JButton btnBuscar = new JButton("Buscar");
+            btnBuscar.addActionListener(e -> cargarResultados());
+            search.add(txtBuscar, BorderLayout.CENTER);
+            search.add(btnBuscar, BorderLayout.EAST);
+            content.add(search, BorderLayout.NORTH);
+
+            lstResultados.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
+            lstResultados.setVisibleRowCount(8);
+            lstResultados.setCellRenderer(new InsumoRenderer());
+            lstResultados.addListSelectionListener(new ListSelectionListener() {
+                @Override public void valueChanged(ListSelectionEvent e) {
+                    if (!e.getValueIsAdjusting()) {
+                        seleccionado = lstResultados.getSelectedValue();
+                        cargarSeleccionado();
+                    }
+                }
+            });
+
+            JScrollPane scroll = new JScrollPane(lstResultados);
+            scroll.setPreferredSize(new Dimension(260, 180));
+            content.add(scroll, BorderLayout.WEST);
+
+            JPanel form = new JPanel(new GridLayout(0, 2, 18, 18));
+            form.setOpaque(false);
+            txtCodigo.setEditable(false);
+            spStockMin.setEditor(new JSpinner.NumberEditor(spStockMin, "#"));
+            cbCategoria.putClientProperty("JComponent.roundRect", true);
+            cbUbicacion.putClientProperty("JComponent.roundRect", true);
+            cbTipo.putClientProperty("JComponent.roundRect", true);
+            cbEstado.putClientProperty("JComponent.roundRect", true);
+
+            form.add(labeled("CÓDIGO", txtCodigo));
+            form.add(labeled("DESCRIPCIÓN", txtDescripcion));
+            form.add(labeled("CATEGORÍA", cbCategoria));
+            form.add(labeled("UBICACIÓN", cbUbicacion));
+            form.add(labeled("TIPO", cbTipo));
+            form.add(labeled("STOCK MÍNIMO", spStockMin));
+            form.add(labeled("ESTADO", cbEstado));
+            content.add(form, BorderLayout.CENTER);
+
+            stylePrimaryButton(btnGuardar);
+            btnGuardar.addActionListener(e -> guardar());
+            JPanel south = new JPanel(new FlowLayout(FlowLayout.RIGHT));
+            south.setOpaque(false);
+            south.add(btnGuardar);
+            add(south, BorderLayout.SOUTH);
+
+            refreshData();
+        }
+
+        void refreshData() {
+            cargarResultados();
+            cbCategoria.removeAllItems();
+            for (Categoria c : categorias()) cbCategoria.addItem(c);
+
+            cbUbicacion.removeAllItems();
+            for (String nombre : ubicaciones()) cbUbicacion.addItem(nombre);
+            if (cbUbicacion.getItemCount() == 0) cbUbicacion.addItem("-");
+
+            cbEstado.setEnabled(isAdmin());
+        }
+
+        void mostrarSoloBajoMinimo() {
+            refreshData();
+            txtBuscar.setText("");
+            listModel.clear();
+            List<Insumo> insumos = service.listarTodos();
+            for (Insumo i : insumos) {
+                if (i.getId() == null) {
+                    continue;
+                }
+                Integer minimo = i.getStockMinimo();
+                if (minimo == null) {
+                    continue;
+                }
+                BigDecimal actual;
+                try {
+                    actual = service.stockActualExacto(i.getId());
+                } catch (Exception ex) {
+                    actual = BigDecimal.ZERO;
+                }
+                if (actual.compareTo(BigDecimal.valueOf(minimo)) < 0) {
+                    listModel.addElement(i);
+                }
+            }
+            if (listModel.isEmpty()) {
+                limpiarFormulario();
+            } else {
+                lstResultados.setSelectedIndex(0);
+            }
+        }
+
+        private void cargarResultados() {
+            listModel.clear();
+            for (Insumo i : buscarInsumos(txtBuscar.getText())) {
+                listModel.addElement(i);
+            }
+            seleccionado = null;
+            limpiarFormulario();
+        }
+
+        private void limpiarFormulario() {
+            txtCodigo.setText("");
+            txtDescripcion.setText("");
+            if (cbCategoria.getItemCount() > 0) cbCategoria.setSelectedIndex(0);
+            if (cbUbicacion.getItemCount() > 0) cbUbicacion.setSelectedIndex(0);
+            cbTipo.setSelectedIndex(0);
+            spStockMin.setValue(0);
+            cbEstado.setSelectedIndex(0);
+        }
+
+        private void cargarSeleccionado() {
+            if (seleccionado == null) {
+                limpiarFormulario();
+                return;
+            }
+            txtCodigo.setText(seleccionado.getCodigo());
+            txtDescripcion.setText(seleccionado.getDescripcion() == null ? "" : seleccionado.getDescripcion());
+
+            if (seleccionado.getCategoria() != null) {
+                for (int i = 0; i < cbCategoria.getItemCount(); i++) {
+                    if (Objects.equals(cbCategoria.getItemAt(i).getId(), seleccionado.getCategoria().getId())) {
+                        cbCategoria.setSelectedIndex(i);
+                        break;
+                    }
+                }
+            }
+
+            if (seleccionado.getUbicacion() != null) {
+                String ubic = seleccionado.getUbicacion();
+                ComboBoxModel<String> model = cbUbicacion.getModel();
+                boolean found = false;
+                for (int i = 0; i < model.getSize(); i++) {
+                    if (ubic.equalsIgnoreCase(model.getElementAt(i))) {
+                        found = true;
+                        break;
+                    }
+                }
+                if (!found) {
+                    cbUbicacion.addItem(ubic);
+                }
+                cbUbicacion.setSelectedItem(ubic);
+            }
+            cbTipo.setSelectedItem(seleccionado.getTipo() == null ? "INSUMO" : seleccionado.getTipo());
+
+            Integer sm = seleccionado.getStockMinimo();
+            spStockMin.setValue(sm == null ? 0 : sm);
+            cbEstado.setSelectedItem(seleccionado.getEstado() == null ? "ACTIVO" : seleccionado.getEstado());
+        }
+
+        private void guardar() {
+            if (seleccionado == null) {
+                Ui.warn(this, "Primero seleccioná un insumo de la lista.");
+                return;
+            }
+            try {
+                seleccionado.setDescripcion(txtDescripcion.getText().trim());
+                seleccionado.setCategoria((Categoria) cbCategoria.getSelectedItem());
+                seleccionado.setUbicacion((String) cbUbicacion.getSelectedItem());
+                seleccionado.setTipo((String) cbTipo.getSelectedItem());
+
+                spStockMin.commitEdit();
+                Object v = spStockMin.getValue();
+                if (!(v instanceof Number)) {
+                    Ui.warn(this, "El stock mínimo debe ser numérico.");
+                    return;
+                }
+                seleccionado.setStockMinimo(((Number) v).intValue());
+
+                if (isAdmin()) {
+                    seleccionado.setEstado((String) cbEstado.getSelectedItem());
+                }
+
+                service.editarInsumo(seleccionado);
+                Ui.info(this, "Cambios guardados correctamente.");
+                cargarResultados();
+            } catch (IllegalStateException ex) {
+                Ui.warn(this, ex.getMessage());
+            } catch (IllegalArgumentException ex) {
+                Ui.warn(this, ex.getMessage());
+            } catch (Exception ex) {
+                Ui.error(this, ex);
+            }
+        }
+    }
+
+    private class EliminarPanel extends CardPanel {
+        private final JTextField txtBuscar = new JTextField(18);
+        private final DefaultListModel<Insumo> listModel = new DefaultListModel<>();
+        private final JList<Insumo> lstResultados = new JList<>(listModel);
+
+        private final JTextField txtCodigo = new JTextField();
+        private final JTextField txtDescripcion = new JTextField();
+        private final JTextField txtCategoria = new JTextField();
+        private final JTextField txtUbicacion = new JTextField();
+        private final JTextField txtTipo = new JTextField();
+        private final JTextField txtEstado = new JTextField();
+        private final JLabel lblStock = new JLabel(" ");
+        private final JButton btnEliminar = new JButton("Eliminar");
+
+        private Insumo seleccionado;
+        private BigDecimal stockActual = BigDecimal.ZERO;
+
+        EliminarPanel() {
+            setLayout(new BorderLayout(12, 16));
+            setBorder(new EmptyBorder(12, 12, 12, 12));
+
+            JLabel title = new JLabel("Baja lógica de insumo");
+            title.setFont(title.getFont().deriveFont(Font.BOLD, 16f));
+            title.setForeground(new Color(180, 70, 70));
+            add(title, BorderLayout.NORTH);
+
+            JPanel content = new JPanel(new BorderLayout(12, 12));
+            content.setOpaque(false);
+            add(content, BorderLayout.CENTER);
+
+            JPanel search = new JPanel(new BorderLayout(8, 0));
+            search.setOpaque(false);
+            txtBuscar.putClientProperty("JTextField.placeholderText", "Código o descripción");
+            JButton btnBuscar = new JButton("Buscar");
+            btnBuscar.addActionListener(e -> cargarResultados());
+            search.add(txtBuscar, BorderLayout.CENTER);
+            search.add(btnBuscar, BorderLayout.EAST);
+            content.add(search, BorderLayout.NORTH);
+
+            lstResultados.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
+            lstResultados.setVisibleRowCount(8);
+            lstResultados.setCellRenderer(new InsumoRenderer());
+            lstResultados.addListSelectionListener(e -> {
+                if (!e.getValueIsAdjusting()) {
+                    seleccionado = lstResultados.getSelectedValue();
+                    cargarSeleccionado();
+                }
+            });
+            content.add(new JScrollPane(lstResultados), BorderLayout.WEST);
+
+            JPanel form = new JPanel(new GridLayout(0, 2, 18, 12));
+            form.setOpaque(false);
+            for (JTextField tf : new JTextField[]{txtCodigo, txtDescripcion, txtCategoria, txtUbicacion, txtTipo, txtEstado}) {
+                tf.setEditable(false);
+            }
+            form.add(labeled("CÓDIGO", txtCodigo));
+            form.add(labeled("DESCRIPCIÓN", txtDescripcion));
+            form.add(labeled("CATEGORÍA", txtCategoria));
+            form.add(labeled("UBICACIÓN", txtUbicacion));
+            form.add(labeled("TIPO", txtTipo));
+            form.add(labeled("ESTADO", txtEstado));
+            content.add(form, BorderLayout.CENTER);
+
+            lblStock.setForeground(new Color(200, 90, 90));
+            lblStock.setFont(lblStock.getFont().deriveFont(Font.BOLD, 12f));
+
+            stylePrimaryButton(btnEliminar);
+            btnEliminar.setBackground(new Color(200, 60, 60));
+            btnEliminar.addActionListener(e -> eliminar());
+            btnEliminar.setEnabled(false);
+
+            JPanel south = new JPanel(new BorderLayout());
+            south.setOpaque(false);
+            south.add(lblStock, BorderLayout.WEST);
+            JPanel btnRow = new JPanel(new FlowLayout(FlowLayout.RIGHT));
+            btnRow.setOpaque(false);
+            btnRow.add(btnEliminar);
+            south.add(btnRow, BorderLayout.EAST);
+            add(south, BorderLayout.SOUTH);
+
+            refreshData();
+        }
+
+        void refreshData() {
+            cargarResultados();
+        }
+
+        private void cargarResultados() {
+            listModel.clear();
+            for (Insumo i : buscarInsumos(txtBuscar.getText())) listModel.addElement(i);
+            seleccionado = null;
+            limpiarFormulario();
+        }
+
+        private void limpiarFormulario() {
+            for (JTextField tf : new JTextField[]{txtCodigo, txtDescripcion, txtCategoria, txtUbicacion, txtTipo, txtEstado}) {
+                tf.setText("");
+            }
+            lblStock.setText(" ");
+            btnEliminar.setEnabled(false);
+        }
+
+        private void cargarSeleccionado() {
+            if (seleccionado == null) {
+                limpiarFormulario();
+                return;
+            }
+            txtCodigo.setText(seleccionado.getCodigo());
+            txtDescripcion.setText(seleccionado.getDescripcion() == null ? "" : seleccionado.getDescripcion());
+            txtCategoria.setText(seleccionado.getCategoria() != null ? seleccionado.getCategoria().getNombre() : "");
+            txtUbicacion.setText(seleccionado.getUbicacion() == null ? "" : seleccionado.getUbicacion());
+            txtTipo.setText(seleccionado.getTipo() == null ? "INSUMO" : seleccionado.getTipo());
+            txtEstado.setText(seleccionado.getEstado() == null ? "ACTIVO" : seleccionado.getEstado());
+
+            stockActual = service.stockActualExacto(seleccionado.getId());
+            if (stockActual.compareTo(BigDecimal.ZERO) > 0) {
+                lblStock.setText("Stock: " + stockActual.stripTrailingZeros().toPlainString() + " (no eliminable)");
+                btnEliminar.setEnabled(false);
+            } else {
+                lblStock.setText("Stock: 0");
+                btnEliminar.setEnabled(true);
+            }
+        }
+
+        private void eliminar() {
+            if (seleccionado == null) {
+                Ui.warn(this, "Seleccioná un insumo.");
+                return;
+            }
+            if (!Ui.confirm(this, "¿Confirmás la baja lógica de " + seleccionado.getCodigo() + "?")) {
+                return;
+            }
+            try {
+                service.bajaLogica(seleccionado.getId());
+                Ui.info(this, "El insumo fue dado de baja.");
+                cargarResultados();
+            } catch (IllegalStateException ex) {
+                Ui.warn(this, ex.getMessage());
+            } catch (Exception ex) {
+                Ui.error(this, ex);
+            }
+        }
+    }
+
+    private JPanel labeled(String titulo, JComponent field) {
+        JPanel p = new JPanel(new BorderLayout(6, 6));
+        p.setOpaque(false);
+        JLabel lbl = new JLabel(titulo);
+        lbl.setFont(lbl.getFont().deriveFont(Font.PLAIN, 12f));
+        p.add(lbl, BorderLayout.NORTH);
+        field.setPreferredSize(new Dimension(220, 28));
+        p.add(field, BorderLayout.CENTER);
+        return p;
+    }
+
+    private static class InsumoRenderer extends DefaultListCellRenderer {
+        @Override
+        public Component getListCellRendererComponent(JList<?> list, Object value, int index, boolean isSelected, boolean cellHasFocus) {
+            super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus);
+            if (value instanceof Insumo ins) {
+                String cod = ins.getCodigo() == null ? "-" : ins.getCodigo();
+                String desc = ins.getDescripcion() == null ? "" : ins.getDescripcion();
+                String tipo = ins.getTipo() == null ? "INSUMO" : ins.getTipo();
+                setText(cod + " · " + desc + " · " + tipo);
+            }
+            return this;
+        }
     }
 }

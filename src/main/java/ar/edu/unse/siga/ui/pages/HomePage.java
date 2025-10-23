@@ -10,13 +10,12 @@ import ar.edu.unse.siga.ui.base.CardPanel;
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
 import java.awt.*;
-import java.text.NumberFormat;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Locale;
-import java.util.function.Consumer;
+import java.math.BigDecimal;
 
 /**
  * Dashboard de Inicio con métricas y actividad reciente dinámica.
@@ -30,13 +29,19 @@ public class HomePage extends JPanel {
     private final Usuario usuarioActual;
     private final InventarioService inventarioService;
     private final TramiteService tramiteService;
-    private final Consumer<String> onNavigate;
+    public interface HomeNavigation {
+        void navigateTo(String key);
+        void openInventarioBajoMinimo();
+        void openTramitesNuevos();
+        void openMovimientosHoy();
+    }
+
+    private final HomeNavigation navigation;
 
     // Labels de métricas (para refrescar)
-    private JLabel lblTareasPend;
-    private JLabel lblAprobPend;
     private JLabel lblInsumosCriticos;
-    private JLabel lblBalance;
+    private JLabel lblTramitesNuevos;
+    private JLabel lblSalidasHoy;
     private JLabel lblAlertStock;
 
     // Contenedor dinámico de la tarjeta de actividad
@@ -52,11 +57,11 @@ public class HomePage extends JPanel {
     public HomePage(Usuario usuarioActual,
                     InventarioService inventarioService,
                     TramiteService tramiteService,
-                    Consumer<String> onNavigate) {
+                    HomeNavigation navigation) {
         this.usuarioActual = usuarioActual;
         this.inventarioService = inventarioService;
         this.tramiteService = tramiteService;
-        this.onNavigate = onNavigate;
+        this.navigation = navigation;
 
         setOpaque(false);
         setLayout(new BorderLayout());
@@ -183,21 +188,19 @@ public class HomePage extends JPanel {
     }
 
     private JPanel metricsRow() {
-        JPanel row = new JPanel(new GridLayout(1, 4, 16, 0));
+        JPanel row = new JPanel(new GridLayout(1, 3, 16, 0));
         row.setOpaque(false);
 
-        row.add(metricCard("Tareas pendientes", lblTareasPend = new JLabel("0"),
-                "Trámites por resolver", new Color(58, 109, 255)));
-        row.add(metricCard("Aprob. pendientes", lblAprobPend = new JLabel("0"),
-                "Trámites en espera", new Color(86, 127, 255)));
-        row.add(metricCard("Insumos críticos", lblInsumosCriticos = new JLabel("0"),
-                "Stock bajo el mínimo", new Color(255, 99, 99)));
-        row.add(metricCard("Balance dpto", lblBalance = new JLabel("0 u."),
-                "Unidades disponibles", new Color(58, 182, 186)));
+        row.add(metricCard("Insumos bajo mínimo", lblInsumosCriticos = new JLabel("0"),
+                "Stock por reponer", new Color(255, 99, 99), this::openInventarioBajoMinimo));
+        row.add(metricCard("Trámites nuevos", lblTramitesNuevos = new JLabel("0"),
+                "Ingresados recientemente", new Color(86, 127, 255), this::openTramitesNuevos));
+        row.add(metricCard("Últimas salidas (hoy)", lblSalidasHoy = new JLabel("0"),
+                "Movimientos registrados hoy", new Color(58, 182, 186), this::openMovimientosHoy));
         return row;
     }
 
-    private JPanel metricCard(String title, JLabel valueLabel, String hint, Color base) {
+    private JPanel metricCard(String title, JLabel valueLabel, String hint, Color base, Runnable onClick) {
         JPanel card = new JPanel() {
             @Override
             protected void paintComponent(Graphics g) {
@@ -232,12 +235,7 @@ public class HomePage extends JPanel {
         card.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
         card.addMouseListener(new java.awt.event.MouseAdapter() {
             @Override public void mouseClicked(java.awt.event.MouseEvent e) {
-                switch (title.toLowerCase()) {
-                    case "insumos críticos" -> navigateOrInfo("inventario");
-                    case "aprob. pendientes" -> navigateOrInfo("tramites");
-                    case "tareas pendientes" -> navigateOrInfo("tramites");
-                    case "balance dpto"      -> navigateOrInfo("finanzas");
-                }
+                if (onClick != null) onClick.run();
             }
         });
         return card;
@@ -313,39 +311,22 @@ public class HomePage extends JPanel {
 
     /** Refresca las métricas del dashboard. */
     public void refreshMetrics() {
-        int tareasPendientes = 0;
-        int aprobPendientes = 0;
+        int criticos = 0;
+        int tramitesNuevos = 0;
+        int salidasHoy = 0;
 
         if (tramiteService != null) {
             try {
                 List<Tramite> tramites = tramiteService.listarTodos();
-                tareasPendientes = (int) tramites.stream()
+                tramitesNuevos = (int) tramites.stream()
                         .filter(t -> {
                             String estado = t.getEstado();
-                            if (estado == null) return true;
-                            String up = estado.trim().toUpperCase(Locale.ROOT);
-                            return !up.equals("COMPLETADO") && !up.equals("CERRADO");
-                        })
-                        .count();
-
-                aprobPendientes = (int) tramites.stream()
-                        .filter(t -> {
-                            String estado = t.getEstado();
-                            if (estado == null) return false;
-                            String up = estado.trim().toUpperCase(Locale.ROOT);
-                            return up.equals("PENDIENTE") || up.equals("NUEVO");
+                            return estado != null && "NUEVO".equalsIgnoreCase(estado.trim());
                         })
                         .count();
             } catch (Exception ignored) {
-                // mantenemos valores anteriores ante errores
             }
         }
-
-        lblTareasPend.setText(String.valueOf(tareasPendientes));
-        lblAprobPend.setText(String.valueOf(aprobPendientes));
-
-        int criticos = 0;
-        int totalStock = 0;
 
         if (inventarioService != null) {
             try {
@@ -353,30 +334,29 @@ public class HomePage extends JPanel {
                 for (Insumo i : insumos) {
                     Integer min = i.getStockMinimo();
                     Long id = i.getId();
-                    int actual = 0;
+                    BigDecimal actual = BigDecimal.ZERO;
                     if (id != null) {
                         try {
-                            //actual = inventarioService.stockActual(id);
-                            actual = inventarioService.stockActual(id.longValue());
+                            actual = inventarioService.stockActualExacto(id);
                         } catch (Exception ex) {
-                            actual = 0;
+                            actual = BigDecimal.ZERO;
                         }
                     }
-                    if (min != null && actual < min) {
+                    if (min != null && actual.compareTo(BigDecimal.valueOf(min)) < 0) {
                         criticos++;
                     }
-                    totalStock += Math.max(0, actual);
                 }
+                salidasHoy = inventarioService.movimientosPorFechaYTipo(java.time.LocalDate.now(),
+                        java.time.LocalDate.now(), "SALIDA").size();
             } catch (Exception ignored) {
                 // dejamos los valores previos si algo falla
             }
         }
 
         lblInsumosCriticos.setText(String.valueOf(criticos));
+        lblTramitesNuevos.setText(String.valueOf(tramitesNuevos));
+        lblSalidasHoy.setText(String.valueOf(salidasHoy));
         updateAlertStock(criticos);
-
-        NumberFormat nf = NumberFormat.getIntegerInstance(new Locale("es", "AR"));
-        lblBalance.setText(nf.format(totalStock) + " u.");
     }
 
     private void updateAlertStock(int criticos) {
@@ -430,8 +410,23 @@ public class HomePage extends JPanel {
 
 
     /** Navega usando el callback, o informa si no está configurado. */
+    private void openInventarioBajoMinimo() {
+        if (navigation != null) navigation.openInventarioBajoMinimo();
+        else navigateOrInfo("inventario");
+    }
+
+    private void openTramitesNuevos() {
+        if (navigation != null) navigation.openTramitesNuevos();
+        else navigateOrInfo("tramites");
+    }
+
+    private void openMovimientosHoy() {
+        if (navigation != null) navigation.openMovimientosHoy();
+        else navigateOrInfo("movimientos");
+    }
+
     private void navigateOrInfo(String pageKey) {
-        if (onNavigate != null) onNavigate.accept(pageKey);
+        if (navigation != null) navigation.navigateTo(pageKey);
         else JOptionPane.showMessageDialog(this,
                 "Navegación a: " + pageKey + " (configurá onNavigate en ShellFrame).",
                 "Navegación", JOptionPane.INFORMATION_MESSAGE);

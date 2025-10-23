@@ -8,7 +8,6 @@ import ar.edu.unse.siga.ui.base.CardPanel;
 import ar.edu.unse.siga.ui.base.GradientPanel;
 import ar.edu.unse.siga.ui.base.ThemeManager;
 import ar.edu.unse.siga.ui.base.WaveSidebarPanel;
-import ar.edu.unse.siga.ui.pages.FinanzasPage;
 import ar.edu.unse.siga.ui.pages.HomePage;
 import ar.edu.unse.siga.ui.pages.InventoryMovementsPage;
 import ar.edu.unse.siga.ui.pages.InventoryPage;
@@ -34,8 +33,11 @@ public class ShellFrame extends JFrame {
     private final TramiteService tramiteService;
     private final AuthService authService;
 
-    // === NUEVO: referencia a la página de movimientos para refrescar ===
+    private HomePage homePage;
+    private InventoryPage inventoryPage;
     private InventoryMovementsPage movimientosPage;
+    private TramiteEntradaPage tramitesPage;
+    private InformesPanel informesPanel;
 
     // mapa de clave de tarjeta -> botón del sidebar
     private final Map<String, NavButton> navByKey = new HashMap<>();
@@ -81,19 +83,51 @@ public class ShellFrame extends JFrame {
             showCard(key, title);
         };
 
-        // ===== Páginas (instancias compartidas) =====
-        HomePage homePage = new HomePage(CurrentSession.getUser(), inventarioService, tramiteService, nav);
-        TramiteEntradaPage tramitesPage = new TramiteEntradaPage(tramiteService, homePage::recargarTramitesRecientes);
+        inventoryPage = new InventoryPage(inventarioService);
+        informesPanel = new InformesPanel(inventarioService, tramiteService);
+
+        final TramiteEntradaPage[] tramitesHolder = new TramiteEntradaPage[1];
+        homePage = new HomePage(CurrentSession.getUser(), inventarioService, tramiteService, new HomePage.HomeNavigation() {
+            @Override
+            public void navigateTo(String key) {
+                nav.accept(key);
+            }
+
+            @Override
+            public void openInventarioBajoMinimo() {
+                nav.accept("inventario");
+                if (inventoryPage != null) {
+                    inventoryPage.mostrarInsumosBajoMinimo();
+                }
+            }
+
+            @Override
+            public void openTramitesNuevos() {
+                nav.accept("tramites");
+                if (tramitesHolder[0] != null) {
+                    tramitesHolder[0].mostrarTramitesEstado("NUEVO");
+                }
+            }
+
+            @Override
+            public void openMovimientosHoy() {
+                nav.accept("reportes");
+                if (informesPanel != null) {
+                    informesPanel.mostrarMovimientosSalidasHoy();
+                }
+            }
+        });
+
+        tramitesPage = new TramiteEntradaPage(tramiteService, homePage::recargarTramitesRecientes);
+        tramitesHolder[0] = tramitesPage;
+
+        movimientosPage = new InventoryMovementsPage(inventarioService);
 
         addPage("home", homePage);
-        addPage("inventario", new InventoryPage(inventarioService));
-
-        // === NUEVO: instanciar y guardar referencia ===
-        movimientosPage = new InventoryMovementsPage(inventarioService);
+        addPage("inventario", inventoryPage);
         addPage("movimientos", movimientosPage);
-
         addPage("tramites", tramitesPage);
-        addPage("reportes", new InformesPanel(inventarioService, tramiteService));
+        addPage("reportes", informesPanel);
         // addPage("finanzas",    new FinanzasPage()); // si la usás, descomentar
 
         setSize(1200, 760);
