@@ -26,6 +26,11 @@ public class JdbcInsumoDao implements InsumoDao {
         i.setStockMinimo(rs.getInt("stock_minimo"));
         i.setUbicacion(rs.getString("ubicacion"));
         i.setEstado(rs.getString("estado"));
+        try {
+            i.setTipo(rs.getString("tipo"));
+        } catch (SQLException ignore) {
+            i.setTipo("INSUMO");
+        }
 
         // created_at → fechaAlta
         Timestamp ts = safeGetTimestamp(rs, "created_at");
@@ -62,8 +67,8 @@ public class JdbcInsumoDao implements InsumoDao {
     @Override
     public Long create(Insumo insumo) {
         final String sql = """
-            INSERT INTO insumo(codigo, descripcion, categoria_id, stock_minimo, ubicacion, estado)
-            VALUES (?, ?, ?, ?, ?, ?)
+            INSERT INTO insumo(codigo, descripcion, categoria_id, stock_minimo, ubicacion, estado, tipo)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
         """;
         try (Connection cn = DataSourceFactory.getConnection();
              PreparedStatement ps = cn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
@@ -81,6 +86,7 @@ public class JdbcInsumoDao implements InsumoDao {
             ps.setInt(4, insumo.getStockMinimo() == null ? 0 : insumo.getStockMinimo());
             ps.setString(5, insumo.getUbicacion());
             ps.setString(6, insumo.getEstado() == null ? "ACTIVO" : insumo.getEstado());
+            ps.setString(7, normalizeTipo(insumo.getTipo()));
 
             ps.executeUpdate();
 
@@ -111,7 +117,8 @@ public class JdbcInsumoDao implements InsumoDao {
                 categoria_id = ?,
                 stock_minimo = ?,
                 ubicacion = ?,
-                estado = ?
+                estado = ?,
+                tipo = ?
             WHERE id = ?
         """;
         try (Connection cn = DataSourceFactory.getConnection();
@@ -130,7 +137,8 @@ public class JdbcInsumoDao implements InsumoDao {
             ps.setInt(4, insumo.getStockMinimo() == null ? 0 : insumo.getStockMinimo());
             ps.setString(5, insumo.getUbicacion());
             ps.setString(6, insumo.getEstado() == null ? "ACTIVO" : insumo.getEstado());
-            ps.setLong(7, insumo.getId());
+            ps.setString(7, normalizeTipo(insumo.getTipo()));
+            ps.setLong(8, insumo.getId());
 
             ps.executeUpdate();
 
@@ -192,6 +200,32 @@ public class JdbcInsumoDao implements InsumoDao {
 
         } catch (SQLException e) {
             throw new RuntimeException("Error listando insumos", e);
+        }
+    }
+
+    private String normalizeTipo(String tipo) {
+        if (tipo == null) return "INSUMO";
+        String up = tipo.trim().toUpperCase();
+        return ("BIEN".equals(up)) ? "BIEN" : "INSUMO";
+    }
+
+    @Override
+    public Optional<Insumo> findById(Long id) {
+        final String sql = """
+            SELECT i.*, c.nombre AS categoria_nombre
+            FROM insumo i
+            JOIN categoria c ON c.id = i.categoria_id
+            WHERE i.id = ?
+        """;
+        try (Connection cn = DataSourceFactory.getConnection();
+             PreparedStatement ps = cn.prepareStatement(sql)) {
+            ps.setLong(1, id);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) return Optional.of(mapRow(rs));
+                return Optional.empty();
+            }
+        } catch (SQLException e) {
+            throw new RuntimeException("Error buscando insumo por id: " + id, e);
         }
     }
 }

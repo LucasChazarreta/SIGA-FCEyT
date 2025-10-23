@@ -12,6 +12,7 @@ public class Insumo {
     private Integer stockMinimo;
     private String ubicacion;
     private String estado;           // ACTIVO / INACTIVO
+    private String tipo;             // INSUMO / BIEN
     private Instant createdAt;       // timestamp de creación (BD)
     private LocalDate fechaAlta;     // vista amigable para informes
 
@@ -37,6 +38,9 @@ public class Insumo {
 
     public String getEstado() { return estado; }
     public void setEstado(String estado) { this.estado = estado; }
+
+    public String getTipo() { return tipo; }
+    public void setTipo(String tipo) { this.tipo = tipo; }
 
     public Instant getCreatedAt() { return createdAt; }
     public void setCreatedAt(Instant createdAt) { this.createdAt = createdAt; }

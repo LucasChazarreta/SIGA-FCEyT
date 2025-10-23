@@ -11,7 +11,7 @@ public class Movimiento {
     private Long id;
     private Insumo insumo;
     private String tipo; // ENTRADA / SALIDA
-    private Integer cantidad;
+    private java.math.BigDecimal cantidad;
     private String destinoFuente;
     private LocalDateTime fecha;
     private Usuario usuario;
@@ -24,8 +24,8 @@ public class Movimiento {
     public void setInsumo(Insumo insumo) { this.insumo = insumo; }
     public String getTipo() { return tipo; }
     public void setTipo(String tipo) { this.tipo = tipo; }
-    public Integer getCantidad() { return cantidad; }
-    public void setCantidad(Integer cantidad) { this.cantidad = cantidad; }
+    public java.math.BigDecimal getCantidad() { return cantidad; }
+    public void setCantidad(java.math.BigDecimal cantidad) { this.cantidad = cantidad; }
     public String getDestinoFuente() { return destinoFuente; }
     public void setDestinoFuente(String destinoFuente) { this.destinoFuente = destinoFuente; }
     public LocalDateTime getFecha() { return fecha; }

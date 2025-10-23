@@ -9,6 +9,7 @@ public interface InsumoDao {
     void update(Insumo insumo);
     void softDelete(Long id);
     Optional<Insumo> findByCodigo(String codigo);
+    Optional<Insumo> findById(Long id);
     List<Insumo> listAll();
 }
 

@@ -2,6 +2,7 @@ package ar.edu.unse.siga.ui.pages;
 
 import ar.edu.unse.siga.domain.Insumo;
 import ar.edu.unse.siga.domain.Movimiento;
+import ar.edu.unse.siga.domain.Ubicacion;
 import ar.edu.unse.siga.service.InventarioService;
 import ar.edu.unse.siga.service.InventarioService.StockCheckResult;
 import ar.edu.unse.siga.ui.base.CardPanel;
@@ -10,8 +11,10 @@ import ar.edu.unse.siga.ui.inventario.MovimientoDialog;
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
 import java.awt.*;
+import java.math.BigDecimal;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
+import java.util.stream.Collectors;
 
 public class InventoryMovementsPage extends JPanel {
 
@@ -28,7 +31,7 @@ public class InventoryMovementsPage extends JPanel {
     private final DefaultListModel<String> historialModel = new DefaultListModel<>();
     private final JList<String> lstHistorial = new JList<>(historialModel);
     
-    public void refreshInsumos() { /* repoblar la lista desde DAO/Service */ }
+    public void refreshInsumos() { loadInsumos(""); }
 
 
     public InventoryMovementsPage(InventarioService service) {
@@ -142,7 +145,14 @@ public class InventoryMovementsPage extends JPanel {
                 if (selected != null) {
                     refreshSelectedSummary();
                     refreshHistorial(selected.getId());
-                    setActionsEnabled(true);
+                    boolean activo = selected.getEstado() == null
+                            || !"INACTIVO".equalsIgnoreCase(selected.getEstado());
+                    setActionsEnabled(activo);
+                    if (!activo) {
+                        JOptionPane.showMessageDialog(InventoryMovementsPage.this,
+                                "El insumo está INACTIVO; no se pueden registrar movimientos.",
+                                "Atención", JOptionPane.WARNING_MESSAGE);
+                    }
                 } else {
                     setActionsEnabled(false);
                     taSeleccion.setText("Seleccioná un insumo");
@@ -216,6 +226,7 @@ public class InventoryMovementsPage extends JPanel {
     private void stylePrimary(JButton b) {
         b.setFocusPainted(false);
         b.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        b.setPreferredSize(new Dimension(170, 38));
     }
 
     private void setActionsEnabled(boolean enabled) {
@@ -246,69 +257,69 @@ public class InventoryMovementsPage extends JPanel {
             JOptionPane.showMessageDialog(this, "Seleccioná un insumo primero.", "Atención", JOptionPane.WARNING_MESSAGE);
             return;
         }
+        if (sel.getEstado() != null && "INACTIVO".equalsIgnoreCase(sel.getEstado())) {
+            JOptionPane.showMessageDialog(this, "El insumo está INACTIVO; no se pueden registrar movimientos.",
+                    "Atención", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
 
-        int stock = 0;
+        BigDecimal stockActual = BigDecimal.ZERO;
         try {
             StockCheckResult res = service.stockActual(sel.getId());
-            stock = (res != null && res.stockActual != null) ? res.stockActual : 0;   // ← usar lo devuelto
+            stockActual = res == null ? BigDecimal.ZERO : res.getStockActualDecimal();
         } catch (Exception ignored) {}
 
         var win = SwingUtilities.getWindowAncestor(this);
-        String ctx = "Insumo: " + sel.getCodigo() + " · " + sel.getDescripcion()
-                + "  |  Stock actual: " + stock;
+        String ctx = String.format("Insumo: %s · %s  |  Stock actual: %s",
+                sel.getCodigo(),
+                sel.getDescripcion() == null ? "" : sel.getDescripcion(),
+                formatCantidad(stockActual));
 
-        MovimientoDialog dlg = new MovimientoDialog(win, ctx, tipoInicial, null, 1);
+        boolean allowDecimal = sel.getTipo() == null || !"BIEN".equalsIgnoreCase(sel.getTipo());
+        List<String> ubicaciones = service.listarUbicaciones().stream()
+                .map(Ubicacion::getNombre)
+                .filter(s -> s != null && !s.isBlank())
+                .collect(Collectors.toList());
+
+        MovimientoDialog dlg = new MovimientoDialog(win, ctx, tipoInicial, allowDecimal, ubicaciones);
         dlg.setVisible(true);
         if (!dlg.isAccepted()) return;
 
-        String tipo = dlg.getTipo();
-        int cantidad = dlg.getCantidad();
+        BigDecimal cantidad = dlg.getCantidad();
         String destino = dlg.getDestinoFuente();
 
-        if (cantidad <= 0) {
+        if (cantidad.compareTo(BigDecimal.ZERO) <= 0) {
             JOptionPane.showMessageDialog(this, "La cantidad debe ser mayor a 0.", "Atención", JOptionPane.WARNING_MESSAGE);
             return;
         }
 
-        // Pre-chequeo SALIDA
         try {
-            StockCheckResult res = service.stockActual(sel.getId());
-            stock = (res != null && res.stockActual != null) ? res.stockActual : 0;   // ← actualizar base para validar
-        } catch (Exception ignored) {}
-        if ("SALIDA".equalsIgnoreCase(tipo) && cantidad > stock) {
-            JOptionPane.showMessageDialog(this,
-                    String.format("No hay suficiente stock para realizar esta salida.\n\nCantidad disponible: %d\nCantidad solicitada: %d\n\nPodés registrar una cantidad menor o agregar más stock con una ENTRADA.",
-                            stock, cantidad),
-                    "Error", JOptionPane.ERROR_MESSAGE);
-            return;
-        }
+            service.registrarMovimiento(sel.getId(), tipoInicial, cantidad, destino);
 
-        try {
-            // *** REGISTRAR MOVIMIENTO EN BD ***
-            service.registrarMovimiento(sel.getId(), tipo, cantidad, destino);
-
-            // Consultar stock actualizado y notificar
             StockCheckResult res = service.stockActual(sel.getId());
+            BigDecimal nuevoStock = res == null ? BigDecimal.ZERO : res.getStockActualDecimal();
 
             JOptionPane.showMessageDialog(this,
-                    String.format("%s registrada.\nStock actual: %d",
-                            tipo, (res.stockActual == null ? 0 : res.stockActual)),
+                    String.format("%s registrada.\nStock actual: %s",
+                            tipoInicial, formatCantidad(nuevoStock)),
                     "OK", JOptionPane.INFORMATION_MESSAGE);
 
-            if (res.bajoMinimo) {
+            if (res != null && res.isBajoMinimo()) {
                 JOptionPane.showMessageDialog(this,
-                        String.format("⚠ Stock por debajo del mínimo.\nActual: %d  |  Mínimo: %s",
-                                (res.stockActual == null ? 0 : res.stockActual),
-                                res.stockMinimo == null ? "-" : res.stockMinimo),
+                        String.format("⚠ Stock por debajo del mínimo.\nActual: %s  |  Mínimo: %s",
+                                formatCantidad(nuevoStock),
+                                res.getStockMinimo() == null ? "-" : res.getStockMinimo()),
                         "Alerta de reposición", JOptionPane.WARNING_MESSAGE);
             }
 
             refreshHistorial(sel.getId());
             refreshSelectedSummary();
+        } catch (IllegalArgumentException | IllegalStateException ex) {
+            JOptionPane.showMessageDialog(this, ex.getMessage(), "Atención", JOptionPane.WARNING_MESSAGE);
         } catch (Exception ex) {
-            JOptionPane.showMessageDialog(this, "Ocurrió un error al registrar el movimiento.",
+            JOptionPane.showMessageDialog(this,
+                    "Ocurrió un error al registrar el movimiento.\n" + ex.getMessage(),
                     "Error", JOptionPane.ERROR_MESSAGE);
-            ex.printStackTrace();
         }
     }
 
@@ -320,8 +331,9 @@ public class InventoryMovementsPage extends JPanel {
             DateTimeFormatter fmt = DateTimeFormatter.ofPattern("dd-MM-yyyy HH:mm");
             for (Movimiento m : movs) {
                 String fecha = (m.getFecha() != null ? m.getFecha().format(fmt) : "");
-                String linea = String.format("%s · x%d %s · Destino: %s",
-                        fecha, m.getCantidad(), m.getTipo(),
+                String cantidad = formatCantidad(m.getCantidad());
+                String linea = String.format("%s · x%s %s · Destino: %s",
+                        fecha, cantidad, m.getTipo(),
                         (m.getDestinoFuente() == null || m.getDestinoFuente().isBlank()) ? "-" : m.getDestinoFuente());
                 historialModel.addElement(linea);
             }
@@ -337,26 +349,36 @@ public class InventoryMovementsPage extends JPanel {
             if (resumenColorNormal != null) taSeleccion.setForeground(resumenColorNormal);
             return;
         }
-        int stockAct = 0;
+        BigDecimal stockAct = BigDecimal.ZERO;
         try {
             StockCheckResult res = service.stockActual(sel.getId());
-            stockAct = (res != null && res.stockActual != null) ? res.stockActual : 0; // ← usar lo devuelto
+            stockAct = (res != null) ? res.getStockActualDecimal() : BigDecimal.ZERO;
         } catch (Exception ignored) {}
 
         String cod = sel.getCodigo() == null ? "-" : sel.getCodigo();
         String desc = sel.getDescripcion() == null ? "-" : sel.getDescripcion();
         String min = sel.getStockMinimo() == null ? "-" : String.valueOf(sel.getStockMinimo());
 
-        taSeleccion.setText(String.format("#%d · %s · %s%nStock mín.: %s  |  Stock actual: %d",
-                sel.getId(), cod, desc, min, stockAct));
+        String tipo = sel.getTipo() == null ? "INSUMO" : sel.getTipo();
+        String estado = sel.getEstado() == null ? "ACTIVO" : sel.getEstado();
+
+        taSeleccion.setText(String.format("#%d · %s · %s (%s)%nEstado: %s%nStock mín.: %s  |  Stock actual: %s",
+                sel.getId(), cod, desc, tipo, estado,
+                min, formatCantidad(stockAct)));
         taSeleccion.setCaretPosition(0);
         taSeleccion.setToolTipText(desc.length() > 40 ? desc : null);
 
-        boolean bajoMinimo = (sel.getStockMinimo() != null) && (stockAct < sel.getStockMinimo());
+        boolean bajoMinimo = sel.getStockMinimo() != null
+                && stockAct.compareTo(BigDecimal.valueOf(sel.getStockMinimo())) < 0;
         if (bajoMinimo) {
             taSeleccion.setForeground(new Color(176, 0, 32));
         } else if (resumenColorNormal != null) {
             taSeleccion.setForeground(resumenColorNormal);
         }
+    }
+
+    private String formatCantidad(BigDecimal valor) {
+        if (valor == null) return "0";
+        return valor.stripTrailingZeros().toPlainString();
     }
 }
