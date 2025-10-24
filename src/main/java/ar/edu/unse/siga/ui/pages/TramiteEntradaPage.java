@@ -40,7 +40,7 @@ public class TramiteEntradaPage extends JPanel {
 
     // --- Campos de Registro ---
     private final JTextField txtAsunto = new JTextField(25);
-    private final JTextField txtRemitente = new JTextField(25);
+    private final JTextField txtSolicitante = new JTextField(25);
     private final JTextArea  txtDescripcion = new JTextArea(4, 25);
     private final JTextField txtDestino = new JTextField(25);
     private final JLabel     lblNumero = new JLabel();
@@ -224,7 +224,7 @@ public class TramiteEntradaPage extends JPanel {
         form.add(Box.createVerticalStrut(16));
         form.add(field("Asunto", txtAsunto));
         form.add(Box.createVerticalStrut(14));
-        form.add(field("Remitente", txtRemitente));
+        form.add(field("Solicitante", txtSolicitante));
         form.add(Box.createVerticalStrut(14));
         txtDescripcion.setLineWrap(true);
         txtDescripcion.setWrapStyleWord(true);
@@ -404,7 +404,7 @@ private CardPanel recentTramitesCard() {
         try {
             String nro         = lblNumero.getText() != null ? lblNumero.getText().trim() : null;
             String asunto      = txtAsunto.getText() != null ? txtAsunto.getText().trim() : "";
-            String solicitante = txtRemitente.getText() != null ? txtRemitente.getText().trim() : "";
+            String solicitante = txtSolicitante.getText() != null ? txtSolicitante.getText().trim() : "";
             String descripcion = txtDescripcion.getText() != null ? txtDescripcion.getText().trim() : null;
             String destino     = txtDestino.getText() != null ? txtDestino.getText().trim() : "";
 
@@ -418,7 +418,7 @@ private CardPanel recentTramitesCard() {
             // Reset de campos
             lblNumero.setText(generateNumero(LocalDate.now()));
             txtAsunto.setText("");
-            txtRemitente.setText("");
+            txtSolicitante.setText("");
             txtDescripcion.setText("");
             txtDestino.setText("");
 

@@ -287,6 +287,7 @@ public class InventoryMovementsPage extends JPanel {
 
         BigDecimal cantidad = dlg.getCantidad();
         String destino = dlg.getDestinoFuente();
+        String solicitante = dlg.getSolicitante();
 
         if (cantidad.compareTo(BigDecimal.ZERO) <= 0) {
             JOptionPane.showMessageDialog(this, "La cantidad debe ser mayor a 0.", "Atención", JOptionPane.WARNING_MESSAGE);
@@ -294,7 +295,7 @@ public class InventoryMovementsPage extends JPanel {
         }
 
         try {
-            service.registrarMovimiento(sel.getId(), tipoInicial, cantidad, destino);
+            service.registrarMovimiento(sel.getId(), tipoInicial, cantidad, destino, solicitante);
 
             StockCheckResult res = service.stockActual(sel.getId());
             BigDecimal nuevoStock = res == null ? BigDecimal.ZERO : res.getStockActualDecimal();
@@ -332,9 +333,10 @@ public class InventoryMovementsPage extends JPanel {
             for (Movimiento m : movs) {
                 String fecha = (m.getFecha() != null ? m.getFecha().format(fmt) : "");
                 String cantidad = formatCantidad(m.getCantidad());
-                String linea = String.format("%s · x%s %s · Destino: %s",
-                        fecha, cantidad, m.getTipo(),
-                        (m.getDestinoFuente() == null || m.getDestinoFuente().isBlank()) ? "-" : m.getDestinoFuente());
+                String destino = (m.getDestinoFuente() == null || m.getDestinoFuente().isBlank()) ? "-" : m.getDestinoFuente();
+                String solicitante = (m.getSolicitante() == null || m.getSolicitante().isBlank()) ? "-" : m.getSolicitante();
+                String linea = String.format("%s · x%s %s · Destino: %s · Solicitante: %s",
+                        fecha, cantidad, m.getTipo(), destino, solicitante);
                 historialModel.addElement(linea);
             }
         } catch (Exception ex) {

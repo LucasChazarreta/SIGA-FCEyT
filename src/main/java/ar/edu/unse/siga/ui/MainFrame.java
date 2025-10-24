@@ -7,6 +7,7 @@ import ar.edu.unse.siga.service.AuthService;
 import ar.edu.unse.siga.service.InventarioService;
 import ar.edu.unse.siga.service.TramiteService;
 import ar.edu.unse.siga.ui.base.ThemeManager;
+import ar.edu.unse.siga.ui.inventario.AjustesAvanzadosDialog;
 import ar.edu.unse.siga.ui.inventario.CategoriaFrame;
 import ar.edu.unse.siga.ui.inventario.InsumoFrame;
 import ar.edu.unse.siga.ui.reportes.ReporteMovimientosDialog;
@@ -55,6 +56,9 @@ public class MainFrame extends JFrame {
         var tb = new JToolBar();
         tb.setFloatable(false);
 
+        boolean isAdmin = CurrentSession.getUser() != null
+                && "ADMIN".equalsIgnoreCase(CurrentSession.getUser().getRol().getNombre());
+
         var btnIns = new JButton("Insumos", ThemeManager.svg("icons/add.svg", 16));
         btnIns.addActionListener(e -> openInDesktop(new ar.edu.unse.siga.ui.inventario.InsumoFrame(inventarioService)));
 
@@ -67,6 +71,12 @@ public class MainFrame extends JFrame {
         tb.add(btnIns);
         tb.add(btnTra);
         tb.add(btnCsv);
+
+        if (isAdmin) {
+            var btnAjustes = new JButton("Ajustes");
+            btnAjustes.addActionListener(e -> new AjustesAvanzadosDialog(this, inventarioService).setVisible(true));
+            tb.add(btnAjustes);
+        }
         return tb;
     }
 

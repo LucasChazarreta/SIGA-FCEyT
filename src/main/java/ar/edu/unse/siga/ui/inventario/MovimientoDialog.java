@@ -14,10 +14,15 @@ public class MovimientoDialog extends JDialog {
     private final JLabel lblTipo = new JLabel();
     private final JTextField txtCantidad = new JTextField();
     private final JComboBox<String> cbDestino = new JComboBox<>();
+    private final JTextField txtSolicitante = new JTextField();
 
     private final String tipoMovimiento;
     private final boolean allowDecimal;
     private boolean accepted = false;
+
+    public MovimientoDialog(Window owner) {
+        this(owner, null, "SALIDA", true, java.util.List.of());
+    }
 
     public MovimientoDialog(Window owner,
                             String contexto,
@@ -76,6 +81,18 @@ public class MovimientoDialog extends JDialog {
             if (ubicaciones != null && !ubicaciones.isEmpty()) {
                 ubicaciones.forEach(cbDestino::addItem);
             }
+
+            gc.gridx = 0;
+            gc.gridy++;
+            gc.weightx = 0;
+            gc.fill = GridBagConstraints.NONE;
+            panel.add(label("Solicitante"), gc);
+
+            gc.gridx = 1;
+            gc.fill = GridBagConstraints.HORIZONTAL;
+            gc.weightx = 1;
+            txtSolicitante.putClientProperty("JTextField.placeholderText", "Persona que retira");
+            panel.add(txtSolicitante, gc);
         }
 
         add(panel, BorderLayout.CENTER);
@@ -125,6 +142,13 @@ public class MovimientoDialog extends JDialog {
                 JOptionPane.showMessageDialog(this, "La cantidad debe ser un entero.", "Atención", JOptionPane.WARNING_MESSAGE);
                 return false;
             }
+            if (esSalida()) {
+                String solicitante = getSolicitante();
+                if (solicitante.isBlank()) {
+                    JOptionPane.showMessageDialog(this, "Indicá el solicitante al registrar la salida.", "Atención", JOptionPane.WARNING_MESSAGE);
+                    return false;
+                }
+            }
             return true;
         } catch (IllegalArgumentException ex) {
             JOptionPane.showMessageDialog(this, ex.getMessage(), "Atención", JOptionPane.WARNING_MESSAGE);
@@ -159,5 +183,9 @@ public class MovimientoDialog extends JDialog {
         }
         Object sel = cbDestino.getSelectedItem();
         return sel == null ? "" : sel.toString();
+    }
+
+    public String getSolicitante() {
+        return txtSolicitante.getText() == null ? "" : txtSolicitante.getText().trim();
     }
 }
