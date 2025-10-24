@@ -169,11 +169,46 @@ public class InsumoFrame extends BaseCrudFrame<Insumo> {
     private void onMovimiento() {
         int r = selectedRowOrWarn(); if (r < 0) return;
         var sel = model.getAt(r);
-        var dlg = new MovimientoDialog(SwingUtilities.getWindowAncestor(this));
+        String[] opciones = {"ENTRADA", "SALIDA"};
+        String tipo = (String) JOptionPane.showInputDialog(
+                this,
+                "Seleccioná el tipo de movimiento",
+                "Movimiento",
+                JOptionPane.QUESTION_MESSAGE,
+                null,
+                opciones,
+                "SALIDA");
+        if (tipo == null) return;
+
+        java.math.BigDecimal stockActual = java.math.BigDecimal.ZERO;
+        try {
+            var res = service.stockActual(sel.getId());
+            if (res != null) {
+                stockActual = res.getStockActualDecimal();
+            }
+        } catch (Exception ignored) {}
+
+        String contexto = String.format("%s · %s  |  Stock actual: %s",
+                sel.getCodigo(),
+                sel.getDescripcion() == null ? "" : sel.getDescripcion(),
+                stockActual.stripTrailingZeros().toPlainString());
+
+        boolean allowDecimal = sel.getTipo() == null || !"BIEN".equalsIgnoreCase(sel.getTipo());
+        java.util.List<String> ubicaciones = service.listarUbicaciones().stream()
+                .map(u -> u.getNombre())
+                .filter(s -> s != null && !s.isBlank())
+                .collect(java.util.stream.Collectors.toList());
+
+        var dlg = new MovimientoDialog(
+                SwingUtilities.getWindowAncestor(this),
+                contexto,
+                tipo,
+                allowDecimal,
+                ubicaciones);
         dlg.setVisible(true);
         if (dlg.isAccepted()) {
             try {
-                service.registrarMovimiento(sel.getId(), dlg.getTipo(), dlg.getCantidad(), dlg.getDestinoFuente());
+                service.registrarMovimiento(sel.getId(), dlg.getTipo(), dlg.getCantidad(), dlg.getDestinoFuente(), dlg.getSolicitante());
                 Ui.info(this, "Movimiento registrado");
                 loadData();
             } catch (Exception e) { Ui.error(this, e); }

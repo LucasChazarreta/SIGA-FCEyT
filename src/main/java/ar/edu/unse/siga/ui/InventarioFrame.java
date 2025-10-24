@@ -135,11 +135,41 @@ public class InventarioFrame extends JFrame {
             if (row < 0) { JOptionPane.showMessageDialog(this, "Seleccioná un insumo"); return; }
             var sel = tableModel.getAt(row);
 
-            var dlg = new MovimientoDialog(this);
+            String[] opciones = {"ENTRADA", "SALIDA"};
+            String tipo = (String) JOptionPane.showInputDialog(
+                    this,
+                    "Seleccioná el tipo de movimiento",
+                    "Movimiento",
+                    JOptionPane.QUESTION_MESSAGE,
+                    null,
+                    opciones,
+                    "SALIDA");
+            if (tipo == null) return;
+
+            java.math.BigDecimal stockActual = java.math.BigDecimal.ZERO;
+            try {
+                var res = service.stockActual(sel.getId());
+                if (res != null) {
+                    stockActual = res.getStockActualDecimal();
+                }
+            } catch (Exception ignored) {}
+
+            String contexto = String.format("%s · %s  |  Stock actual: %s",
+                    sel.getCodigo(),
+                    sel.getDescripcion() == null ? "" : sel.getDescripcion(),
+                    stockActual.stripTrailingZeros().toPlainString());
+
+            boolean allowDecimal = sel.getTipo() == null || !"BIEN".equalsIgnoreCase(sel.getTipo());
+            java.util.List<String> ubicaciones = service.listarUbicaciones().stream()
+                    .map(u -> u.getNombre())
+                    .filter(s -> s != null && !s.isBlank())
+                    .collect(java.util.stream.Collectors.toList());
+
+            var dlg = new MovimientoDialog(this, contexto, tipo, allowDecimal, ubicaciones);
             dlg.setVisible(true);
             if (dlg.isAccepted()) {
                 try {
-                    service.registrarMovimiento(sel.getId(), dlg.getTipo(), dlg.getCantidad(), dlg.getDestinoFuente());
+                    service.registrarMovimiento(sel.getId(), dlg.getTipo(), dlg.getCantidad(), dlg.getDestinoFuente(), dlg.getSolicitante());
                     loadData();
                     JOptionPane.showMessageDialog(this, "Movimiento registrado");
                 } catch (Exception ex) {
@@ -157,14 +187,14 @@ public class InventarioFrame extends JFrame {
                 String f2 = sdf.format(d2) + " 23:59:59";
 
                 String sql = """
-                    SELECT m.id, i.codigo, i.descripcion, m.tipo, m.cantidad, m.destino_fuente, m.fecha
+                    SELECT m.id, i.codigo, i.descripcion, m.tipo, m.cantidad, m.destino_fuente, m.solicitante, m.fecha
                     FROM movimiento m JOIN insumo i ON i.id = m.insumo_id
                     WHERE m.fecha BETWEEN ? AND ?
                     ORDER BY m.fecha DESC
                 """;
 
                 java.util.List<String[]> rows = new java.util.ArrayList<>();
-                rows.add(new String[]{"ID","CODIGO","DESCRIPCION","TIPO","CANTIDAD","DESTINO_FUENTE","FECHA"});
+                rows.add(new String[]{"ID","CODIGO","DESCRIPCION","TIPO","CANTIDAD","DESTINO","SOLICITANTE","FECHA"});
 
                 try (var cn = getConnection(); var ps = cn.prepareStatement(sql)) {
                     ps.setString(1, f1);
@@ -178,6 +208,7 @@ public class InventarioFrame extends JFrame {
                                 rs.getString("tipo"),
                                 String.valueOf(rs.getInt("cantidad")),
                                 rs.getString("destino_fuente"),
+                                rs.getString("solicitante"),
                                 String.valueOf(rs.getTimestamp("fecha"))
                             });
                         }
@@ -216,7 +247,7 @@ public class InventarioFrame extends JFrame {
 
     private List<Categoria> loadCategorias() {
         List<Categoria> list = new ArrayList<>();
-        String sql = "SELECT id, nombre FROM categoria ORDER BY nombre";
+        String sql = "SELECT id, nombre FROM categoria WHERE activo = 1 ORDER BY nombre";
         try (Connection cn = getConnection();
              PreparedStatement ps = cn.prepareStatement(sql);
              ResultSet rs = ps.executeQuery()) {

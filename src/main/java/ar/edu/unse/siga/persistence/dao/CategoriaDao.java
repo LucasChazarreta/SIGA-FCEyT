@@ -12,11 +12,17 @@ public interface CategoriaDao {
     
     void update(Categoria categoria);
 
+    void softDelete(int id);
+
+    void restore(int id);
+
     boolean deleteIfOrphan(int id);   // true si borró, false si tenía insumos asociados
 
     int countUsos(int id);            // cuántos insumos referencian esta categoría
-    
+
     List<Categoria> findAllOrderByNombre();
+
+    List<Categoria> listAllIncludingInactive();
 
 
 }

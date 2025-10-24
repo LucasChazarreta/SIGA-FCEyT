@@ -48,8 +48,8 @@ public class JdbcMovimientoDao implements MovimientoDao {
         }
 
         final String insertSql = """
-            INSERT INTO movimiento (insumo_id, tipo, cantidad, destino_fuente, fecha, usuario_id)
-            VALUES (?, ?, ?, ?, ?, ?)
+            INSERT INTO movimiento (insumo_id, tipo, cantidad, destino_fuente, solicitante, fecha, usuario_id)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
         """;
 
         try (Connection cn = DataSourceFactory.getConnection()) {
@@ -76,12 +76,13 @@ public class JdbcMovimientoDao implements MovimientoDao {
                     ps.setString(2, m.getTipo().toUpperCase());
                     ps.setBigDecimal(3, m.getCantidad());
                     ps.setString(4, m.getDestinoFuente());
-                    ps.setTimestamp(5, Timestamp.valueOf(m.getFecha()));
+                    ps.setString(5, m.getSolicitante());
+                    ps.setTimestamp(6, Timestamp.valueOf(m.getFecha()));
 
                     if (m.getUsuario() != null && m.getUsuario().getId() != null) {
-                        ps.setLong(6, m.getUsuario().getId());
+                        ps.setLong(7, m.getUsuario().getId());
                     } else {
-                        ps.setNull(6, Types.BIGINT);
+                        ps.setNull(7, Types.BIGINT);
                     }
 
                     ps.executeUpdate();
@@ -113,7 +114,7 @@ public class JdbcMovimientoDao implements MovimientoDao {
     @Override
     public List<Movimiento> ultimosPorInsumo(long insumoId, int limit) {
         final String sql = """
-            SELECT id, insumo_id, tipo, cantidad, destino_fuente, fecha, usuario_id
+            SELECT id, insumo_id, tipo, cantidad, destino_fuente, solicitante, fecha, usuario_id
             FROM movimiento
             WHERE insumo_id = ?
             ORDER BY fecha DESC, id DESC
@@ -138,6 +139,7 @@ public class JdbcMovimientoDao implements MovimientoDao {
                     BigDecimal cant = rs.getBigDecimal("cantidad");
                     m.setCantidad(cant == null ? BigDecimal.ZERO : cant);
                     m.setDestinoFuente(rs.getString("destino_fuente"));
+                    m.setSolicitante(rs.getString("solicitante"));
 
                     Timestamp ts = rs.getTimestamp("fecha");
                     if (ts != null) {
@@ -210,7 +212,7 @@ public class JdbcMovimientoDao implements MovimientoDao {
     @Override
     public List<Movimiento> buscarPorFechaYTipo(LocalDateTime desde, LocalDateTime hasta, String tipo) {
         StringBuilder sql = new StringBuilder("""
-            SELECT m.id, m.insumo_id, m.tipo, m.cantidad, m.destino_fuente, m.fecha, m.usuario_id,
+            SELECT m.id, m.insumo_id, m.tipo, m.cantidad, m.destino_fuente, m.solicitante, m.fecha, m.usuario_id,
                    i.codigo, i.descripcion, i.ubicacion, i.tipo AS insumo_tipo, i.estado
             FROM movimiento m
             JOIN insumo i ON i.id = m.insumo_id
@@ -257,6 +259,7 @@ public class JdbcMovimientoDao implements MovimientoDao {
                     BigDecimal cant = rs.getBigDecimal("cantidad");
                     m.setCantidad(cant == null ? BigDecimal.ZERO : cant);
                     m.setDestinoFuente(rs.getString("destino_fuente"));
+                    m.setSolicitante(rs.getString("solicitante"));
                     Timestamp ts = rs.getTimestamp("fecha");
                     if (ts != null) {
                         m.setFecha(ts.toLocalDateTime());

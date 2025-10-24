@@ -59,7 +59,7 @@ public class InsumoFormDialog extends JDialog {
 
     private void loadCategorias() {
         List<Categoria> list = new ArrayList<>();
-        String sql="SELECT id, nombre FROM categoria ORDER BY nombre";
+        String sql="SELECT id, nombre FROM categoria WHERE activo = 1 ORDER BY nombre";
         try (var cn = DataSourceFactory.getConnection();
              var ps = cn.prepareStatement(sql);
              var rs = ps.executeQuery()) {

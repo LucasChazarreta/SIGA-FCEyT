@@ -23,7 +23,7 @@ public class CategoriaFrame extends BaseCrudFrame<Categoria> {
 
     @Override protected void loadData() {
         try (var cn = DataSourceFactory.getConnection();
-             var ps = cn.prepareStatement("SELECT id,nombre FROM categoria ORDER BY nombre");
+             var ps = cn.prepareStatement("SELECT id,nombre FROM categoria WHERE activo = 1 ORDER BY nombre");
              var rs = ps.executeQuery()) {
             List<Categoria> list = new ArrayList<>();
             while (rs.next()) list.add(new Categoria(rs.getInt("id"), rs.getString("nombre")));

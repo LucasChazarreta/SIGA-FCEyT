@@ -13,6 +13,7 @@ public class Movimiento {
     private String tipo; // ENTRADA / SALIDA
     private java.math.BigDecimal cantidad;
     private String destinoFuente;
+    private String solicitante;
     private LocalDateTime fecha;
     private Usuario usuario;
 
@@ -28,6 +29,8 @@ public class Movimiento {
     public void setCantidad(java.math.BigDecimal cantidad) { this.cantidad = cantidad; }
     public String getDestinoFuente() { return destinoFuente; }
     public void setDestinoFuente(String destinoFuente) { this.destinoFuente = destinoFuente; }
+    public String getSolicitante() { return solicitante; }
+    public void setSolicitante(String solicitante) { this.solicitante = solicitante; }
     public LocalDateTime getFecha() { return fecha; }
     public void setFecha(LocalDateTime fecha) { this.fecha = fecha; }
     public Usuario getUsuario() { return usuario; }

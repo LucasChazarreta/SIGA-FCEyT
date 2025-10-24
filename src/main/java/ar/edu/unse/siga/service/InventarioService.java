@@ -41,9 +41,75 @@ public class InventarioService {
         return categoriaDao.findAllOrderByNombre();
     }
 
+    public List<Categoria> listarCategoriasIncluyendoInactivas() {
+        return categoriaDao.listAllIncludingInactive();
+    }
+
+    public Categoria crearCategoria(String nombre) {
+        if (nombre == null || nombre.isBlank()) {
+            throw new IllegalArgumentException("El nombre de la categoría es obligatorio");
+        }
+        Categoria c = new Categoria();
+        c.setNombre(nombre.trim());
+        categoriaDao.create(c);
+        return c;
+    }
+
+    public void actualizarCategoria(Categoria categoria) {
+        if (categoria == null || categoria.getId() <= 0) {
+            throw new IllegalArgumentException("Categoría inválida");
+        }
+        categoriaDao.update(categoria);
+    }
+
+    public void bajaLogicaCategoria(int id) {
+        categoriaDao.softDelete(id);
+    }
+
+    public void restaurarCategoria(int id) {
+        categoriaDao.restore(id);
+    }
+
     public List<Ubicacion> listarUbicaciones() {
         if (ubicacionDao == null) return java.util.List.of();
         return ubicacionDao.listAll();
+    }
+
+    public List<Ubicacion> listarUbicacionesIncluyendoInactivas() {
+        if (ubicacionDao == null) return java.util.List.of();
+        return ubicacionDao.listAllIncludingInactive();
+    }
+
+    public Ubicacion crearUbicacion(String nombre) {
+        if (ubicacionDao == null) {
+            throw new IllegalStateException("Gestión de ubicaciones no disponible");
+        }
+        if (nombre == null || nombre.isBlank()) {
+            throw new IllegalArgumentException("El nombre de la ubicación es obligatorio");
+        }
+        Ubicacion u = new Ubicacion();
+        u.setNombre(nombre.trim());
+        return ubicacionDao.create(u);
+    }
+
+    public void actualizarUbicacion(Ubicacion ubicacion) {
+        if (ubicacionDao == null) {
+            throw new IllegalStateException("Gestión de ubicaciones no disponible");
+        }
+        if (ubicacion == null || ubicacion.getId() == null) {
+            throw new IllegalArgumentException("Ubicación inválida");
+        }
+        ubicacionDao.update(ubicacion);
+    }
+
+    public void bajaLogicaUbicacion(int id) {
+        if (ubicacionDao == null) return;
+        ubicacionDao.softDelete(id);
+    }
+
+    public void restaurarUbicacion(int id) {
+        if (ubicacionDao == null) return;
+        ubicacionDao.restore(id);
     }
 
     // === Insumos ===
@@ -93,7 +159,11 @@ public class InventarioService {
     public List<Insumo> listarTodos() { return insumoDao.listAll(); }
 
     // === Movimientos ===
-    public Long registrarMovimiento(Long insumoId, String tipo, BigDecimal cantidad, String destinoFuente) {
+    public Long registrarMovimiento(Long insumoId,
+                                    String tipo,
+                                    BigDecimal cantidad,
+                                    String destinoFuente,
+                                    String solicitante) {
         if (insumoId == null) {
             throw new IllegalArgumentException("Insumo no especificado");
         }
@@ -129,11 +199,21 @@ public class InventarioService {
                     formatCantidad(stockActual), formatCantidad(qty)));
         }
 
+        String destino = destinoFuente == null ? "" : destinoFuente.trim();
+        String solicitanteNorm = solicitante == null ? "" : solicitante.trim();
+
+        if ("SALIDA".equalsIgnoreCase(tipoNorm)) {
+            if (solicitanteNorm.isBlank()) {
+                throw new IllegalArgumentException("Debe indicar el solicitante para registrar la salida.");
+            }
+        }
+
         Movimiento m = new Movimiento();
         m.setInsumo(insumo);
         m.setTipo(tipoNorm);
         m.setCantidad(qty);
-        m.setDestinoFuente(destinoFuente);
+        m.setDestinoFuente(destino);
+        m.setSolicitante(solicitanteNorm.isBlank() ? null : solicitanteNorm);
 
         Usuario u = CurrentSession.getUser();
         if (u != null) m.setUsuario(u);

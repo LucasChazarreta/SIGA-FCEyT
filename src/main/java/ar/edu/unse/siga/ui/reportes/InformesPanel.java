@@ -76,7 +76,7 @@ public class InformesPanel extends JPanel {
     private final JComboBox<String> filterEstado
             = new JComboBox<>(new String[]{"Todos", "Completado", "En proceso", "Pendiente"});
     private final DefaultTableModel modelTra = new DefaultTableModel(
-            new Object[]{"ID Trámite", "Asunto", "Fecha creación", "Última actualización", "Descripción", "Estado"}, 0
+            new Object[]{"ID Trámite", "Asunto", "Fecha creación", "Última actualización", "Descripción", "Solicitante", "Estado"}, 0
     ) {
         @Override
         public boolean isCellEditable(int r, int c) {
@@ -87,7 +87,7 @@ public class InformesPanel extends JPanel {
     // --- MOVIMIENTOS (similar a Trámites de UI) ---
     private final JTextField filterSearchMov = new JTextField(18);
     private final DefaultTableModel modelMov = new DefaultTableModel(
-            new Object[]{"Fecha", "Tipo", "Cantidad", "Código", "Descripción", "Ubicación", "Destino/Fuente"}, 0
+            new Object[]{"Fecha", "Tipo", "Cantidad", "Código", "Descripción", "Ubicación", "Destino", "Solicitante"}, 0
     ) {
         @Override
         public boolean isCellEditable(int r, int c) {
@@ -696,20 +696,21 @@ public class InformesPanel extends JPanel {
 
         // Anchos
         TableColumnModel tcm = table.getColumnModel();
-        if (tcm.getColumnCount() >= 6) {
+        if (tcm.getColumnCount() >= 7) {
             tcm.getColumn(0).setPreferredWidth(120);
             tcm.getColumn(1).setPreferredWidth(240);
             tcm.getColumn(2).setPreferredWidth(160);
             tcm.getColumn(3).setPreferredWidth(170);
             tcm.getColumn(4).setPreferredWidth(300);
-            tcm.getColumn(5).setPreferredWidth(130);
+            tcm.getColumn(5).setPreferredWidth(180);
+            tcm.getColumn(6).setPreferredWidth(130);
         }
 
         JTableHeader header = table.getTableHeader();
         header.setPreferredSize(new Dimension(header.getPreferredSize().width, 46));
         header.setDefaultRenderer(new TableHeaderRenderer());
 
-        table.getColumnModel().getColumn(5).setCellRenderer(new BadgeRenderer(BadgeRenderer.Type.STATUS));
+        table.getColumnModel().getColumn(6).setCellRenderer(new BadgeRenderer(BadgeRenderer.Type.STATUS));
 
         // Zebra para el resto
         DefaultTableCellRenderer zebra = new DefaultTableCellRenderer() {
@@ -777,8 +778,9 @@ public class InformesPanel extends JPanel {
                 String actualizacion = t.getFecha() == null ? "-" : t.getFecha().format(fmt);
                 String ultima = t.getFecha() == null ? "-" : t.getFecha().plusDays(1).format(fmt); // placeholder
                 String descripcion = extraerDescripcionTramite(t);
+                String solicitante = (t.getSolicitante() == null || t.getSolicitante().isBlank()) ? "-" : t.getSolicitante();
 
-                modelTra.addRow(new Object[]{t.getNro(), t.getAsunto(), actualizacion, ultima, descripcion, estado});
+                modelTra.addRow(new Object[]{t.getNro(), t.getAsunto(), actualizacion, ultima, descripcion, solicitante, estado});
             }
         } catch (Exception ex) {
             ex.printStackTrace();
@@ -976,6 +978,7 @@ public class InformesPanel extends JPanel {
             tcm.getColumn(4).setPreferredWidth(220); // Descripción
             tcm.getColumn(5).setPreferredWidth(160); // Ubicación
             tcm.getColumn(6).setPreferredWidth(200); // Destino
+            tcm.getColumn(7).setPreferredWidth(180); // Solicitante
         }
 
         JTableHeader header = table.getTableHeader();
@@ -1057,9 +1060,13 @@ public class InformesPanel extends JPanel {
                         && !m.getInsumo().getUbicacion().isBlank())
                         ? m.getInsumo().getUbicacion() : "-";
 
+                String solicitante = (m.getSolicitante() == null || m.getSolicitante().isBlank())
+                        ? "-" : m.getSolicitante();
+
                 if (!search.isEmpty()) {
                     String src = (codigo + " " + desc + " " + ubic
-                            + " " + (m.getDestinoFuente() == null ? "" : m.getDestinoFuente()))
+                            + " " + (m.getDestinoFuente() == null ? "" : m.getDestinoFuente())
+                            + " " + solicitante)
                             .toLowerCase();
                     if (!src.contains(search)) {
                         continue;
@@ -1071,7 +1078,7 @@ public class InformesPanel extends JPanel {
                 String destino = (m.getDestinoFuente() == null || m.getDestinoFuente().isBlank())
                         ? "-" : m.getDestinoFuente();
 
-                modelMov.addRow(new Object[]{fecha, m.getTipo(), cantidad, codigo, desc, ubic, destino});
+                modelMov.addRow(new Object[]{fecha, m.getTipo(), cantidad, codigo, desc, ubic, destino, solicitante});
             }
 
         } catch (Exception ex) {
@@ -1242,7 +1249,7 @@ public class InformesPanel extends JPanel {
         // Llamada con la firma correcta: usamos el filtro como "categoriaFiltro" (se mostrará como “Movimiento”)
         exportModelToPdf(
                 "INFORME DE MOVIMIENTOS",
-                new String[]{"Código", "Descripción", "Ubicación", "Entradas", "Salidas", "Stock Actual", "Fecha"},
+                new String[]{"Fecha", "Tipo", "Cantidad", "Código", "Descripción", "Ubicación", "Destino", "Solicitante"},
                 modelMov,
                 filtroTipo,
                 null,
@@ -1457,12 +1464,12 @@ public class InformesPanel extends JPanel {
                     pIns.setSpacingAfter(2f);
                     doc.add(pIns);
 
-                    PdfPTable tMov = new PdfPTable(4);
+                    PdfPTable tMov = new PdfPTable(5);
                     tMov.setWidthPercentage(100);
-                    tMov.setWidths(new float[]{1.2f, 0.8f, 0.6f, 1.4f});
+                    tMov.setWidths(new float[]{1.2f, 0.8f, 0.6f, 1.2f, 1.2f});
 
                     // header
-                    for (String h : List.of("Fecha", "Tipo", "Cantidad", "Destino/Fuente")) {
+                    for (String h : List.of("Fecha", "Tipo", "Cantidad", "Destino", "Solicitante")) {
                         PdfPCell hc = new PdfPCell(new Phrase(h, fHeader));
                         hc.setHorizontalAlignment(Element.ALIGN_CENTER);
                         hc.setBackgroundColor(BRAND);
@@ -1476,6 +1483,7 @@ public class InformesPanel extends JPanel {
                         String tipo = Objects.toString(m.getTipo(), "");
                         String cant = String.valueOf(m.getCantidad() == null ? 0 : m.getCantidad());
                         String dest = (m.getDestinoFuente() == null || m.getDestinoFuente().isBlank()) ? "-" : m.getDestinoFuente();
+                        String sol = (m.getSolicitante() == null || m.getSolicitante().isBlank()) ? "-" : m.getSolicitante();
 
                         PdfPCell c1 = new PdfPCell(new Phrase(f, fCell2));
                         c1.setHorizontalAlignment(Element.ALIGN_CENTER);
@@ -1496,6 +1504,11 @@ public class InformesPanel extends JPanel {
                         c4.setHorizontalAlignment(Element.ALIGN_LEFT);
                         c4.setPadding(4f);
                         tMov.addCell(c4);
+
+                        PdfPCell c5 = new PdfPCell(new Phrase(sol, fCell2));
+                        c5.setHorizontalAlignment(Element.ALIGN_LEFT);
+                        c5.setPadding(4f);
+                        tMov.addCell(c5);
                     }
 
                     doc.add(tMov);
