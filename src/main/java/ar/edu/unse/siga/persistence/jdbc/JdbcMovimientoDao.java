@@ -17,6 +17,44 @@ public class JdbcMovimientoDao implements MovimientoDao {
     private static final String ENTRADA = "ENTRADA";
     private static final String SALIDA = "SALIDA";
 
+    private Long insertMovimiento(Connection cn, Movimiento m) throws SQLException {
+        final String insertSql = """
+            INSERT INTO movimiento (insumo_id, tipo, cantidad, destino_fuente, solicitante, fecha, usuario_id, tramite_id)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        """;
+
+        try (PreparedStatement ps = cn.prepareStatement(insertSql, Statement.RETURN_GENERATED_KEYS)) {
+            ps.setLong(1, m.getInsumo().getId());
+            ps.setString(2, m.getTipo().toUpperCase());
+            ps.setBigDecimal(3, m.getCantidad());
+            ps.setString(4, m.getDestinoFuente());
+            ps.setString(5, m.getSolicitante());
+            ps.setTimestamp(6, Timestamp.valueOf(m.getFecha() != null ? m.getFecha() : LocalDateTime.now()));
+
+            if (m.getUsuario() != null && m.getUsuario().getId() != null) {
+                ps.setLong(7, m.getUsuario().getId());
+            } else {
+                ps.setNull(7, Types.BIGINT);
+            }
+
+            if (m.getTramiteId() != null) {
+                ps.setLong(8, m.getTramiteId());
+            } else {
+                ps.setNull(8, Types.BIGINT);
+            }
+
+            ps.executeUpdate();
+            try (ResultSet rs = ps.getGeneratedKeys()) {
+                if (rs.next()) {
+                    long id = rs.getLong(1);
+                    m.setId(id);
+                    return id;
+                }
+            }
+        }
+        throw new SQLException("No se pudo registrar el movimiento");
+    }
+
     private BigDecimal stockActual(Connection cn, long insumoId) throws SQLException {
         final String sql = """
                 SELECT COALESCE(SUM(CASE WHEN tipo='ENTRADA' THEN cantidad ELSE -cantidad END),0) AS stock
@@ -47,11 +85,6 @@ public class JdbcMovimientoDao implements MovimientoDao {
             throw new IllegalArgumentException("Tipo de movimiento inválido.");
         }
 
-        final String insertSql = """
-            INSERT INTO movimiento (insumo_id, tipo, cantidad, destino_fuente, solicitante, fecha, usuario_id)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
-        """;
-
         try (Connection cn = DataSourceFactory.getConnection()) {
             boolean originalAutoCommit = cn.getAutoCommit();
             try {
@@ -71,32 +104,9 @@ public class JdbcMovimientoDao implements MovimientoDao {
                     m.setFecha(LocalDateTime.now());
                 }
 
-                try (PreparedStatement ps = cn.prepareStatement(insertSql, Statement.RETURN_GENERATED_KEYS)) {
-                    ps.setLong(1, m.getInsumo().getId());
-                    ps.setString(2, m.getTipo().toUpperCase());
-                    ps.setBigDecimal(3, m.getCantidad());
-                    ps.setString(4, m.getDestinoFuente());
-                    ps.setString(5, m.getSolicitante());
-                    ps.setTimestamp(6, Timestamp.valueOf(m.getFecha()));
-
-                    if (m.getUsuario() != null && m.getUsuario().getId() != null) {
-                        ps.setLong(7, m.getUsuario().getId());
-                    } else {
-                        ps.setNull(7, Types.BIGINT);
-                    }
-
-                    ps.executeUpdate();
-                    try (ResultSet rs = ps.getGeneratedKeys()) {
-                        if (rs.next()) {
-                            long id = rs.getLong(1);
-                            cn.commit();
-                            return id;
-                        }
-                    }
-                }
-
-                cn.rollback();
-                throw new RuntimeException("No se pudo registrar el movimiento.");
+                Long id = insertMovimiento(cn, m);
+                cn.commit();
+                return id;
             } catch (SQLException e) {
                 try { cn.rollback(); } catch (SQLException ignored) {}
                 throw new RuntimeException("Error registrando movimiento", e);
@@ -114,7 +124,7 @@ public class JdbcMovimientoDao implements MovimientoDao {
     @Override
     public List<Movimiento> ultimosPorInsumo(long insumoId, int limit) {
         final String sql = """
-            SELECT id, insumo_id, tipo, cantidad, destino_fuente, solicitante, fecha, usuario_id
+            SELECT id, insumo_id, tipo, cantidad, destino_fuente, solicitante, fecha, usuario_id, tramite_id
             FROM movimiento
             WHERE insumo_id = ?
             ORDER BY fecha DESC, id DESC
@@ -151,6 +161,11 @@ public class JdbcMovimientoDao implements MovimientoDao {
                         Usuario u = new Usuario();
                         u.setId(uid);
                         m.setUsuario(u);
+                    }
+
+                    long tid = rs.getLong("tramite_id");
+                    if (!rs.wasNull()) {
+                        m.setTramiteId(tid);
                     }
 
                     lista.add(m);
@@ -212,7 +227,7 @@ public class JdbcMovimientoDao implements MovimientoDao {
     @Override
     public List<Movimiento> buscarPorFechaYTipo(LocalDateTime desde, LocalDateTime hasta, String tipo) {
         StringBuilder sql = new StringBuilder("""
-            SELECT m.id, m.insumo_id, m.tipo, m.cantidad, m.destino_fuente, m.solicitante, m.fecha, m.usuario_id,
+            SELECT m.id, m.insumo_id, m.tipo, m.cantidad, m.destino_fuente, m.solicitante, m.fecha, m.usuario_id, m.tramite_id,
                    i.codigo, i.descripcion, i.ubicacion, i.tipo AS insumo_tipo, i.estado
             FROM movimiento m
             JOIN insumo i ON i.id = m.insumo_id
@@ -272,6 +287,11 @@ public class JdbcMovimientoDao implements MovimientoDao {
                         m.setUsuario(u);
                     }
 
+                    long tramiteId = rs.getLong("tramite_id");
+                    if (!rs.wasNull()) {
+                        m.setTramiteId(tramiteId);
+                    }
+
                     Insumo ins = new Insumo();
                     ins.setId(rs.getLong("insumo_id"));
                     ins.setCodigo(rs.getString("codigo"));
@@ -288,5 +308,28 @@ public class JdbcMovimientoDao implements MovimientoDao {
             throw new RuntimeException("Error buscando movimientos", e);
         }
         return lista;
+    }
+
+    @Override
+    public Long registrarSalida(Connection cn, long insumoId, BigDecimal cantidad, String solicitante, Long tramiteId) throws SQLException {
+        if (cantidad == null || cantidad.compareTo(BigDecimal.ZERO) <= 0) {
+            throw new IllegalArgumentException("Cantidad inválida");
+        }
+
+        BigDecimal actual = stockActual(cn, insumoId);
+        if (cantidad.compareTo(actual) > 0) {
+            throw new IllegalStateException("Stock insuficiente para la salida");
+        }
+
+        Movimiento m = new Movimiento();
+        Insumo ins = new Insumo();
+        ins.setId(insumoId);
+        m.setInsumo(ins);
+        m.setTipo(SALIDA);
+        m.setCantidad(cantidad);
+        m.setSolicitante(solicitante);
+        m.setTramiteId(tramiteId);
+        m.setFecha(LocalDateTime.now());
+        return insertMovimiento(cn, m);
     }
 }

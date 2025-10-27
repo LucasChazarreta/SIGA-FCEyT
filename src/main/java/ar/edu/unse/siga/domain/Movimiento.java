@@ -16,6 +16,7 @@ public class Movimiento {
     private String solicitante;
     private LocalDateTime fecha;
     private Usuario usuario;
+    private Long tramiteId;
 
     public Movimiento() {}
 
@@ -35,6 +36,9 @@ public class Movimiento {
     public void setFecha(LocalDateTime fecha) { this.fecha = fecha; }
     public Usuario getUsuario() { return usuario; }
     public void setUsuario(Usuario usuario) { this.usuario = usuario; }
+
+    public Long getTramiteId() { return tramiteId; }
+    public void setTramiteId(Long tramiteId) { this.tramiteId = tramiteId; }
 
     @Override public boolean equals(Object o) {
         if (this == o) return true;

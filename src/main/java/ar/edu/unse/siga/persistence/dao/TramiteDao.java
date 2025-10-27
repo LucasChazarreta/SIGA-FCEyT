@@ -6,6 +6,8 @@ import java.util.Optional;
 
 public interface TramiteDao {
     Long create(Tramite t);
+
+    Long create(Tramite t, java.sql.Connection cn) throws java.sql.SQLException;
     void updateEstado(Long id, String nuevoEstado);
     Optional<Tramite> findByNro(String nro);
     List<Tramite> listAll();

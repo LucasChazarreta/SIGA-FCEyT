@@ -11,5 +11,9 @@ public interface InsumoDao {
     Optional<Insumo> findByCodigo(String codigo);
     Optional<Insumo> findById(Long id);
     List<Insumo> listAll();
+
+    List<Insumo> listActivosConStock();
+
+    boolean decrementStock(java.sql.Connection cn, long insumoId, java.math.BigDecimal cantidad) throws java.sql.SQLException;
 }
 

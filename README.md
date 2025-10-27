@@ -36,6 +36,8 @@ Build:
 
 NetBeans → Clean and Build (o mvn -DskipTests=true clean package)
 
+**Nota:** La ejecución de `mvn test` requiere descargar dependencias de Maven Central. Si el entorno no tiene acceso a Internet, la tarea falla con error HTTP 403.
+
 Crear admin (una vez):
 
 Run ar.edu.unse.siga.tools.CreateAdminUser (crea admin/admin123)

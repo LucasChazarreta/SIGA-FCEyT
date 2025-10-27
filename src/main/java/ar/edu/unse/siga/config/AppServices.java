@@ -4,11 +4,13 @@ import ar.edu.unse.siga.persistence.dao.CategoriaDao;
 import ar.edu.unse.siga.persistence.dao.InsumoDao;
 import ar.edu.unse.siga.persistence.dao.MovimientoDao;
 import ar.edu.unse.siga.persistence.dao.TramiteDao;
+import ar.edu.unse.siga.persistence.dao.TramiteDetalleDao;
 import ar.edu.unse.siga.persistence.dao.UbicacionDao;
 import ar.edu.unse.siga.persistence.jdbc.JdbcInsumoDao;
 import ar.edu.unse.siga.persistence.jdbc.JdbcMovimientoDao;
 import ar.edu.unse.siga.persistence.jdbc.JdbcCategoriaDao;
 import ar.edu.unse.siga.persistence.jdbc.JdbcTramiteDao;
+import ar.edu.unse.siga.persistence.jdbc.JdbcTramiteDetalleDao;
 import ar.edu.unse.siga.persistence.jdbc.JdbcUbicacionDao;
 
 import ar.edu.unse.siga.service.InventarioService;
@@ -28,11 +30,12 @@ public final class AppServices {
         CategoriaDao categoriaDao = new JdbcCategoriaDao();
         UbicacionDao ubicacionDao = new JdbcUbicacionDao();
         TramiteDao tramDao = new JdbcTramiteDao();
+        TramiteDetalleDao tramiteDetalleDao = new JdbcTramiteDetalleDao();
 
 
         // Services (constructor con las dependencias que usa)
         inventarioService = new InventarioService(insumoDao, movDao, categoriaDao, ubicacionDao);
-        tramiteService    = new TramiteService(tramDao);
+        tramiteService    = new TramiteService(tramDao, tramiteDetalleDao, movDao, insumoDao);
         
         
          

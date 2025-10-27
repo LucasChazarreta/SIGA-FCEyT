@@ -5,6 +5,7 @@ import ar.edu.unse.siga.domain.Insumo;
 import ar.edu.unse.siga.persistence.DataSourceFactory;
 import ar.edu.unse.siga.persistence.dao.InsumoDao;
 
+import java.math.BigDecimal;
 import java.sql.*;
 import java.util.ArrayList;
 import java.util.List;
@@ -42,6 +43,13 @@ public class JdbcInsumoDao implements InsumoDao {
         Date fa = safeGetDate(rs, "fecha_alta");
         if (fa != null) {
             i.setFechaAlta(fa.toLocalDate());
+        }
+
+        try {
+            BigDecimal stock = rs.getBigDecimal("stock_actual");
+            i.setStockActual(stock);
+        } catch (SQLException ignore) {
+            i.setStockActual(null);
         }
 
         return i;
@@ -200,6 +208,68 @@ public class JdbcInsumoDao implements InsumoDao {
 
         } catch (SQLException e) {
             throw new RuntimeException("Error listando insumos", e);
+        }
+    }
+
+    @Override
+    public List<Insumo> listActivosConStock() {
+        final String sql = """
+            SELECT i.*, c.nombre AS categoria_nombre,
+                   COALESCE(SUM(CASE WHEN m.tipo = 'ENTRADA' THEN m.cantidad ELSE -m.cantidad END), 0) AS stock_actual
+            FROM insumo i
+            JOIN categoria c ON c.id = i.categoria_id
+            LEFT JOIN movimiento m ON m.insumo_id = i.id
+            WHERE UPPER(i.estado) = 'ACTIVO'
+            GROUP BY i.id, i.codigo, i.descripcion, i.categoria_id, i.stock_minimo, i.ubicacion, i.estado, i.tipo,
+                     i.created_at, i.fecha_alta, c.nombre
+            HAVING stock_actual > 0
+            ORDER BY i.descripcion
+        """;
+
+        try (Connection cn = DataSourceFactory.getConnection();
+             PreparedStatement ps = cn.prepareStatement(sql);
+             ResultSet rs = ps.executeQuery()) {
+
+            List<Insumo> list = new ArrayList<>();
+            while (rs.next()) {
+                list.add(mapRow(rs));
+            }
+            return list;
+        } catch (SQLException e) {
+            throw new RuntimeException("Error listando insumos con stock", e);
+        }
+    }
+
+    @Override
+    public boolean decrementStock(Connection cn, long insumoId, BigDecimal cantidad) throws SQLException {
+        if (cantidad == null || cantidad.compareTo(BigDecimal.ZERO) <= 0) {
+            throw new IllegalArgumentException("Cantidad inválida para descontar stock");
+        }
+
+        final String sql = """
+            UPDATE insumo
+            SET stock = (
+                    SELECT COALESCE(SUM(CASE WHEN tipo = 'ENTRADA' THEN cantidad ELSE -cantidad END), 0)
+                    FROM movimiento
+                    WHERE insumo_id = ?
+                ) - ?
+            WHERE id = ?
+              AND (
+                    SELECT COALESCE(SUM(CASE WHEN tipo = 'ENTRADA' THEN cantidad ELSE -cantidad END), 0)
+                    FROM movimiento
+                    WHERE insumo_id = ?
+                ) >= ?
+        """;
+
+        try (PreparedStatement ps = cn.prepareStatement(sql)) {
+            ps.setLong(1, insumoId);
+            ps.setBigDecimal(2, cantidad);
+            ps.setLong(3, insumoId);
+            ps.setLong(4, insumoId);
+            ps.setBigDecimal(5, cantidad);
+
+            int updated = ps.executeUpdate();
+            return updated == 1;
         }
     }
 

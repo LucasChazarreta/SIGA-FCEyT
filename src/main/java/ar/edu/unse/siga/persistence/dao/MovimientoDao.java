@@ -7,6 +7,12 @@ public interface MovimientoDao {
 
     Long registrar(Movimiento movimiento);
 
+    Long registrarSalida(java.sql.Connection cn,
+                         long insumoId,
+                         java.math.BigDecimal cantidad,
+                         String solicitante,
+                         Long tramiteId) throws java.sql.SQLException;
+
     // ya lo agregamos antes:
     java.util.List<Movimiento> ultimosPorInsumo(long insumoId, int limit);
 
