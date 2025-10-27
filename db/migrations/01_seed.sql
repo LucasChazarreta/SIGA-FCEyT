@@ -27,6 +27,11 @@ WHERE c.nombre='Genérica' AND u.nombre='Depósito Principal'
 
 -- Movimiento semilla (sin usuario para evitar FK si todavía no existe admin)
 SET @insumo_id := (SELECT id FROM insumo WHERE codigo='SKU-000001' LIMIT 1);
-INSERT INTO movimiento (insumo_id, tipo, cantidad, fecha, solicitante, observacion, activo, estado, usuario_id, tramite_id)
-SELECT @insumo_id, 'ENTRADA', 3.000, NOW(), 'Usuario Demo', 'Alta inicial', 1, 'CONFIRMADO', NULL, NULL
+INSERT INTO movimiento (
+  insumo_id, tipo, cantidad, fecha,
+  destino_fuente, solicitante, observacion,
+  activo, estado, usuario_id, tramite_id)
+SELECT @insumo_id, 'ENTRADA', 3.000, NOW(),
+       'Stock inicial', 'Usuario Demo', 'Alta inicial',
+       1, 'CONFIRMADO', NULL, NULL
 WHERE @insumo_id IS NOT NULL;

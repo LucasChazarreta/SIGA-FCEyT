@@ -77,6 +77,7 @@ CREATE TABLE IF NOT EXISTS tramite (
   solicitante  VARCHAR(100)  NULL,
   asunto       VARCHAR(150)  NULL,                          -- << requerido por DAO/pantallas
   descripcion  VARCHAR(255)  NULL,                          -- << requerido por DAO/pantallas
+  destino      VARCHAR(150)  NULL,                          -- << requerido por DAO/pantallas
   observacion  VARCHAR(255)  NULL,
   usuario_id   INT           NULL,
   PRIMARY KEY (id),
@@ -106,6 +107,7 @@ CREATE TABLE IF NOT EXISTS movimiento (
   tipo         VARCHAR(20)  NOT NULL,                       -- ENTRADA|SALIDA
   cantidad     DECIMAL(12,3) NOT NULL,
   fecha        TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  destino_fuente VARCHAR(150) NULL,                         -- destino (salida) o fuente (entrada)
   solicitante  VARCHAR(100) NULL,
   observacion  VARCHAR(255) NULL,
   activo       TINYINT(1)   NOT NULL DEFAULT 1,
