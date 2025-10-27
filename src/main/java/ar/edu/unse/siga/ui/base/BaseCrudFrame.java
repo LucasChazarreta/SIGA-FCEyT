@@ -9,6 +9,7 @@ public abstract class BaseCrudFrame<T> extends JInternalFrame {
     protected final JButton btnEditar = new JButton("Editar");
     protected final JButton btnBaja = new JButton("Baja / Eliminar");
     protected final JButton btnRefrescar = new JButton("Refrescar");
+    protected final JPanel actionsPanel;
 
     protected BaseCrudFrame(String title) {
         super(title, true, true, true, true);
@@ -16,7 +17,8 @@ public abstract class BaseCrudFrame<T> extends JInternalFrame {
         add(new JScrollPane(table), BorderLayout.CENTER);
 
         var top = new JPanel(new BorderLayout());
-        top.add(Ui.flowLeft(btnNuevo, btnEditar, btnBaja, btnRefrescar), BorderLayout.WEST);
+        actionsPanel = Ui.flowLeft(btnNuevo, btnEditar, btnBaja, btnRefrescar);
+        top.add(actionsPanel, BorderLayout.WEST);
         add(top, BorderLayout.NORTH);
 
         btnRefrescar.addActionListener(e -> loadData());

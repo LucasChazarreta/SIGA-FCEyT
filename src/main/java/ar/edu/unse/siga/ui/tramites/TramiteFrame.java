@@ -33,6 +33,10 @@ public class TramiteFrame extends BaseCrudFrame<Tramite> {
         this.service = service;
         table.setModel(model);
 
+        JButton btnRegistrarSalida = new JButton("Registrar retiro");
+        actionsPanel.add(btnRegistrarSalida, 0);
+        btnRegistrarSalida.addActionListener(e -> onRegistrarSalida());
+
         // ---- Ordenamiento y filtro
         sorter = new TableRowSorter<>(table.getModel());
         table.setRowSorter(sorter);
@@ -223,6 +227,16 @@ public class TramiteFrame extends BaseCrudFrame<Tramite> {
             } catch (Exception e) {
                 Ui.error(this, e);
             }
+        }
+    }
+
+    private void onRegistrarSalida() {
+        Window owner = SwingUtilities.getWindowAncestor(this);
+        RegistrarTramiteDialog dlg = new RegistrarTramiteDialog(owner, service);
+        if (!dlg.isReady()) return;
+        dlg.setVisible(true);
+        if (dlg.isAccepted()) {
+            loadData();
         }
     }
 }

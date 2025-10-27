@@ -32,9 +32,17 @@ public class JdbcTramiteDao implements TramiteDao {
 
     @Override
     public Long create(Tramite t) {
+        try (Connection cn = DataSourceFactory.getConnection()) {
+            return create(t, cn);
+        } catch (SQLException e) {
+            throw new RuntimeException("Error insertando trámite", e);
+        }
+    }
+
+    @Override
+    public Long create(Tramite t, Connection cn) throws SQLException {
         String sql = "INSERT INTO tramite"+"(nro, asunto, estado, fecha, solicitante, descripcion, destino) VALUES (?,?,?,?,?,?,?)";
-        try (Connection cn = DataSourceFactory.getConnection();
-             PreparedStatement ps = cn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
+        try (PreparedStatement ps = cn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
 
             ps.setString(1, t.getNro());
             ps.setString(2, t.getAsunto());
@@ -53,10 +61,8 @@ public class JdbcTramiteDao implements TramiteDao {
                     return id;
                 }
             }
-            throw new SQLException("No se pudo obtener el ID generado para trámite");
-        } catch (SQLException e) {
-            throw new RuntimeException("Error insertando trámite", e);
         }
+        throw new SQLException("No se pudo obtener el ID generado para trámite");
     }
 
     @Override

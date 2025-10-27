@@ -1,5 +1,6 @@
 package ar.edu.unse.siga.domain;
 
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.Objects;
@@ -15,6 +16,7 @@ public class Insumo {
     private String tipo;             // INSUMO / BIEN
     private Instant createdAt;       // timestamp de creación (BD)
     private LocalDate fechaAlta;     // vista amigable para informes
+    private BigDecimal stockActual;  // cacheado (opcional) para pantallas específicas
 
     public Insumo() {}
 
@@ -48,6 +50,9 @@ public class Insumo {
     /** Fecha de alta “linda” para UI/Informes (derivada de BD). */
     public LocalDate getFechaAlta() { return fechaAlta; }
     public void setFechaAlta(LocalDate fechaAlta) { this.fechaAlta = fechaAlta; }
+
+    public BigDecimal getStockActual() { return stockActual; }
+    public void setStockActual(BigDecimal stockActual) { this.stockActual = stockActual; }
 
     @Override public boolean equals(Object o) {
         if (this == o) return true;
