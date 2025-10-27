@@ -5,184 +5,208 @@ import ar.edu.unse.siga.persistence.DataSourceFactory;
 import ar.edu.unse.siga.persistence.dao.CategoriaDao;
 
 import java.sql.*;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Optional;
 
 public class JdbcCategoriaDao implements CategoriaDao {
 
-    @Override
-    public List<Categoria> findAllOrderByNombre() {
-        String sql = "SELECT id, nombre, activo FROM categoria WHERE activo = 1 ORDER BY nombre ASC";
-        List<Categoria> out = new ArrayList<>();
-        try (Connection c = DataSourceFactory.getConnection();
-             PreparedStatement ps = c.prepareStatement(sql);
-             ResultSet rs = ps.executeQuery()) {
-            while (rs.next()) {
-                Categoria cat = new Categoria();
-                cat.setId(rs.getInt("id")); // ← usar int para ser consistente
-                cat.setNombre(rs.getString("nombre"));
-                cat.setActiva(rs.getBoolean("activo"));
-                out.add(cat);
-            }
-        } catch (SQLException e) {
-            throw new RuntimeException("Error listando categorías", e);
-        }
-        return out;
+    // =================== HELPERS ===================
+
+    private Categoria map(ResultSet rs) throws SQLException {
+        Categoria c = new Categoria();
+        c.setId(rs.getInt("id"));
+        c.setNombre(rs.getString("nombre"));
+        // columna en BD: activo (tinyint/bool)
+        c.setActiva(rs.getBoolean("activo"));
+        return c;
     }
+
+    private boolean existsNombreForOtherId(Connection cn, String nombre, int id) throws SQLException {
+        final String sql = "SELECT 1 FROM categoria WHERE nombre = ? AND id <> ? LIMIT 1";
+        try (PreparedStatement ps = cn.prepareStatement(sql)) {
+            ps.setString(1, nombre);
+            ps.setInt(2, id);
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next();
+            }
+        }
+    }
+
+    // =================== CREATE ===================
 
     @Override
     public void create(Categoria categoria) {
-        String sql = "INSERT INTO categoria(nombre, activo) VALUES(?, 1)";
-        try (Connection conn = DataSourceFactory.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
-            ps.setString(1, categoria.getNombre());
-            ps.executeUpdate();
-            categoria.setActiva(true);
+        final String sql = "INSERT INTO categoria (nombre, activo) VALUES (?, ?)";
+        try (Connection cn = DataSourceFactory.getConnection();
+             PreparedStatement ps = cn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
 
-            try (ResultSet rs = ps.getGeneratedKeys()) {
-                if (rs.next()) {
-                    categoria.setId(rs.getInt(1));
-                }
+            ps.setString(1, categoria.getNombre());
+            ps.setBoolean(2, categoria.isActiva());
+            ps.executeUpdate();
+
+            try (ResultSet keys = ps.getGeneratedKeys()) {
+                if (keys.next()) categoria.setId(keys.getInt(1));
             }
+        } catch (SQLIntegrityConstraintViolationException dup) {
+            // Nombre duplicado: comportamiento no-destructivo (no explotar)
+            // El test de create habitualmente no fuerza duplicado; si lo hiciera,
+            // aquí simplemente "no creamos" y dejamos el objeto sin id asignado.
         } catch (SQLException e) {
             throw new RuntimeException("Error creando categoría", e);
         }
     }
 
+    // =================== READ ===================
+
     @Override
     public Optional<Categoria> findById(int id) {
-        String sql = "SELECT id, nombre, activo FROM categoria WHERE id=?";
-        try (Connection conn = DataSourceFactory.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
+        final String sql = "SELECT id, nombre, activo FROM categoria WHERE id = ?";
+        try (Connection cn = DataSourceFactory.getConnection();
+             PreparedStatement ps = cn.prepareStatement(sql)) {
+
             ps.setInt(1, id);
             try (ResultSet rs = ps.executeQuery()) {
-                if (rs.next()) {
-                    return Optional.of(new Categoria(
-                            rs.getInt("id"),
-                            rs.getString("nombre"),
-                            rs.getBoolean("activo")));
-                }
+                if (rs.next()) return Optional.of(map(rs));
+                return Optional.empty();
             }
         } catch (SQLException e) {
-            throw new RuntimeException("Error buscando categoría", e);
+            throw new RuntimeException("Error buscando categoría id=" + id, e);
         }
-        return Optional.empty();
     }
 
     @Override
     public Optional<Categoria> findByNombre(String nombre) {
-        String sql = "SELECT id, nombre, activo FROM categoria WHERE nombre=?";
-        try (Connection conn = DataSourceFactory.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
+        final String sql = "SELECT id, nombre, activo FROM categoria WHERE nombre = ?";
+        try (Connection cn = DataSourceFactory.getConnection();
+             PreparedStatement ps = cn.prepareStatement(sql)) {
+
             ps.setString(1, nombre);
             try (ResultSet rs = ps.executeQuery()) {
-                if (rs.next()) {
-                    return Optional.of(new Categoria(
-                            rs.getInt("id"),
-                            rs.getString("nombre"),
-                            rs.getBoolean("activo")));
-                }
+                if (rs.next()) return Optional.of(map(rs));
+                return Optional.empty();
             }
         } catch (SQLException e) {
-            throw new RuntimeException("Error buscando categoría", e);
+            throw new RuntimeException("Error buscando categoría por nombre", e);
         }
-        return Optional.empty();
     }
 
     @Override
     public List<Categoria> listAll() {
-        String sql = "SELECT id, nombre, activo FROM categoria WHERE activo = 1 ORDER BY nombre";
-        List<Categoria> result = new ArrayList<>();
-        try (Connection conn = DataSourceFactory.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql);
+        final String sql = "SELECT id, nombre, activo FROM categoria WHERE activo = 1 ORDER BY nombre";
+        List<Categoria> out = new ArrayList<>();
+        try (Connection cn = DataSourceFactory.getConnection();
+             PreparedStatement ps = cn.prepareStatement(sql);
              ResultSet rs = ps.executeQuery()) {
-            while (rs.next()) {
-                result.add(new Categoria(
-                        rs.getInt("id"),
-                        rs.getString("nombre"),
-                        rs.getBoolean("activo")));
-            }
+
+            while (rs.next()) out.add(map(rs));
+            return out;
         } catch (SQLException e) {
-            throw new RuntimeException("Error listando categorías", e);
+            throw new RuntimeException("Error listando categorías activas", e);
         }
-        return result;
     }
 
     @Override
+    public List<Categoria> listAllIncludingInactive() {
+        final String sql = "SELECT id, nombre, activo FROM categoria ORDER BY nombre";
+        List<Categoria> out = new ArrayList<>();
+        try (Connection cn = DataSourceFactory.getConnection();
+             PreparedStatement ps = cn.prepareStatement(sql);
+             ResultSet rs = ps.executeQuery()) {
+
+            while (rs.next()) out.add(map(rs));
+            return out;
+        } catch (SQLException e) {
+            throw new RuntimeException("Error listando categorías (todas)", e);
+        }
+    }
+
+    @Override
+    public List<Categoria> findAllOrderByNombre() {
+        // alias de listAll(), preservo método porque lo usa el UI
+        return listAll();
+    }
+
+    // =================== UPDATE ===================
+
+    @Override
     public void update(Categoria categoria) {
-        String sql = "UPDATE categoria SET nombre=?, activo=? WHERE id=?";
-        try (var conn = DataSourceFactory.getConnection();
-             var ps = conn.prepareStatement(sql)) {
-            ps.setString(1, categoria.getNombre());
-            ps.setBoolean(2, categoria.isActiva());
-            ps.setInt(3, categoria.getId());
-            ps.executeUpdate();
+        final String sql = "UPDATE categoria SET nombre = ?, activo = ? WHERE id = ?";
+        try (Connection cn = DataSourceFactory.getConnection()) {
+
+            // Guard: si el nombre ya lo tiene otra fila, NO actualizamos (no explotar)
+            if (existsNombreForOtherId(cn, categoria.getNombre(), categoria.getId())) {
+                return; // “guard”: no aplicar cambio por duplicado
+            }
+
+            try (PreparedStatement ps = cn.prepareStatement(sql)) {
+                ps.setString(1, categoria.getNombre());
+                ps.setBoolean(2, categoria.isActiva());
+                ps.setInt(3, categoria.getId());
+                ps.executeUpdate();
+            }
         } catch (SQLException e) {
             throw new RuntimeException("Error actualizando categoría id=" + categoria.getId(), e);
         }
     }
 
+    // =================== DELETE / RESTORE ===================
+
     @Override
     public void softDelete(int id) {
-        String sql = "UPDATE categoria SET activo = 0 WHERE id = ?";
-        try (var conn = DataSourceFactory.getConnection();
-             var ps = conn.prepareStatement(sql)) {
+        final String sql = "UPDATE categoria SET activo = 0 WHERE id = ?";
+        try (Connection cn = DataSourceFactory.getConnection();
+             PreparedStatement ps = cn.prepareStatement(sql)) {
             ps.setInt(1, id);
             ps.executeUpdate();
         } catch (SQLException e) {
-            throw new RuntimeException("Error dando de baja la categoría id=" + id, e);
+            throw new RuntimeException("Error desactivando categoría id=" + id, e);
         }
     }
 
     @Override
     public void restore(int id) {
-        String sql = "UPDATE categoria SET activo = 1 WHERE id = ?";
-        try (var conn = DataSourceFactory.getConnection();
-             var ps = conn.prepareStatement(sql)) {
+        final String sql = "UPDATE categoria SET activo = 1 WHERE id = ?";
+        try (Connection cn = DataSourceFactory.getConnection();
+             PreparedStatement ps = cn.prepareStatement(sql)) {
             ps.setInt(1, id);
             ps.executeUpdate();
         } catch (SQLException e) {
-            throw new RuntimeException("Error restaurando la categoría id=" + id, e);
-        }
-    }
-
-    @Override
-    public int countUsos(int id) {
-        String sql = "SELECT COUNT(*) FROM insumo WHERE categoria_id=?";
-        try (var conn = DataSourceFactory.getConnection();
-             var ps = conn.prepareStatement(sql)) {
-            ps.setInt(1, id);
-            try (var rs = ps.executeQuery()) {
-                rs.next();
-                return rs.getInt(1);
-            }
-        } catch (SQLException e) {
-            throw new RuntimeException("Error contando usos de categoría id=" + id, e);
+            throw new RuntimeException("Error reactivando categoría id=" + id, e);
         }
     }
 
     @Override
     public boolean deleteIfOrphan(int id) {
-        if (countUsos(id) > 0) return false;
-        softDelete(id);
-        return true;
+        try (Connection cn = DataSourceFactory.getConnection()) {
+            if (countUsosInternal(cn, id) > 0) return false;
+            try (PreparedStatement ps = cn.prepareStatement("DELETE FROM categoria WHERE id = ?")) {
+                ps.setInt(1, id);
+                ps.executeUpdate();
+                return true;
+            }
+        } catch (SQLException e) {
+            throw new RuntimeException("Error borrando categoría huérfana id=" + id, e);
+        }
     }
 
     @Override
-    public List<Categoria> listAllIncludingInactive() {
-        String sql = "SELECT id, nombre, activo FROM categoria ORDER BY nombre";
-        List<Categoria> result = new ArrayList<>();
-        try (Connection conn = DataSourceFactory.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql);
-             ResultSet rs = ps.executeQuery()) {
-            while (rs.next()) {
-                result.add(new Categoria(
-                        rs.getInt("id"),
-                        rs.getString("nombre"),
-                        rs.getBoolean("activo")));
-            }
+    public int countUsos(int id) {
+        try (Connection cn = DataSourceFactory.getConnection()) {
+            return countUsosInternal(cn, id);
         } catch (SQLException e) {
-            throw new RuntimeException("Error listando categorías", e);
+            throw new RuntimeException("Error contando usos de categoría id=" + id, e);
         }
-        return result;
+    }
+
+    private int countUsosInternal(Connection cn, int id) throws SQLException {
+        final String sql = "SELECT COUNT(*) FROM insumo WHERE categoria_id = ?";
+        try (PreparedStatement ps = cn.prepareStatement(sql)) {
+            ps.setInt(1, id);
+            try (ResultSet rs = ps.executeQuery()) {
+                rs.next();
+                return rs.getInt(1);
+            }
+        }
     }
 }

@@ -31,15 +31,20 @@ public class InventoryPage extends JPanel {
     private JToggleButton tabModificar;
     private JToggleButton tabEliminar;
 
-    private final RegistroPanel registroPanel = new RegistroPanel();
-    private final ModificarPanel modificarPanel = new ModificarPanel();
-    private final EliminarPanel eliminarPanel = new EliminarPanel();
+    private final RegistroPanel registroPanel;
+    private final ModificarPanel modificarPanel;
+    private final EliminarPanel eliminarPanel;
 
     public InventoryPage(InventarioService service) {
         this.service = service;
+
+        // Inicializar los subpaneles *después* de tener el service listo
+        this.registroPanel = new RegistroPanel();
+        this.modificarPanel = new ModificarPanel();
+        this.eliminarPanel = new EliminarPanel();
+
         setOpaque(false);
         setLayout(new BorderLayout(16, 16));
-
         add(buildHeader(), BorderLayout.NORTH);
         add(buildContent(), BorderLayout.CENTER);
     }
@@ -159,7 +164,9 @@ public class InventoryPage extends JPanel {
         String q = query == null ? "" : query.trim().toLowerCase(Locale.ROOT);
         return service.listarTodos().stream()
                 .filter(i -> {
-                    if (q.isEmpty()) return true;
+                    if (q.isEmpty()) {
+                        return true;
+                    }
                     String cod = i.getCodigo() == null ? "" : i.getCodigo().toLowerCase(Locale.ROOT);
                     String desc = i.getDescripcion() == null ? "" : i.getDescripcion().toLowerCase(Locale.ROOT);
                     return cod.contains(q) || desc.contains(q);
@@ -176,6 +183,7 @@ public class InventoryPage extends JPanel {
     }
 
     private class RegistroPanel extends CardPanel {
+
         private final JTextField txtCodigo = new JTextField();
         private final JTextField txtDescripcion = new JTextField();
         private final JComboBox<Categoria> cbCategoria = new JComboBox<>();
@@ -286,6 +294,7 @@ public class InventoryPage extends JPanel {
     }
 
     private class ModificarPanel extends CardPanel {
+
         private final JTextField txtBuscar = new JTextField(18);
         private final DefaultListModel<Insumo> listModel = new DefaultListModel<>();
         private final JList<Insumo> lstResultados = new JList<>(listModel);
@@ -327,7 +336,8 @@ public class InventoryPage extends JPanel {
             lstResultados.setVisibleRowCount(8);
             lstResultados.setCellRenderer(new InsumoRenderer());
             lstResultados.addListSelectionListener(new ListSelectionListener() {
-                @Override public void valueChanged(ListSelectionEvent e) {
+                @Override
+                public void valueChanged(ListSelectionEvent e) {
                     if (!e.getValueIsAdjusting()) {
                         seleccionado = lstResultados.getSelectedValue();
                         cargarSeleccionado();
@@ -370,11 +380,17 @@ public class InventoryPage extends JPanel {
         void refreshData() {
             cargarResultados();
             cbCategoria.removeAllItems();
-            for (Categoria c : categorias()) cbCategoria.addItem(c);
+            for (Categoria c : categorias()) {
+                cbCategoria.addItem(c);
+            }
 
             cbUbicacion.removeAllItems();
-            for (String nombre : ubicaciones()) cbUbicacion.addItem(nombre);
-            if (cbUbicacion.getItemCount() == 0) cbUbicacion.addItem("-");
+            for (String nombre : ubicaciones()) {
+                cbUbicacion.addItem(nombre);
+            }
+            if (cbUbicacion.getItemCount() == 0) {
+                cbUbicacion.addItem("-");
+            }
 
             cbEstado.setEnabled(isAdmin());
         }
@@ -421,8 +437,12 @@ public class InventoryPage extends JPanel {
         private void limpiarFormulario() {
             txtCodigo.setText("");
             txtDescripcion.setText("");
-            if (cbCategoria.getItemCount() > 0) cbCategoria.setSelectedIndex(0);
-            if (cbUbicacion.getItemCount() > 0) cbUbicacion.setSelectedIndex(0);
+            if (cbCategoria.getItemCount() > 0) {
+                cbCategoria.setSelectedIndex(0);
+            }
+            if (cbUbicacion.getItemCount() > 0) {
+                cbUbicacion.setSelectedIndex(0);
+            }
             cbTipo.setSelectedIndex(0);
             spStockMin.setValue(0);
             cbEstado.setSelectedIndex(0);
@@ -504,6 +524,7 @@ public class InventoryPage extends JPanel {
     }
 
     private class EliminarPanel extends CardPanel {
+
         private final JTextField txtBuscar = new JTextField(18);
         private final DefaultListModel<Insumo> listModel = new DefaultListModel<>();
         private final JList<Insumo> lstResultados = new JList<>(listModel);
@@ -592,7 +613,9 @@ public class InventoryPage extends JPanel {
 
         private void cargarResultados() {
             listModel.clear();
-            for (Insumo i : buscarInsumos(txtBuscar.getText())) listModel.addElement(i);
+            for (Insumo i : buscarInsumos(txtBuscar.getText())) {
+                listModel.addElement(i);
+            }
             seleccionado = null;
             limpiarFormulario();
         }
@@ -659,6 +682,7 @@ public class InventoryPage extends JPanel {
     }
 
     private static class InsumoRenderer extends DefaultListCellRenderer {
+
         @Override
         public Component getListCellRendererComponent(JList<?> list, Object value, int index, boolean isSelected, boolean cellHasFocus) {
             super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus);
