@@ -23,7 +23,7 @@ public class RegistrarTramiteDialog extends JDialog {
     private final InventarioService inventarioService;
     private final JTable table = new JTable();
     private final LineaTableModel model = new LineaTableModel();
-    private final JButton btnGuardar = new JButton("Guardar");
+    private final JButton btnGuardar = new JButton("Registrar");
     private final JLabel lblTotales = new JLabel("0 ítems · 0 unidades");
     private boolean accepted = false;
     private final JTextField txtSolicitud = new JTextField(30);
@@ -51,7 +51,7 @@ public class RegistrarTramiteDialog extends JDialog {
         setLayout(new BorderLayout(10, 10));
         txtDescripcion.setLineWrap(true);
         txtDescripcion.setWrapStyleWord(true);
-        lblNumero.setText("Se generará al guardar");
+        lblNumero.setText("Se generará al registrar");
         lblNumero.setFont(lblNumero.getFont().deriveFont(Font.BOLD));
 
         add(buildFormPanel(), BorderLayout.NORTH);
