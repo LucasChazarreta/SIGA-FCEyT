@@ -59,6 +59,19 @@ public class RegistrarTramiteDialog extends JDialog {
         table.setModel(model);
         table.setRowHeight(26);
         table.putClientProperty("terminateEditOnFocusLost", Boolean.TRUE);
+        table.setDefaultRenderer(Insumo.class, new DefaultTableCellRenderer() {
+            @Override
+            public Component getTableCellRendererComponent(JTable table, Object value, boolean isSelected, boolean hasFocus, int row, int column) {
+                Component c = super.getTableCellRendererComponent(table, value, isSelected, hasFocus, row, column);
+                if (value instanceof Insumo insumo) {
+                    String descripcion = insumo.getDescripcion();
+                    setText(descripcion != null ? descripcion : insumo.getCodigo());
+                } else {
+                    setText("");
+                }
+                return c;
+            }
+        });
 
         table.getColumnModel().getColumn(0).setCellEditor(new InsumoCellEditor());
         table.getColumnModel().getColumn(2).setCellEditor(new CantidadCellEditor());
