@@ -230,25 +230,40 @@ public class TramiteFrame extends BaseCrudFrame<Tramite> {
         Window owner = SwingUtilities.getWindowAncestor(this);
 
         // Usa el constructor que realmente existe (Window, TramiteService, InventarioService)
-        RegistrarTramiteDialog dlg = new RegistrarTramiteDialog(owner, service, invService);
+        RegistrarTramiteDialog dlg = new RegistrarTramiteDialog(owner, invService);
         dlg.setVisible(true);
 
         if (!dlg.isAccepted()) {
             return;
         }
 
-        // 1) refresca la tabla local de Solicitudes
-        loadData();
+        try {
+            Long id = service.registrarNuevoTramite(
+                    dlg.getSolicitud(),
+                    dlg.getSolicitante(),
+                    dlg.getDescripcion(),
+                    dlg.getDestino(),
+                    dlg.getLineas()
+            );
+            Ui.info(this, "Solicitud registrada. ID: " + id);
 
-        // 2) avisa globalmente para que InformesPanel se recargue (métricas, movimientos, etc.)
-        ar.edu.unse.siga.ui.base.UiBus.fire("tramite-saved");
+            // 1) refresca la tabla local de Solicitudes
+            loadData();
 
-        // 3) (opcional) refresco directo si el panel Informes está en esta misma ventana
-        Window root = SwingUtilities.getWindowAncestor(this);
-        ar.edu.unse.siga.ui.reportes.InformesPanel inf
-                = (ar.edu.unse.siga.ui.reportes.InformesPanel) SwingUtilities.getAncestorOfClass(ar.edu.unse.siga.ui.reportes.InformesPanel.class, root);
-        if (inf != null) {
-            inf.reloadAfterTramiteSaved();
+            // 2) avisa globalmente para que InformesPanel se recargue (métricas, movimientos, etc.)
+            ar.edu.unse.siga.ui.base.UiBus.fire("tramite-saved");
+
+            // 3) (opcional) refresco directo si el panel Informes está en esta misma ventana
+            Window root = SwingUtilities.getWindowAncestor(this);
+            ar.edu.unse.siga.ui.reportes.InformesPanel inf
+                    = (ar.edu.unse.siga.ui.reportes.InformesPanel) SwingUtilities.getAncestorOfClass(ar.edu.unse.siga.ui.reportes.InformesPanel.class, root);
+            if (inf != null) {
+                inf.reloadAfterTramiteSaved();
+            }
+        } catch (IllegalStateException ex) {
+            Ui.warn(this, ex.getMessage());
+        } catch (Exception ex) {
+            Ui.error(this, ex);
         }
     }
 

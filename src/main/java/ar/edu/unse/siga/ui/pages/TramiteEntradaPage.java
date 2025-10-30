@@ -1,9 +1,12 @@
 package ar.edu.unse.siga.ui.pages;
 
 import ar.edu.unse.siga.domain.Tramite;
+import ar.edu.unse.siga.service.InventarioService;
 import ar.edu.unse.siga.service.TramiteService;
 import ar.edu.unse.siga.ui.base.CardPanel;
 import ar.edu.unse.siga.ui.base.Ui;
+import ar.edu.unse.siga.ui.base.UiBus;
+import ar.edu.unse.siga.ui.tramites.RegistrarTramiteDialog;
 
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
@@ -13,11 +16,11 @@ import javax.swing.table.DefaultTableCellRenderer;
 import javax.swing.table.DefaultTableModel;
 import javax.swing.table.JTableHeader;
 import java.awt.*;
-import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.Objects;
 import static javax.swing.SwingConstants.CENTER;
 import static javax.swing.SwingConstants.LEFT;
 
@@ -30,6 +33,7 @@ import static javax.swing.SwingConstants.LEFT;
 public class TramiteEntradaPage extends JPanel {
 
     private final TramiteService service;
+    private final InventarioService inventarioService;
     private final Runnable onTramiteCreado; // puede ser null
 
     // Control para evitar bucles al editar estado
@@ -37,13 +41,6 @@ public class TramiteEntradaPage extends JPanel {
 
     // Mapea cada fila visible a su Tramite real
     private final List<Tramite> currentRows = new ArrayList<>();
-
-    // --- Campos de Registro ---
-    private final JTextField txtAsunto = new JTextField(25);
-    private final JTextField txtSolicitante = new JTextField(25);
-    private final JTextArea  txtDescripcion = new JTextArea(4, 25);
-    private final JTextField txtDestino = new JTextField(25);
-    private final JLabel     lblNumero = new JLabel();
 
     // --- Filtros de la tabla ---
     private final JTextField filterSearch = new JTextField(18);
@@ -72,12 +69,13 @@ public class TramiteEntradaPage extends JPanel {
 
     /* ========================  Constructores  ========================= */
 
-    public TramiteEntradaPage(TramiteService service) {
-        this(service, null);
+    public TramiteEntradaPage(TramiteService service, InventarioService inventarioService) {
+        this(service, inventarioService, null);
     }
 
-    public TramiteEntradaPage(TramiteService service, Runnable onTramiteCreado) {
-        this.service = service;
+    public TramiteEntradaPage(TramiteService service, InventarioService inventarioService, Runnable onTramiteCreado) {
+        this.service = Objects.requireNonNull(service, "tramiteService requerido");
+        this.inventarioService = Objects.requireNonNull(inventarioService, "inventarioService requerido");
         this.onTramiteCreado = onTramiteCreado;
 
         setOpaque(false);
@@ -86,7 +84,6 @@ public class TramiteEntradaPage extends JPanel {
         add(buildHeader(), BorderLayout.NORTH);
         add(buildContent(), BorderLayout.CENTER);
 
-        lblNumero.setText(generateNumero(LocalDate.now()));
         cardLayout.show(cards, "registro");
 
         configureTable();
@@ -198,7 +195,7 @@ public class TramiteEntradaPage extends JPanel {
         GridBagConstraints gc = new GridBagConstraints();
         gc.gridx = 0; gc.gridy = 0;
         gc.weightx = 0.6; gc.fill = GridBagConstraints.BOTH; gc.insets = new Insets(0, 0, 0, 18);
-        columns.add(buildFormPanel(), gc);
+        columns.add(buildRegistroLauncherPanel(), gc);
 
         gc.gridx = 1; gc.weightx = 0.4; gc.insets = new Insets(0, 18, 0, 0);
         columns.add(buildSidebarPanel(), gc);
@@ -207,57 +204,59 @@ public class TramiteEntradaPage extends JPanel {
         return card;
     }
 
-    private CardPanel buildFormPanel() {
+    private CardPanel buildRegistroLauncherPanel() {
         CardPanel card = new CardPanel();
         card.setLayout(new BorderLayout(18, 18));
 
-        JLabel title = new JLabel("Detalle de la solicitud");
+        JLabel title = new JLabel("Registrar nueva solicitud");
         title.setFont(new Font("Segoe UI", Font.BOLD, 16));
         title.setForeground(new Color(54, 92, 190));
         card.add(title, BorderLayout.NORTH);
 
-        JPanel form = new JPanel();
-        form.setOpaque(false);
-        form.setLayout(new BoxLayout(form, BoxLayout.Y_AXIS));
+        JPanel container = new JPanel();
+        container.setOpaque(false);
+        container.setLayout(new BoxLayout(container, BoxLayout.Y_AXIS));
 
-        form.add(infoLabel("Número generado", lblNumero));
-        form.add(Box.createVerticalStrut(16));
-        form.add(field("Solicitud", txtAsunto));
-        form.add(Box.createVerticalStrut(14));
-        form.add(field("Solicitante", txtSolicitante));
-        form.add(Box.createVerticalStrut(14));
-        txtDescripcion.setLineWrap(true);
-        txtDescripcion.setWrapStyleWord(true);
-        form.add(textAreaField("Descripción", txtDescripcion));
-        form.add(Box.createVerticalStrut(14));
-        form.add(field("Destino", txtDestino));
-        form.add(Box.createVerticalStrut(14));
+        JLabel description = new JLabel("<html>Utilizá la grilla multi-insumo para registrar la solicitud, " +
+                "seleccionando cada insumo, stock disponible y cantidad a entregar.</html>");
+        description.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+        description.setForeground(new Color(70, 88, 140));
+        description.setAlignmentX(Component.LEFT_ALIGNMENT);
 
-        JButton btn = primaryButton("Aceptar");
-        btn.addActionListener(e -> onSave());
+        JLabel hint = new JLabel("<html><i>El sistema evita duplicados automáticamente y valida el stock actual.</i></html>");
+        hint.setFont(new Font("Segoe UI", Font.PLAIN, 12));
+        hint.setForeground(new Color(120, 135, 185));
+        hint.setAlignmentX(Component.LEFT_ALIGNMENT);
+
+        JButton btn = primaryButton("Registrar solicitud");
+        btn.addActionListener(e -> openRegistrarDialog());
         btn.setAlignmentX(Component.LEFT_ALIGNMENT);
-        form.add(Box.createVerticalStrut(22));
-        form.add(btn);
 
-        card.add(form, BorderLayout.CENTER);
+        container.add(description);
+        container.add(Box.createVerticalStrut(10));
+        container.add(hint);
+        container.add(Box.createVerticalStrut(24));
+        container.add(btn);
+
+        card.add(container, BorderLayout.CENTER);
         return card;
     }
+
     private JButton primaryButton(String text) {
-    JButton b = new JButton(text);
-    b.setBackground(new java.awt.Color(58, 96, 224));
-    b.setForeground(java.awt.Color.WHITE);
-    b.setFocusPainted(false);
-    b.setBorder(javax.swing.BorderFactory.createEmptyBorder(12, 26, 12, 26));
-    b.putClientProperty("JButton.buttonType", "roundRect");
-    return b;
-}
+        JButton b = new JButton(text);
+        b.setBackground(new java.awt.Color(58, 96, 224));
+        b.setForeground(java.awt.Color.WHITE);
+        b.setFocusPainted(false);
+        b.setBorder(javax.swing.BorderFactory.createEmptyBorder(12, 26, 12, 26));
+        b.putClientProperty("JButton.buttonType", "roundRect");
+        return b;
+    }
 
-
-private JComponent buildSidebarPanel() {
-    // Solo el panel de solicitudes recientes, sin los antiguos
-    CardPanel soloRecientes = recentTramitesCard();
-    return soloRecientes;
-}
+    private JComponent buildSidebarPanel() {
+        // Solo el panel de solicitudes recientes, sin los antiguos
+        CardPanel soloRecientes = recentTramitesCard();
+        return soloRecientes;
+    }
 
 
 private CardPanel recentTramitesCard() {
@@ -396,43 +395,39 @@ private CardPanel recentTramitesCard() {
 
     /* ============================  Lógica / Persistencia  ============================ */
 
-    private String generateNumero(LocalDate date) {
-        return date.format(DateTimeFormatter.BASIC_ISO_DATE) + "-" + (int) (Math.random() * 90000 + 10000);
-    }
+    private void openRegistrarDialog() {
+        Window owner = SwingUtilities.getWindowAncestor(this);
+        RegistrarTramiteDialog dialog = new RegistrarTramiteDialog(owner, inventarioService);
+        if (!dialog.isReady()) {
+            return;
+        }
 
-    private void onSave() {
+        dialog.setVisible(true);
+        if (!dialog.isAccepted()) {
+            return;
+        }
+
         try {
-            String nro         = lblNumero.getText() != null ? lblNumero.getText().trim() : null;
-            String asunto      = txtAsunto.getText() != null ? txtAsunto.getText().trim() : "";
-            String solicitante = txtSolicitante.getText() != null ? txtSolicitante.getText().trim() : "";
-            String descripcion = txtDescripcion.getText() != null ? txtDescripcion.getText().trim() : null;
-            String destino     = txtDestino.getText() != null ? txtDestino.getText().trim() : "";
+            Long id = service.registrarNuevoTramite(
+                    dialog.getSolicitud(),
+                    dialog.getSolicitante(),
+                    dialog.getDescripcion(),
+                    dialog.getDestino(),
+                    dialog.getLineas()
+            );
 
-            if (asunto.isEmpty()) throw new IllegalArgumentException("El asunto es obligatorio");
+            Ui.info(this, "Solicitud registrada. ID: " + id);
 
-            service.registrarTramite(nro, asunto, solicitante,
-                    (descripcion != null && !descripcion.isBlank()) ? descripcion : null, destino);
-
-            Ui.info(this, "Solicitud registrada correctamente.");
-
-            // Reset de campos
-            lblNumero.setText(generateNumero(LocalDate.now()));
-            txtAsunto.setText("");
-            txtSolicitante.setText("");
-            txtDescripcion.setText("");
-            txtDestino.setText("");
-
-            // refrescar tabla
             loadTableData();
-
-            // refrescar el sidebar dinámico
             recargarTramitesRecientesSidebar();
-
-            // notificar al Home (si se pasó callback)
-            if (onTramiteCreado != null) onTramiteCreado.run();
-
-        } catch (Exception e) {
-            Ui.error(this, e);
+            UiBus.fire("tramite-saved");
+            if (onTramiteCreado != null) {
+                onTramiteCreado.run();
+            }
+        } catch (IllegalStateException ex) {
+            Ui.warn(this, ex.getMessage());
+        } catch (Exception ex) {
+            Ui.error(this, ex);
         }
     }
 
@@ -521,55 +516,6 @@ private CardPanel recentTramitesCard() {
 
     /* ============================  UI Helpers  ============================ */
 
-    private JPanel field(String label, JComponent component) {
-        JPanel p = new JPanel();
-        p.setOpaque(false);
-        p.setLayout(new BoxLayout(p, BoxLayout.Y_AXIS));
-        JLabel lbl = new JLabel(label.toUpperCase(Locale.ROOT));
-        lbl.setAlignmentX(Component.LEFT_ALIGNMENT);
-        lbl.setFont(new Font("Segoe UI", Font.BOLD, 12));
-        lbl.setForeground(new Color(87, 110, 178));
-        component.setAlignmentX(Component.LEFT_ALIGNMENT);
-        styleInput(component);
-        p.add(lbl);
-        p.add(Box.createVerticalStrut(6));
-        p.add(component);
-        return p;
-    }
-
-    private JPanel textAreaField(String label, JTextArea area) {
-        JPanel p = new JPanel();
-        p.setOpaque(false);
-        p.setLayout(new BoxLayout(p, BoxLayout.Y_AXIS));
-        JLabel lbl = new JLabel(label.toUpperCase(Locale.ROOT));
-        lbl.setAlignmentX(Component.LEFT_ALIGNMENT);
-        lbl.setFont(new Font("Segoe UI", Font.BOLD, 12));
-        lbl.setForeground(new Color(87, 110, 178));
-        area.setAlignmentX(Component.LEFT_ALIGNMENT);
-        area.setBorder(new EmptyBorder(8, 12, 8, 12));
-        area.setFont(new Font("Segoe UI", Font.PLAIN, 13));
-        JScrollPane scroll = new JScrollPane(area);
-        scroll.setBorder(BorderFactory.createLineBorder(new Color(211, 220, 249)));
-        scroll.setAlignmentX(Component.LEFT_ALIGNMENT);
-        p.add(lbl);
-        p.add(Box.createVerticalStrut(6));
-        p.add(scroll);
-        return p;
-    }
-
-    private JPanel infoLabel(String title, JLabel value) {
-        JPanel panel = new JPanel(new BorderLayout());
-        panel.setOpaque(false);
-        JLabel lblTitle = new JLabel(title.toUpperCase(Locale.ROOT));
-        lblTitle.setFont(new Font("Segoe UI", Font.BOLD, 12));
-        lblTitle.setForeground(new Color(87, 110, 178));
-        panel.add(lblTitle, BorderLayout.NORTH);
-        value.setFont(new Font("Segoe UI", Font.BOLD, 20));
-        value.setForeground(new Color(35, 63, 150));
-        panel.add(value, BorderLayout.CENTER);
-        return panel;
-    }
-
     private JLabel sideTitle(String text) {
         JLabel lbl = new JLabel(text);
         lbl.setFont(new Font("Segoe UI", Font.BOLD, 14));
@@ -603,15 +549,6 @@ private CardPanel recentTramitesCard() {
         b.setForeground(new Color(68, 105, 220));
         b.setFont(new Font("Segoe UI", Font.BOLD, 12));
         return b;
-    }
-
-    private void styleInput(JComponent component) {
-        component.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createLineBorder(new Color(211, 220, 249)),
-                new EmptyBorder(10, 14, 10, 14)));
-        component.setFont(new Font("Segoe UI", Font.PLAIN, 13));
-        component.setBackground(Color.WHITE);
-        component.setMaximumSize(new Dimension(Integer.MAX_VALUE, 44));
     }
 
     private void styleFilterField(JComponent component, int width) {
