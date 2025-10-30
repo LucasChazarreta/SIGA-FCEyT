@@ -10,6 +10,7 @@ import javax.swing.border.EmptyBorder;
 import javax.swing.event.TableModelEvent;
 import javax.swing.event.TableModelListener;
 import javax.swing.table.AbstractTableModel;
+import javax.swing.table.DefaultTableCellRenderer;
 import javax.swing.table.TableCellEditor;
 import java.awt.*;
 import java.math.BigDecimal;
@@ -23,7 +24,7 @@ public class RegistrarTramiteDialog extends JDialog {
     private final InventarioService inventarioService;
     private final JTable table = new JTable();
     private final LineaTableModel model = new LineaTableModel();
-    private final JButton btnGuardar = new JButton("Guardar");
+    private final JButton btnRegistrar = new JButton("Registrar");
     private final JLabel lblTotales = new JLabel("0 ítems · 0 unidades");
     private boolean accepted = false;
     private final JTextField txtSolicitud = new JTextField(30);
@@ -59,9 +60,26 @@ public class RegistrarTramiteDialog extends JDialog {
         table.setModel(model);
         table.setRowHeight(26);
         table.putClientProperty("terminateEditOnFocusLost", Boolean.TRUE);
+        table.setAutoResizeMode(JTable.AUTO_RESIZE_ALL_COLUMNS);
+        table.setFillsViewportHeight(true);
 
         table.getColumnModel().getColumn(0).setCellEditor(new InsumoCellEditor());
         table.getColumnModel().getColumn(2).setCellEditor(new CantidadCellEditor());
+        table.setDefaultRenderer(Insumo.class, new DefaultTableCellRenderer() {
+            @Override
+            public Component getTableCellRendererComponent(JTable tbl, Object value, boolean isSelected, boolean hasFocus, int row, int column) {
+                super.getTableCellRendererComponent(tbl, value, isSelected, hasFocus, row, column);
+                if (value instanceof Insumo ins) {
+                    String nombre = ins.getDescripcion() != null && !ins.getDescripcion().isBlank()
+                            ? ins.getDescripcion()
+                            : ins.getCodigo();
+                    setText(nombre);
+                } else {
+                    setText("Seleccioná un insumo");
+                }
+                return this;
+            }
+        });
 
         add(new JScrollPane(table), BorderLayout.CENTER);
 
@@ -74,12 +92,12 @@ public class RegistrarTramiteDialog extends JDialog {
 
         JPanel bottom = new JPanel(new BorderLayout());
         bottom.add(actions, BorderLayout.WEST);
-        JPanel right = Ui.flowRight(new JButton("Cancelar"), btnGuardar);
+        JPanel right = Ui.flowRight(new JButton("Cancelar"), btnRegistrar);
         bottom.add(right, BorderLayout.EAST);
         add(bottom, BorderLayout.SOUTH);
 
         ((JButton) right.getComponent(0)).addActionListener(e -> dispose());
-        btnGuardar.addActionListener(e -> onGuardar());
+        btnRegistrar.addActionListener(e -> onGuardar());
         btnAgregar.addActionListener(e -> model.addEmptyRow());
         btnQuitar.addActionListener(e -> model.removeSelected(table.getSelectedRow()));
 
@@ -104,7 +122,8 @@ public class RegistrarTramiteDialog extends JDialog {
         model.addEmptyRow();
         updateState();
 
-        setPreferredSize(new Dimension(720, 400));
+        setMinimumSize(new Dimension(680, 360));
+        setPreferredSize(new Dimension(760, 460));
         pack();
         setLocationRelativeTo(owner);
     }
@@ -152,10 +171,12 @@ public class RegistrarTramiteDialog extends JDialog {
         form.add(new JLabel("Descripción:"), gbc);
         gbc.gridx = 1;
         gbc.weightx = 1;
+        gbc.weighty = 1;
         gbc.fill = GridBagConstraints.BOTH;
         JScrollPane descripcionScroll = new JScrollPane(txtDescripcion);
         descripcionScroll.setPreferredSize(new Dimension(0, 90));
         form.add(descripcionScroll, gbc);
+        gbc.weighty = 0;
 
         gbc.gridy++;
         gbc.gridx = 0;
@@ -173,7 +194,7 @@ public class RegistrarTramiteDialog extends JDialog {
     private void updateState() {
         lblTotales.setText(model.totales());
         boolean hasSolicitud = txtSolicitud.getText() != null && !txtSolicitud.getText().trim().isEmpty();
-        btnGuardar.setEnabled(hasSolicitud && model.isValidRows());
+        btnRegistrar.setEnabled(hasSolicitud && model.isValidRows());
     }
 
     private void onGuardar() {
@@ -232,15 +253,11 @@ public class RegistrarTramiteDialog extends JDialog {
         private final List<Fila> filas = new ArrayList<>();
 
         void addEmptyRow() {
-            Insumo insumo = insumosDisponibles.stream()
-                    .filter(i -> filas.stream().noneMatch(f -> f.insumo != null && f.insumo.getId().equals(i.getId())))
-                    .findFirst()
-                    .orElse(null);
-            if (insumo == null) {
+            if (filas.size() >= insumosDisponibles.size()) {
                 Ui.warn(RegistrarTramiteDialog.this, "Ya agregaste todos los insumos disponibles.");
                 return;
             }
-            filas.add(new Fila(insumo, 1));
+            filas.add(new Fila(null, 1));
             fireTableRowsInserted(filas.size() - 1, filas.size() - 1);
         }
 
@@ -270,7 +287,9 @@ public class RegistrarTramiteDialog extends JDialog {
         List<TramiteService.LineaTramite> toLineas() {
             List<TramiteService.LineaTramite> list = new ArrayList<>();
             for (Fila f : filas) {
-                list.add(new TramiteService.LineaTramite(f.insumo.getId(), f.cantidad));
+                if (f.insumo != null) {
+                    list.add(new TramiteService.LineaTramite(f.insumo.getId(), f.cantidad));
+                }
             }
             return list;
         }
@@ -312,18 +331,28 @@ public class RegistrarTramiteDialog extends JDialog {
         @Override
         public void setValueAt(Object aValue, int rowIndex, int columnIndex) {
             Fila f = filas.get(rowIndex);
-            if (columnIndex == 0 && aValue instanceof Insumo nuevo) {
-                for (int i = 0; i < filas.size(); i++) {
-                    if (i != rowIndex && filas.get(i).insumo != null
-                            && filas.get(i).insumo.getId().equals(nuevo.getId())) {
-                        Ui.warn(RegistrarTramiteDialog.this, "Ese insumo ya fue agregado.");
+            if (columnIndex == 0) {
+                Insumo nuevo = (aValue instanceof Insumo) ? (Insumo) aValue : null;
+                if (nuevo != null) {
+                    for (int i = 0; i < filas.size(); i++) {
+                        if (i != rowIndex && filas.get(i).insumo != null
+                                && filas.get(i).insumo.getId().equals(nuevo.getId())) {
+                            Ui.warn(RegistrarTramiteDialog.this, "Ese insumo ya fue agregado.");
+                            fireTableRowsUpdated(rowIndex, rowIndex);
+                            return;
+                        }
+                    }
+                    int max = stockDisponible(nuevo);
+                    if (max <= 0) {
+                        Ui.warn(RegistrarTramiteDialog.this, "El insumo seleccionado no tiene stock disponible.");
                         return;
                     }
-                }
-                f.insumo = nuevo;
-                int max = stockDisponible(nuevo);
-                if (f.cantidad > max) {
-                    f.cantidad = Math.max(1, max);
+                    f.insumo = nuevo;
+                    if (f.cantidad > max) {
+                        f.cantidad = Math.max(1, max);
+                    }
+                } else {
+                    f.insumo = null;
                 }
             } else if (columnIndex == 2 && aValue instanceof Number n) {
                 f.cantidad = n.intValue();
@@ -346,15 +375,21 @@ public class RegistrarTramiteDialog extends JDialog {
         private final JComboBox<Insumo> combo;
 
         InsumoCellEditor() {
-            combo = new JComboBox<>(insumosDisponibles.toArray(new Insumo[0]));
+            combo = new JComboBox<>();
+            combo.setModel(new DefaultComboBoxModel<>(insumosDisponibles.toArray(new Insumo[0])));
+            combo.insertItemAt(null, 0);
+            combo.setSelectedIndex(0);
             combo.setRenderer(new DefaultListCellRenderer() {
                 @Override
                 public Component getListCellRendererComponent(JList<?> list, Object value, int index, boolean isSelected, boolean cellHasFocus) {
                     Component c = super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus);
                     if (value instanceof Insumo ins) {
-                        String nombre = ins.getDescripcion() != null ? ins.getDescripcion() : ins.getCodigo();
-                        int stock = stockDisponible(ins);
-                        setText(String.format("%s (stock: %d)", nombre, stock));
+                        String nombre = ins.getDescripcion() != null && !ins.getDescripcion().isBlank()
+                                ? ins.getDescripcion()
+                                : ins.getCodigo();
+                        setText(nombre);
+                    } else {
+                        setText("Seleccioná un insumo");
                     }
                     return c;
                 }
@@ -368,7 +403,11 @@ public class RegistrarTramiteDialog extends JDialog {
 
         @Override
         public Component getTableCellEditorComponent(JTable table, Object value, boolean isSelected, int row, int column) {
-            combo.setSelectedItem(value);
+            if (value instanceof Insumo) {
+                combo.setSelectedItem(value);
+            } else {
+                combo.setSelectedIndex(0);
+            }
             return combo;
         }
     }

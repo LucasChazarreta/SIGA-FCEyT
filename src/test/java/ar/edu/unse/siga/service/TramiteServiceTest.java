@@ -92,10 +92,16 @@ class TramiteServiceTest {
 
     @Test
     void registrarTramiteConMultiplesInsumos() throws Exception {
-        Long id = service.registrarNuevoTramite(List.of(
-                new TramiteService.LineaTramite(1, 3),
-                new TramiteService.LineaTramite(2, 2)
-        ));
+        Long id = service.registrarNuevoTramite(
+                "Entrega de insumos",
+                "Informes",
+                "Reposición semanal",
+                "Mesa de entradas",
+                List.of(
+                        new TramiteService.LineaTramite(1, 3),
+                        new TramiteService.LineaTramite(2, 2)
+                )
+        );
 
         assertNotNull(id);
 
@@ -136,7 +142,13 @@ class TramiteServiceTest {
     @Test
     void rollbackPorStockInsuficiente() {
         assertThrows(IllegalStateException.class, () ->
-                service.registrarNuevoTramite(List.of(new TramiteService.LineaTramite(2, 6))));
+                service.registrarNuevoTramite(
+                        "Retiro de insumos",
+                        "Laboratorio",
+                        "",
+                        "Depósito",
+                        List.of(new TramiteService.LineaTramite(2, 6))
+                ));
 
         try (Connection cn = DataSourceFactory.getConnection(); Statement st = cn.createStatement()) {
             try (ResultSet rs = st.executeQuery("SELECT COUNT(*) FROM tramite")) {
@@ -150,10 +162,16 @@ class TramiteServiceTest {
 
     @Test
     void unificaLineasDuplicadas() throws Exception {
-        Long id = service.registrarNuevoTramite(List.of(
-                new TramiteService.LineaTramite(1, 2),
-                new TramiteService.LineaTramite(1, 3)
-        ));
+        Long id = service.registrarNuevoTramite(
+                "Duplicados",
+                "Informes",
+                "",
+                "Mesa de entradas",
+                List.of(
+                        new TramiteService.LineaTramite(1, 2),
+                        new TramiteService.LineaTramite(1, 3)
+                )
+        );
 
         try (Connection cn = DataSourceFactory.getConnection()) {
             try (PreparedStatement ps = cn.prepareStatement("SELECT COUNT(*) FROM tramite_detalle WHERE tramite_id=?")) {
