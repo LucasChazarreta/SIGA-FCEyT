@@ -232,15 +232,16 @@ public class RegistrarTramiteDialog extends JDialog {
         private final List<Fila> filas = new ArrayList<>();
 
         void addEmptyRow() {
-            Insumo insumo = insumosDisponibles.stream()
-                    .filter(i -> filas.stream().noneMatch(f -> f.insumo != null && f.insumo.getId().equals(i.getId())))
-                    .findFirst()
-                    .orElse(null);
-            if (insumo == null) {
+            long utilizados = filas.stream()
+                    .filter(f -> f.insumo != null)
+                    .map(f -> f.insumo.getId())
+                    .distinct()
+                    .count();
+            if (utilizados >= insumosDisponibles.size()) {
                 Ui.warn(RegistrarTramiteDialog.this, "Ya agregaste todos los insumos disponibles.");
                 return;
             }
-            filas.add(new Fila(insumo, 1));
+            filas.add(new Fila(null, 1));
             fireTableRowsInserted(filas.size() - 1, filas.size() - 1);
         }
 
@@ -312,18 +313,22 @@ public class RegistrarTramiteDialog extends JDialog {
         @Override
         public void setValueAt(Object aValue, int rowIndex, int columnIndex) {
             Fila f = filas.get(rowIndex);
-            if (columnIndex == 0 && aValue instanceof Insumo nuevo) {
-                for (int i = 0; i < filas.size(); i++) {
-                    if (i != rowIndex && filas.get(i).insumo != null
-                            && filas.get(i).insumo.getId().equals(nuevo.getId())) {
-                        Ui.warn(RegistrarTramiteDialog.this, "Ese insumo ya fue agregado.");
-                        return;
+            if (columnIndex == 0) {
+                if (aValue instanceof Insumo nuevo) {
+                    for (int i = 0; i < filas.size(); i++) {
+                        if (i != rowIndex && filas.get(i).insumo != null
+                                && filas.get(i).insumo.getId().equals(nuevo.getId())) {
+                            Ui.warn(RegistrarTramiteDialog.this, "Ese insumo ya fue agregado.");
+                            return;
+                        }
                     }
-                }
-                f.insumo = nuevo;
-                int max = stockDisponible(nuevo);
-                if (f.cantidad > max) {
-                    f.cantidad = Math.max(1, max);
+                    f.insumo = nuevo;
+                    int max = stockDisponible(nuevo);
+                    if (f.cantidad > max) {
+                        f.cantidad = Math.max(1, max);
+                    }
+                } else if (aValue == null) {
+                    f.insumo = null;
                 }
             } else if (columnIndex == 2 && aValue instanceof Number n) {
                 f.cantidad = n.intValue();
@@ -346,7 +351,12 @@ public class RegistrarTramiteDialog extends JDialog {
         private final JComboBox<Insumo> combo;
 
         InsumoCellEditor() {
-            combo = new JComboBox<>(insumosDisponibles.toArray(new Insumo[0]));
+            DefaultComboBoxModel<Insumo> comboModel = new DefaultComboBoxModel<>();
+            comboModel.addElement(null);
+            for (Insumo insumo : insumosDisponibles) {
+                comboModel.addElement(insumo);
+            }
+            combo = new JComboBox<>(comboModel);
             combo.setRenderer(new DefaultListCellRenderer() {
                 @Override
                 public Component getListCellRendererComponent(JList<?> list, Object value, int index, boolean isSelected, boolean cellHasFocus) {
@@ -355,6 +365,8 @@ public class RegistrarTramiteDialog extends JDialog {
                         String nombre = ins.getDescripcion() != null ? ins.getDescripcion() : ins.getCodigo();
                         int stock = stockDisponible(ins);
                         setText(String.format("%s (stock: %d)", nombre, stock));
+                    } else if (value == null) {
+                        setText("Seleccioná un insumo");
                     }
                     return c;
                 }
