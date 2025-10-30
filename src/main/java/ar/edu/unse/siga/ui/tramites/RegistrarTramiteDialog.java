@@ -2,8 +2,8 @@ package ar.edu.unse.siga.ui.tramites;
 
 import ar.edu.unse.siga.domain.Insumo;
 import ar.edu.unse.siga.service.InventarioService;
-import ar.edu.unse.siga.service.TramiteService;
 import ar.edu.unse.siga.ui.base.Ui;
+import ar.edu.unse.siga.service.TramiteService;
 
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
@@ -15,11 +15,11 @@ import java.awt.*;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 public class RegistrarTramiteDialog extends JDialog {
 
-    private final TramiteService tramiteService;
     private final InventarioService inventarioService;
     private final JTable table = new JTable();
     private final LineaTableModel model = new LineaTableModel();
@@ -34,9 +34,14 @@ public class RegistrarTramiteDialog extends JDialog {
     private final List<Insumo> insumosDisponibles;
     private final boolean ready;
 
-    public RegistrarTramiteDialog(Window owner, TramiteService tramiteService, InventarioService inventarioService) {
+    private String solicitud;
+    private String solicitante;
+    private String descripcion;
+    private String destino;
+    private List<TramiteService.LineaTramite> lineasSeleccionadas = Collections.emptyList();
+
+    public RegistrarTramiteDialog(Window owner, InventarioService inventarioService) {
         super(owner, "Registrar solicitud", ModalityType.APPLICATION_MODAL);
-        this.tramiteService = tramiteService;
         this.inventarioService = inventarioService;
         this.insumosDisponibles = new ArrayList<>(inventarioService.insumosConStockDisponible());
         this.ready = !insumosDisponibles.isEmpty();
@@ -194,22 +199,13 @@ public class RegistrarTramiteDialog extends JDialog {
         String solicitante = txtSolicitante.getText() != null ? txtSolicitante.getText().trim() : "";
         String descripcion = txtDescripcion.getText() != null ? txtDescripcion.getText().trim() : "";
         String destino = txtDestino.getText() != null ? txtDestino.getText().trim() : "";
-        try {
-            Long id = tramiteService.registrarNuevoTramite(
-                    solicitud,
-                    solicitante.isEmpty() ? null : solicitante,
-                    descripcion.isEmpty() ? null : descripcion,
-                    destino.isEmpty() ? null : destino,
-                    lineas
-            );
-            Ui.info(this, "Solicitud registrada. ID: " + id);
-            accepted = true;
-            dispose();
-        } catch (IllegalStateException ex) {
-            Ui.warn(this, ex.getMessage());
-        } catch (Exception ex) {
-            Ui.error(this, ex);
-        }
+        this.solicitud = solicitud;
+        this.solicitante = solicitante.isEmpty() ? null : solicitante;
+        this.descripcion = descripcion.isEmpty() ? null : descripcion;
+        this.destino = destino.isEmpty() ? null : destino;
+        this.lineasSeleccionadas = java.util.Collections.unmodifiableList(new ArrayList<>(lineas));
+        accepted = true;
+        dispose();
     }
 
     public boolean isAccepted() {
@@ -218,6 +214,26 @@ public class RegistrarTramiteDialog extends JDialog {
 
     public boolean isReady() {
         return ready;
+    }
+
+    public String getSolicitud() {
+        return solicitud;
+    }
+
+    public String getSolicitante() {
+        return solicitante;
+    }
+
+    public String getDescripcion() {
+        return descripcion;
+    }
+
+    public String getDestino() {
+        return destino;
+    }
+
+    public List<TramiteService.LineaTramite> getLineas() {
+        return lineasSeleccionadas;
     }
 
     private int stockDisponible(Insumo insumo) {
