@@ -21,13 +21,14 @@ public class AppLauncher {
         MovimientoDao movDao = new JdbcMovimientoDao();
         UsuarioDao usuarioDao = new JdbcUsuarioDao();
         TramiteDao tramiteDao = new JdbcTramiteDao();
+        TramiteDetalleDao tramiteDetalleDao = new JdbcTramiteDetalleDao();
         CategoriaDao categoriaDao = new JdbcCategoriaDao();
         UbicacionDao ubicacionDao = new JdbcUbicacionDao();
 
         // Services
         AuthService auth = new AuthService(usuarioDao);
         InventarioService inv = new InventarioService(insumoDao, movDao, categoriaDao, ubicacionDao);
-        TramiteService tra = new TramiteService(tramiteDao);
+        TramiteService tra = new TramiteService(tramiteDao, tramiteDetalleDao, movDao, insumoDao);
         
         
 
