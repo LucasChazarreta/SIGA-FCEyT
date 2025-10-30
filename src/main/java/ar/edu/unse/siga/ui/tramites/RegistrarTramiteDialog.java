@@ -220,6 +220,21 @@ public class RegistrarTramiteDialog extends JDialog {
         return ready;
     }
 
+    public void prefill(String solicitud, String solicitante, String descripcion, String destino) {
+        if (solicitud != null) {
+            txtSolicitud.setText(solicitud);
+        }
+        if (solicitante != null) {
+            txtSolicitante.setText(solicitante);
+        }
+        if (descripcion != null) {
+            txtDescripcion.setText(descripcion);
+        }
+        if (destino != null) {
+            txtDestino.setText(destino);
+        }
+    }
+
     private int stockDisponible(Insumo insumo) {
         if (insumo == null) return 0;
         BigDecimal stock = insumo.getStockActual();

@@ -1,9 +1,12 @@
 package ar.edu.unse.siga.ui.pages;
 
 import ar.edu.unse.siga.domain.Tramite;
+import ar.edu.unse.siga.service.InventarioService;
 import ar.edu.unse.siga.service.TramiteService;
 import ar.edu.unse.siga.ui.base.CardPanel;
 import ar.edu.unse.siga.ui.base.Ui;
+import ar.edu.unse.siga.ui.base.UiBus;
+import ar.edu.unse.siga.ui.tramites.RegistrarTramiteDialog;
 
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
@@ -30,6 +33,7 @@ import static javax.swing.SwingConstants.LEFT;
 public class TramiteEntradaPage extends JPanel {
 
     private final TramiteService service;
+    private final InventarioService inventarioService;
     private final Runnable onTramiteCreado; // puede ser null
 
     // Control para evitar bucles al editar estado
@@ -72,12 +76,19 @@ public class TramiteEntradaPage extends JPanel {
 
     /* ========================  Constructores  ========================= */
 
-    public TramiteEntradaPage(TramiteService service) {
-        this(service, null);
+    public TramiteEntradaPage(TramiteService service, InventarioService inventarioService) {
+        this(service, inventarioService, null);
     }
 
-    public TramiteEntradaPage(TramiteService service, Runnable onTramiteCreado) {
+    public TramiteEntradaPage(TramiteService service, InventarioService inventarioService, Runnable onTramiteCreado) {
+        if (service == null) {
+            throw new IllegalArgumentException("TramiteService es requerido");
+        }
+        if (inventarioService == null) {
+            throw new IllegalArgumentException("InventarioService es requerido");
+        }
         this.service = service;
+        this.inventarioService = inventarioService;
         this.onTramiteCreado = onTramiteCreado;
 
         setOpaque(false);
@@ -233,7 +244,7 @@ public class TramiteEntradaPage extends JPanel {
         form.add(field("Destino", txtDestino));
         form.add(Box.createVerticalStrut(14));
 
-        JButton btn = primaryButton("Aceptar");
+        JButton btn = primaryButton("Registrar solicitud");
         btn.addActionListener(e -> onSave());
         btn.setAlignmentX(Component.LEFT_ALIGNMENT);
         form.add(Box.createVerticalStrut(22));
@@ -243,90 +254,93 @@ public class TramiteEntradaPage extends JPanel {
         return card;
     }
     private JButton primaryButton(String text) {
-    JButton b = new JButton(text);
-    b.setBackground(new java.awt.Color(58, 96, 224));
-    b.setForeground(java.awt.Color.WHITE);
-    b.setFocusPainted(false);
-    b.setBorder(javax.swing.BorderFactory.createEmptyBorder(12, 26, 12, 26));
-    b.putClientProperty("JButton.buttonType", "roundRect");
-    return b;
-}
+        JButton b = new JButton(text);
+        b.setBackground(new java.awt.Color(58, 96, 224));
+        b.setForeground(java.awt.Color.WHITE);
+        b.setFocusPainted(false);
+        b.setBorder(javax.swing.BorderFactory.createEmptyBorder(12, 26, 12, 26));
+        b.putClientProperty("JButton.buttonType", "roundRect");
+        return b;
+    }
 
 
-private JComponent buildSidebarPanel() {
-    // Solo el panel de solicitudes recientes, sin los antiguos
-    CardPanel soloRecientes = recentTramitesCard();
-    return soloRecientes;
-}
+    private JComponent buildSidebarPanel() {
+        // Solo el panel de solicitudes recientes, sin los antiguos
+        CardPanel soloRecientes = recentTramitesCard();
+        return soloRecientes;
+    }
 
 
-private CardPanel recentTramitesCard() {
-    CardPanel card = new CardPanel();
-    card.setLayout(new BorderLayout(0, 12));
+    private CardPanel recentTramitesCard() {
+        CardPanel card = new CardPanel();
+        card.setLayout(new BorderLayout(0, 12));
         card.add(sideTitle("Solicitudes recientes"), BorderLayout.NORTH);
 
-    recientesSidebar = new JPanel();
-    recientesSidebar.setBorder(new javax.swing.border.EmptyBorder(8, 12, 12, 16)); // top,left,bottom,right
+        recientesSidebar = new JPanel();
+        recientesSidebar.setBorder(new javax.swing.border.EmptyBorder(8, 12, 12, 16)); // top,left,bottom,right
 
-    recientesSidebar.setOpaque(false);
-    recientesSidebar.setLayout(new BoxLayout(recientesSidebar, BoxLayout.Y_AXIS));
+        recientesSidebar.setOpaque(false);
+        recientesSidebar.setLayout(new BoxLayout(recientesSidebar, BoxLayout.Y_AXIS));
 
-    // Scroll
-    JScrollPane sp = new JScrollPane(recientesSidebar);
-    sp.setBorder(BorderFactory.createEmptyBorder());
-    sp.getViewport().setOpaque(false);
-    sp.setOpaque(false);
-    sp.setHorizontalScrollBarPolicy(ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
-    // <- Siempre visible
-    sp.setVerticalScrollBarPolicy(ScrollPaneConstants.VERTICAL_SCROLLBAR_ALWAYS);
-    // <- Altura fija "ventana" para forzar overflow cuando haya muchos items
-    sp.setPreferredSize(new Dimension(20, 450));
+        // Scroll
+        JScrollPane sp = new JScrollPane(recientesSidebar);
+        sp.setBorder(BorderFactory.createEmptyBorder());
+        sp.getViewport().setOpaque(false);
+        sp.setOpaque(false);
+        sp.setHorizontalScrollBarPolicy(ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
+        // <- Siempre visible
+        sp.setVerticalScrollBarPolicy(ScrollPaneConstants.VERTICAL_SCROLLBAR_ALWAYS);
+        // <- Altura fija "ventana" para forzar overflow cuando haya muchos items
+        sp.setPreferredSize(new Dimension(20, 450));
 
-    // IMPORTANTE: limitar el alto del card para que GridLayout no lo haga gigante
-    card.setMaximumSize(new Dimension(Integer.MAX_VALUE, 260));
-    card.setPreferredSize(new Dimension(10, 260));
+        // IMPORTANTE: limitar el alto del card para que GridLayout no lo haga gigante
+        card.setMaximumSize(new Dimension(Integer.MAX_VALUE, 260));
+        card.setPreferredSize(new Dimension(10, 260));
 
-    // Carga inicial dinámica
-    recargarTramitesRecientesSidebar();
+        // Carga inicial dinámica
+        recargarTramitesRecientesSidebar();
 
-    card.add(sp, BorderLayout.CENTER);
-    return card;
-}
+        card.add(sp, BorderLayout.CENTER);
+        return card;
+    }
 
 
 
     /** Reconstruye la lista de “Solicitudes recientes” en el sidebar. */
-  private void recargarTramitesRecientesSidebar() {
-    if (recientesSidebar == null) return;
+    private void recargarTramitesRecientesSidebar() {
+        if (recientesSidebar == null) return;
 
-    recientesSidebar.removeAll();
+        recientesSidebar.removeAll();
 
-    try {
-        java.util.List<Tramite> ult = service.tramitesRecientes(20);
-        for (Tramite t : ult) {
-            String solicitudTxt = "Solicitud: " + (t.getAsunto() == null ? "-" : t.getAsunto());
-            String estado = "Estado: " + (t.getEstado() == null ? "-" : t.getEstado());
+        try {
+            java.util.List<Tramite> ult = service.tramitesRecientes(20);
+            for (Tramite t : ult) {
+                String solicitudTxt = "Solicitud: " + (t.getAsunto() == null ? "-" : t.getAsunto());
+                String estado = "Estado: " + (t.getEstado() == null ? "-" : t.getEstado());
 
-            String badgeTxt = estadoFriendly(t.getEstado());
-            Color badgeColor =
-                    switch (badgeTxt.toLowerCase(java.util.Locale.ROOT)) {
-                        case "completado" -> new Color(73, 198, 154);
-                        case "en proceso" -> new Color(86, 127, 255);
-                        default -> new Color(255, 170, 70); // pendiente
-                    };
+                String badgeTxt = estadoFriendly(t.getEstado());
+                Color badgeColor =
+                        switch (badgeTxt.toLowerCase(java.util.Locale.ROOT)) {
+                            case "completado" -> new Color(73, 198, 154);
+                            case "en proceso" -> new Color(86, 127, 255);
+                            default -> new Color(255, 170, 70); // pendiente
+                        };
 
-            Component item = recentItem(solicitudTxt, estado, badgeTxt, badgeColor);
-            // opcional: asegurar ancho completo
-            if (item instanceof JComponent jc) jc.setMaximumSize(new Dimension(Integer.MAX_VALUE, jc.getPreferredSize().height));
+                Component item = recentItem(solicitudTxt, estado, badgeTxt, badgeColor);
+                // opcional: asegurar ancho completo
+                if (item instanceof JComponent jc) {
+                    jc.setMaximumSize(new Dimension(Integer.MAX_VALUE, jc.getPreferredSize().height));
+                }
 
-            recientesSidebar.add(item);
-            recientesSidebar.add(Box.createVerticalStrut(6));
+                recientesSidebar.add(item);
+                recientesSidebar.add(Box.createVerticalStrut(6));
+            }
+        } catch (Exception ignored) {
         }
-    } catch (Exception ignored) { }
 
-    recientesSidebar.revalidate();
-    recientesSidebar.repaint();
-}
+        recientesSidebar.revalidate();
+        recientesSidebar.repaint();
+    }
 
 
  
@@ -402,38 +416,45 @@ private CardPanel recentTramitesCard() {
 
     private void onSave() {
         try {
-            String nro         = lblNumero.getText() != null ? lblNumero.getText().trim() : null;
             String asunto      = txtAsunto.getText() != null ? txtAsunto.getText().trim() : "";
             String solicitante = txtSolicitante.getText() != null ? txtSolicitante.getText().trim() : "";
-            String descripcion = txtDescripcion.getText() != null ? txtDescripcion.getText().trim() : null;
+            String descripcion = txtDescripcion.getText() != null ? txtDescripcion.getText().trim() : "";
             String destino     = txtDestino.getText() != null ? txtDestino.getText().trim() : "";
 
-            if (asunto.isEmpty()) throw new IllegalArgumentException("El asunto es obligatorio");
+            Window owner = SwingUtilities.getWindowAncestor(this);
+            RegistrarTramiteDialog dialog = new RegistrarTramiteDialog(owner, service, inventarioService);
+            if (!dialog.isReady()) {
+                return;
+            }
 
-            service.registrarTramite(nro, asunto, solicitante,
-                    (descripcion != null && !descripcion.isBlank()) ? descripcion : null, destino);
+            dialog.prefill(asunto, solicitante, descripcion, destino);
+            dialog.setVisible(true);
 
-            Ui.info(this, "Solicitud registrada correctamente.");
+            if (!dialog.isAccepted()) {
+                return;
+            }
 
-            // Reset de campos
-            lblNumero.setText(generateNumero(LocalDate.now()));
-            txtAsunto.setText("");
-            txtSolicitante.setText("");
-            txtDescripcion.setText("");
-            txtDestino.setText("");
-
-            // refrescar tabla
+            resetForm();
             loadTableData();
-
-            // refrescar el sidebar dinámico
             recargarTramitesRecientesSidebar();
 
-            // notificar al Home (si se pasó callback)
-            if (onTramiteCreado != null) onTramiteCreado.run();
+            if (onTramiteCreado != null) {
+                onTramiteCreado.run();
+            }
+
+            UiBus.fire("tramite-saved");
 
         } catch (Exception e) {
             Ui.error(this, e);
         }
+    }
+
+    private void resetForm() {
+        lblNumero.setText(generateNumero(LocalDate.now()));
+        txtAsunto.setText("");
+        txtSolicitante.setText("");
+        txtDescripcion.setText("");
+        txtDestino.setText("");
     }
 
     private void loadTableData() {

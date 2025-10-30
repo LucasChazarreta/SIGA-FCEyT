@@ -118,7 +118,7 @@ public class ShellFrame extends JFrame {
             }
         });
 
-        tramitesPage = new TramiteEntradaPage(tramiteService, homePage::recargarTramitesRecientes);
+        tramitesPage = new TramiteEntradaPage(tramiteService, inventarioService, homePage::recargarTramitesRecientes);
         tramitesHolder[0] = tramitesPage;
 
         movimientosPage = new InventoryMovementsPage(inventarioService);
