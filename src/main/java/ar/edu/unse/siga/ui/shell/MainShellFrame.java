@@ -1,6 +1,7 @@
 package ar.edu.unse.siga.ui.shell;
 
 import ar.edu.unse.siga.ui.inventario.InventarioGestionPanel;
+import ar.edu.unse.siga.ui.pages.TramiteEntradaPage;
 import ar.edu.unse.siga.ui.reportes.InformesPanel;
 
 import javax.swing.*;
@@ -30,12 +31,15 @@ public class MainShellFrame extends JFrame {
 
         JButton btnInicio = navButton("INICIO");
         JButton btnInventario = navButton("INVENTARIO");
+        JButton btnSolicitudes = navButton("SOLICITUDES");
         JButton btnInformes = navButton("INFORMES");
 
         sidebar.add(Box.createVerticalStrut(20));
         sidebar.add(btnInicio);
         sidebar.add(Box.createVerticalStrut(8));
         sidebar.add(btnInventario);
+        sidebar.add(Box.createVerticalStrut(8));
+        sidebar.add(btnSolicitudes);
         sidebar.add(Box.createVerticalStrut(8));
         sidebar.add(btnInformes);
         sidebar.add(Box.createVerticalGlue());
@@ -45,18 +49,21 @@ public class MainShellFrame extends JFrame {
         TramiteService tra   = AppServices.tramite();
         // Vistas
         
-        JPanel inventario = new ar.edu.unse.siga.ui.inventario.InventarioGestionPanel(inv);
-        JPanel informes   = new ar.edu.unse.siga.ui.reportes.InformesPanel(inv, tra);
+        JPanel inventario = new InventarioGestionPanel(inv);
+        JPanel tramites   = new TramiteEntradaPage(tra, inv);
+        JPanel informes   = new InformesPanel(inv, tra);
         JPanel home = buildHome();
         
 
         content.add(home, "HOME");
         content.add(inventario, "INV");
+        content.add(tramites, "TRA");
         content.add(informes, "INF");
 
         // Eventos
         btnInicio.addActionListener(e -> cards.show(content, "HOME"));
         btnInventario.addActionListener(e -> cards.show(content, "INV"));
+        btnSolicitudes.addActionListener(e -> cards.show(content, "TRA"));
         btnInformes.addActionListener(e -> cards.show(content, "INF"));
 
         // Layout principal
