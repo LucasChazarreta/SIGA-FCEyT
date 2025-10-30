@@ -10,6 +10,7 @@ import java.awt.*;
 import ar.edu.unse.siga.config.AppServices;
 import ar.edu.unse.siga.service.InventarioService;
 import ar.edu.unse.siga.service.TramiteService;
+import ar.edu.unse.siga.ui.pages.TramiteEntradaPage;
 
 public class MainShellFrame extends JFrame {
 
@@ -31,6 +32,7 @@ public class MainShellFrame extends JFrame {
         JButton btnInicio = navButton("INICIO");
         JButton btnInventario = navButton("INVENTARIO");
         JButton btnInformes = navButton("INFORMES");
+        JButton btnSolicitudes = navButton("SOLICITUDES");
 
         sidebar.add(Box.createVerticalStrut(20));
         sidebar.add(btnInicio);
@@ -38,6 +40,8 @@ public class MainShellFrame extends JFrame {
         sidebar.add(btnInventario);
         sidebar.add(Box.createVerticalStrut(8));
         sidebar.add(btnInformes);
+        sidebar.add(Box.createVerticalStrut(8));
+        sidebar.add(btnSolicitudes);
         sidebar.add(Box.createVerticalGlue());
 
         
@@ -48,16 +52,19 @@ public class MainShellFrame extends JFrame {
         JPanel inventario = new ar.edu.unse.siga.ui.inventario.InventarioGestionPanel(inv);
         JPanel informes   = new ar.edu.unse.siga.ui.reportes.InformesPanel(inv, tra);
         JPanel home = buildHome();
+        JPanel solicitudes = new TramiteEntradaPage(tra, inv);
         
 
         content.add(home, "HOME");
         content.add(inventario, "INV");
         content.add(informes, "INF");
+        content.add(solicitudes, "TRA");
 
         // Eventos
         btnInicio.addActionListener(e -> cards.show(content, "HOME"));
         btnInventario.addActionListener(e -> cards.show(content, "INV"));
         btnInformes.addActionListener(e -> cards.show(content, "INF"));
+        btnSolicitudes.addActionListener(e -> cards.show(content, "TRA"));
 
         // Layout principal
         var root = new JPanel(new BorderLayout());
