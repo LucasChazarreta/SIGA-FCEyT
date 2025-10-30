@@ -1,10 +1,13 @@
 package ar.edu.unse.siga.ui.tramites;
 
 import ar.edu.unse.siga.domain.Tramite;
+import ar.edu.unse.siga.service.InventarioService;
 import ar.edu.unse.siga.service.TramiteService;
 import ar.edu.unse.siga.ui.base.BaseCrudFrame;
 import ar.edu.unse.siga.ui.base.Ui;
 import ar.edu.unse.siga.ui.TramiteTableModel; // <- usamos el modelo existente
+import ar.edu.unse.siga.ui.base.UiBus;
+import ar.edu.unse.siga.ui.reportes.InformesPanel;
 
 import javax.swing.*;
 import javax.swing.event.DocumentEvent;
@@ -19,8 +22,8 @@ import java.util.List;
 public class TramiteFrame extends BaseCrudFrame<Tramite> {
 
     private final TramiteService service;
+    private final InventarioService invService;
     private final TramiteTableModel model = new TramiteTableModel();
-    
 
     private final JTextField txtSearch = new JTextField(20);
     private final JComboBox<String> cbCampo
@@ -28,9 +31,10 @@ public class TramiteFrame extends BaseCrudFrame<Tramite> {
 
     private TableRowSorter<TableModel> sorter;
 
-    public TramiteFrame(TramiteService service) {
+    public TramiteFrame(TramiteService service, InventarioService invService) {
         super("ABM Trámites");
         this.service = service;
+        this.invService = invService;
         table.setModel(model);
 
         JButton btnRegistrarSalida = new JButton("Registrar retiro");
@@ -97,8 +101,6 @@ public class TramiteFrame extends BaseCrudFrame<Tramite> {
                 filter();
             }
         });
-        
-        
 
         // ---- Zebra striping y anchos
         table.setDefaultRenderer(Object.class, new DefaultTableCellRenderer() {
@@ -177,22 +179,28 @@ public class TramiteFrame extends BaseCrudFrame<Tramite> {
 
     @Override
     protected void onNuevo() {
-        var dlg = new TramiteFormDialog(SwingUtilities.getWindowAncestor(this));
+        Window owner = SwingUtilities.getWindowAncestor(this);
+
+        // Usa el constructor que realmente existe (Window, TramiteService)
+        RegistrarTramiteDialog dlg = new RegistrarTramiteDialog(owner, service);
         dlg.setVisible(true);
-        if (dlg.isAccepted()) {
-            try {
-                // ⚠️ ahora pasamos los 5 parámetros que requiere el Service
-                service.registrarTramite(
-                        dlg.getNro(),
-                        dlg.getAsunto(),
-                        dlg.getSolicitante(),
-                        dlg.getDescripcion(),
-                        dlg.getDestino()
-                );
-                loadData();
-            } catch (Exception e) {
-                Ui.error(this, e);
-            }
+
+        if (!dlg.isAccepted()) {
+            return;
+        }
+
+        // 1) refresca la tabla local de Trámites
+        loadData();
+
+        // 2) avisa globalmente para que InformesPanel se recargue (métricas, movimientos, etc.)
+        ar.edu.unse.siga.ui.base.UiBus.fire("tramite-saved");
+
+        // 3) (opcional) refresco directo si el panel Informes está en esta misma ventana
+        Window root = SwingUtilities.getWindowAncestor(this);
+        ar.edu.unse.siga.ui.reportes.InformesPanel inf
+                = (ar.edu.unse.siga.ui.reportes.InformesPanel) SwingUtilities.getAncestorOfClass(ar.edu.unse.siga.ui.reportes.InformesPanel.class, root);
+        if (inf != null) {
+            inf.reloadAfterTramiteSaved();
         }
     }
 
@@ -233,10 +241,16 @@ public class TramiteFrame extends BaseCrudFrame<Tramite> {
     private void onRegistrarSalida() {
         Window owner = SwingUtilities.getWindowAncestor(this);
         RegistrarTramiteDialog dlg = new RegistrarTramiteDialog(owner, service);
-        if (!dlg.isReady()) return;
+        if (!dlg.isReady()) {
+            return;
+        }
         dlg.setVisible(true);
-        if (dlg.isAccepted()) {
+        /*if (dlg.isAccepted()) {
             loadData();
+        }*/
+        if (dlg.isAccepted()) {
+            loadData();                 // refresca la grilla local de trámites
+            UiBus.fire("tramite-saved"); // <- avisa globalmente a quien escuche (Informes)
         }
     }
 }

@@ -7,6 +7,7 @@ import ar.edu.unse.siga.domain.Movimiento;
 import ar.edu.unse.siga.service.InventarioService;
 import ar.edu.unse.siga.service.TramiteService;
 import ar.edu.unse.siga.ui.base.CardPanel;
+import ar.edu.unse.siga.ui.base.UiBus;
 
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
@@ -19,6 +20,13 @@ import java.lang.reflect.Method;
 import java.text.ParseException;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
+
+import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
+import java.time.Instant;
+import java.util.Date;
+
 import java.util.List;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -44,6 +52,8 @@ import com.lowagie.text.pdf.PdfWriter;
  * por y filtros.
  */
 public class InformesPanel extends JPanel {
+
+    private JPanel pnlRetiros; // campo
 
     // ======= Colores base =======
     private static final Color BRAND = new Color(58, 96, 224);
@@ -102,6 +112,41 @@ public class InformesPanel extends JPanel {
     private JToggleButton btnTramites;
     private JToggleButton btnMovimientos;
 
+    private final javax.swing.table.DefaultTableModel retirosModel
+            = new javax.swing.table.DefaultTableModel(
+                    new Object[]{"# Trámite", "Fecha", "Insumo", "Cantidad"}, 0) {
+        @Override
+        public boolean isCellEditable(int r, int c) {
+            return false;
+        }
+    };
+    private final javax.swing.JTable tblRetiros = new javax.swing.JTable(retirosModel);
+
+    private static String fmtFecha(Object f) {
+        try {
+            if (f instanceof java.time.LocalDateTime ldt) {
+                return ldt.format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
+            }
+            if (f instanceof java.time.LocalDate ld) {
+                return ld.format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd"));
+            }
+            return "-";
+        } catch (Exception e) {
+            return "-";
+        }
+    }
+
+    private static final DateTimeFormatter FMT_FECHA_HHMMSS = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+    private static final DateTimeFormatter FMT_FECHA_DDMM = DateTimeFormatter.ofPattern("dd/MM/yyyy");
+
+    private static String fmtFecha(java.time.LocalDateTime dt) {
+        return dt == null ? "-" : dt.format(FMT_FECHA_HHMMSS);
+    }
+
+    private static String fmtFecha(java.time.LocalDate d) {
+        return d == null ? "-" : d.format(FMT_FECHA_DDMM);
+    }
+
     public InformesPanel(InventarioService invService, TramiteService traService) {
         this.invService = invService;
         this.traService = traService;
@@ -109,6 +154,12 @@ public class InformesPanel extends JPanel {
         setLayout(new BorderLayout(0, 12));
         setOpaque(false);
         setBorder(BorderFactory.createEmptyBorder(12, 12, 12, 12));
+
+        // 1) CREAR pnlRetiros PRIMERO
+        pnlRetiros = new JPanel(new BorderLayout());
+        pnlRetiros.add(new JLabel("Salidas recientes"), BorderLayout.NORTH);
+        pnlRetiros.add(new JScrollPane(tblRetiros), BorderLayout.CENTER);
+        pnlRetiros.setBorder(BorderFactory.createEmptyBorder(6, 0, 0, 0));
 
         add(buildHeader(), BorderLayout.NORTH);
         add(buildContentScrollable(), BorderLayout.CENTER);
@@ -142,12 +193,90 @@ public class InformesPanel extends JPanel {
         reloadMetrics();
         runQueryInventario();
         loadTableDataTramites();
+        System.out.println("[InformesPanel] tramites cargados: " + modelTra.getRowCount());
         installFiltersTramites();
 
         loadTableDataMovimientos();
         installFiltersMovimientos();
+        loadRetirosRecientes();
+
+        cargarCategoriasEnCombo();
+        reloadMetrics();
+        runQueryInventario();
+        loadTableDataTramites();
+        installFiltersTramites();
+        loadTableDataMovimientos();
+        installFiltersMovimientos();
+
+        UiBus.on("tramite-saved", evt -> reloadAfterTramiteSaved());
     }
 
+    private void loadRetirosRecientes() {
+        retirosModel.setRowCount(0);
+        try {
+            // Tomo SALIDAS de los últimos 7 días (ajustá si querés)
+            java.time.LocalDate hoy = java.time.LocalDate.now();
+            java.time.LocalDate desde = hoy.minusDays(7);
+            java.time.LocalDate hasta = hoy;
+
+            java.time.format.DateTimeFormatter fmt
+                    = java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm");
+
+            // Reuso lo que ya usás en Movimientos:
+            java.util.List<ar.edu.unse.siga.domain.Movimiento> movs
+                    = invService.movimientosPorFechaYTipo(desde, hasta, "SALIDA");
+
+            for (ar.edu.unse.siga.domain.Movimiento m : movs) {
+                String fecha = (m.getFecha() != null) ? m.getFecha().format(fmt) : "-";
+                String insumo = (m.getInsumo() != null && m.getInsumo().getDescripcion() != null)
+                        ? m.getInsumo().getDescripcion() : "-";
+                String cantidad = (m.getCantidad() == null) ? "0"
+                        : m.getCantidad().stripTrailingZeros().toPlainString();
+
+                // #Trámite: si tu Movimiento expone el id/nro del trámite, usalo;
+                // si no, mostramos "-" hasta que lo agreguemos al modelo:
+                String nroTramite = "-";
+                try {
+                    // Opción A (si existe getTramiteId):
+                    var mt = m.getClass().getMethod("getTramiteId");
+                    Object val = mt.invoke(m);
+                    if (val != null) {
+                        nroTramite = String.valueOf(val);
+                    }
+                } catch (Throwable ignore) {
+                    try {
+                        // Opción B (si existe getTramite()->getId()):
+                        var mt = m.getClass().getMethod("getTramite");
+                        Object tram = mt.invoke(m);
+                        if (tram != null) {
+                            var mid = tram.getClass().getMethod("getId");
+                            Object id = mid.invoke(tram);
+                            if (id != null) {
+                                nroTramite = String.valueOf(id);
+                            }
+                        }
+                    } catch (Throwable ignore2) {
+                    }
+                }
+
+                retirosModel.addRow(new Object[]{nroTramite, fecha, insumo, cantidad});
+            }
+
+        } catch (Exception ex) {
+            JOptionPane.showMessageDialog(this,
+                    "Error cargando Salidas recientes:\n" + ex.getMessage(),
+                    "Error", JOptionPane.ERROR_MESSAGE);
+        }
+    }
+
+    /*public void reloadAfterTramiteSaved() {
+        // Si tenés métricas/tablitas ya implementadas, llamá a sus loaders aquí:
+        // loadKpis(); loadRetirosRecientes(); loadStocks(); etc.
+        // Al menos, recargá la sección que esperás ver actualizada:
+        loadRetirosRecientes(); // ejemplo
+        revalidate();
+        repaint();
+    }*/
     public void mostrarInventarioBajoMinimo() {
         if (btnInventario != null) {
             btnInventario.setSelected(true);
@@ -264,6 +393,7 @@ public class InformesPanel extends JPanel {
         movPanel.setBackground(Color.WHITE);
         movPanel.add(buildMovimientosFilters(), BorderLayout.NORTH);
         movPanel.add(buildMovimientosTableScroll(), BorderLayout.CENTER);
+        movPanel.add(pnlRetiros, BorderLayout.SOUTH);
 
         // Contenedor central
         content.setOpaque(true);
@@ -607,7 +737,9 @@ public class InformesPanel extends JPanel {
                 data = data.stream()
                         .filter(i -> {
                             Integer minimo = i.getStockMinimo();
-                            if (minimo == null || i.getId() == null) return false;
+                            if (minimo == null || i.getId() == null) {
+                                return false;
+                            }
                             try {
                                 BigDecimal stock = invService.stockActualExacto(i.getId());
                                 return stock.compareTo(BigDecimal.valueOf(minimo)) < 0;
@@ -696,7 +828,7 @@ public class InformesPanel extends JPanel {
 
         // Anchos
         TableColumnModel tcm = table.getColumnModel();
-        if (tcm.getColumnCount() >= 7) {
+        if (tcm.getColumnCount() >= 8) {
             tcm.getColumn(0).setPreferredWidth(120);
             tcm.getColumn(1).setPreferredWidth(240);
             tcm.getColumn(2).setPreferredWidth(160);
@@ -704,6 +836,7 @@ public class InformesPanel extends JPanel {
             tcm.getColumn(4).setPreferredWidth(300);
             tcm.getColumn(5).setPreferredWidth(180);
             tcm.getColumn(6).setPreferredWidth(130);
+            tcm.getColumn(7).setPreferredWidth(180);
         }
 
         JTableHeader header = table.getTableHeader();
@@ -753,14 +886,16 @@ public class InformesPanel extends JPanel {
         try {
             String search = filterSearch.getText().trim().toLowerCase(Locale.ROOT);
             String estadoFiltro = (String) filterEstado.getSelectedItem();
+            if (estadoFiltro == null) {
+                estadoFiltro = "Todos";
+            }
 
             List<Tramite> tramites = traService.listarTodos();
             if (tramites == null) {
                 return;
             }
 
-            DateTimeFormatter fmt = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
-
+            //DateTimeFormatter fmt = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
             for (Tramite t : tramites) {
                 if (!search.isEmpty()) {
                     String texto = (String.valueOf(t.getAsunto()) + " " + String.valueOf(t.getNro()) + " "
@@ -775,8 +910,11 @@ public class InformesPanel extends JPanel {
                     continue;
                 }
 
-                String actualizacion = t.getFecha() == null ? "-" : t.getFecha().format(fmt);
-                String ultima = t.getFecha() == null ? "-" : t.getFecha().plusDays(1).format(fmt); // placeholder
+                //String actualizacion = t.getFecha() == null ? "-" : t.getFecha().format(fmt);
+                //String ultima = t.getFecha() == null ? "-" : t.getFecha().plusDays(1).format(fmt); // placeholder
+                String actualizacion = fmtFecha(t.getFecha());
+                String ultima = actualizacion; // o calculá algo real si tenés "updatedAt"
+
                 String descripcion = extraerDescripcionTramite(t);
                 String solicitante = (t.getSolicitante() == null || t.getSolicitante().isBlank()) ? "-" : t.getSolicitante();
 
@@ -798,6 +936,7 @@ public class InformesPanel extends JPanel {
             });
         }
         filterEstado.addActionListener(e -> loadTableDataTramites());
+        filterEstado.setSelectedItem("Todos");
     }
 
     private String extraerDescripcionTramite(Object t) {
@@ -970,7 +1109,7 @@ public class InformesPanel extends JPanel {
 
         // Anchos
         TableColumnModel tcm = table.getColumnModel();
-        if (tcm.getColumnCount() >= 7) {
+        if (tcm.getColumnCount() >= 8) {
             tcm.getColumn(0).setPreferredWidth(160); // Fecha
             tcm.getColumn(1).setPreferredWidth(90);  // Tipo
             tcm.getColumn(2).setPreferredWidth(110); // Cantidad
@@ -1029,9 +1168,12 @@ public class InformesPanel extends JPanel {
                     : "Todos";
 
             String tipoFiltro = switch (tipoSel.toUpperCase()) {
-                case "ENTRADA" -> "ENTRADA";
-                case "SALIDA" -> "SALIDA";
-                default -> null;
+                case "ENTRADA" ->
+                    "ENTRADA";
+                case "SALIDA" ->
+                    "SALIDA";
+                default ->
+                    null;
             };
 
             java.time.LocalDate hoy = java.time.LocalDate.now();
@@ -1089,7 +1231,9 @@ public class InformesPanel extends JPanel {
     }
 
     private String formatCantidad(java.math.BigDecimal valor) {
-        if (valor == null) return "0";
+        if (valor == null) {
+            return "0";
+        }
         return valor.stripTrailingZeros().toPlainString();
     }
 
@@ -1226,18 +1370,18 @@ public class InformesPanel extends JPanel {
         if (estadoFiltro != null && estadoFiltro.equalsIgnoreCase("Todos")) {
             estadoFiltro = null;
         }
+        // Ajuste de headers para que coincida con modelTra (7 columnas, incluida "Solicitante")
         exportModelToPdf(
                 "INFORME DE TRÁMITES",
-                new String[]{"ID Trámite", "Asunto", "Fecha creación", "Última actualización", "Descripción", "Estado"},
+                new String[]{"ID Trámite", "Asunto", "Fecha creación", "Última actualización", "Descripción", "Solicitante", "Estado"},
                 modelTra,
-                estadoFiltro, // reutilizamos como "Categoría/Estado" en el encabezado
+                estadoFiltro,
                 null,
                 null
         );
     }
 
     private void exportMovimientosToPdf() {
-        // Valor del combo: "Todos", "Entrada" o "Salida"
         String filtroTipo = "Todos";
         try {
             if (cbTipoMov != null && cbTipoMov.getSelectedItem() != null) {
@@ -1246,7 +1390,6 @@ public class InformesPanel extends JPanel {
         } catch (Exception ignore) {
         }
 
-        // Llamada con la firma correcta: usamos el filtro como "categoriaFiltro" (se mostrará como “Movimiento”)
         exportModelToPdf(
                 "INFORME DE MOVIMIENTOS",
                 new String[]{"Fecha", "Tipo", "Cantidad", "Código", "Descripción", "Ubicación", "Destino", "Solicitante"},
@@ -1296,13 +1439,11 @@ public class InformesPanel extends JPanel {
             PdfWriter.getInstance(doc, fos);
             doc.open();
 
-            // ====== Encabezado con logo (izq) y fecha (der) ======
             PdfPTable head = new PdfPTable(2);
             head.setWidthPercentage(100);
             head.setWidths(new float[]{1f, 1f});
             head.getDefaultCell().setBorder(PdfPCell.NO_BORDER);
 
-            // Logo (izquierda)
             PdfPCell left = new PdfPCell();
             left.setBorder(PdfPCell.NO_BORDER);
             try {
@@ -1317,7 +1458,6 @@ public class InformesPanel extends JPanel {
             }
             head.addCell(left);
 
-            // Fecha (derecha)
             com.lowagie.text.Font fFecha = new com.lowagie.text.Font(
                     com.lowagie.text.Font.HELVETICA, 10, com.lowagie.text.Font.NORMAL, Color.BLACK);
             String fechaHoy = new java.text.SimpleDateFormat("dd/MM/yyyy").format(new java.util.Date());
@@ -1331,7 +1471,6 @@ public class InformesPanel extends JPanel {
 
             doc.add(head);
 
-            // ====== Generado por ======
             String generadoPor = "Administrador";
             com.lowagie.text.Font fGen = new com.lowagie.text.Font(
                     com.lowagie.text.Font.HELVETICA, 10, com.lowagie.text.Font.NORMAL, Color.BLACK);
@@ -1340,15 +1479,13 @@ public class InformesPanel extends JPanel {
             pGen.setSpacingAfter(2f);
             doc.add(pGen);
 
-            // ====== Filtros (si existen) ======
             StringBuilder filtros = new StringBuilder();
             if (categoriaFiltro != null && !categoriaFiltro.isBlank()) {
-                // Etiqueta según informe
                 String etiqueta;
                 if ("INFORME DE TRÁMITES".equalsIgnoreCase(titulo)) {
                     etiqueta = "Estado";
                 } else if ("INFORME DE MOVIMIENTOS".equalsIgnoreCase(titulo)) {
-                    etiqueta = "Movimiento"; // Entrada / Salida / Todos
+                    etiqueta = "Movimiento";
                 } else {
                     etiqueta = "Categoría";
                 }
@@ -1372,7 +1509,6 @@ public class InformesPanel extends JPanel {
                 doc.add(pFilt);
             }
 
-            // ====== Título centrado ======
             com.lowagie.text.Font fTitle = new com.lowagie.text.Font(
                     com.lowagie.text.Font.HELVETICA, 18, com.lowagie.text.Font.BOLD, HEADER_TXT);
             Paragraph title = new Paragraph(titulo, fTitle);
@@ -1380,7 +1516,6 @@ public class InformesPanel extends JPanel {
             title.setSpacingAfter(8f);
             doc.add(title);
 
-            // ====== Tabla de datos (resumen) ======
             PdfPTable table = new PdfPTable(headers.length);
             table.setWidthPercentage(100);
             float[] w = new float[headers.length];
@@ -1412,7 +1547,6 @@ public class InformesPanel extends JPanel {
 
             doc.add(table);
 
-            // ====== TRAZABILIDAD DETALLADA (SOLO MOVIMIENTOS) ======
             if ("INFORME DE MOVIMIENTOS".equalsIgnoreCase(titulo)) {
                 com.lowagie.text.Font fSub = new com.lowagie.text.Font(
                         com.lowagie.text.Font.HELVETICA, 13, com.lowagie.text.Font.BOLD, HEADER_TXT);
@@ -1425,7 +1559,6 @@ public class InformesPanel extends JPanel {
                 sep.setSpacingAfter(6f);
                 doc.add(sep);
 
-                // Mapear insumos por código para lookup rápido
                 Map<String, Insumo> byCodigo = new HashMap<>();
                 try {
                     for (Insumo ins : invService.listarTodos()) {
@@ -1448,7 +1581,7 @@ public class InformesPanel extends JPanel {
 
                     List<Movimiento> movs;
                     try {
-                        movs = invService.ultimosMovimientos(ins.getId(), 200); // cantidad razonable
+                        movs = invService.ultimosMovimientos(ins.getId(), 200);
                     } catch (Exception ex) {
                         continue;
                     }
@@ -1468,7 +1601,6 @@ public class InformesPanel extends JPanel {
                     tMov.setWidthPercentage(100);
                     tMov.setWidths(new float[]{1.2f, 0.8f, 0.6f, 1.2f, 1.2f});
 
-                    // header
                     for (String h : List.of("Fecha", "Tipo", "Cantidad", "Destino", "Solicitante")) {
                         PdfPCell hc = new PdfPCell(new Phrase(h, fHeader));
                         hc.setHorizontalAlignment(Element.ALIGN_CENTER);
@@ -1477,7 +1609,6 @@ public class InformesPanel extends JPanel {
                         tMov.addCell(hc);
                     }
 
-                    // rows
                     for (Movimiento m : movs) {
                         String f = (m.getFecha() == null) ? "" : m.getFecha().format(fmtMov);
                         String tipo = Objects.toString(m.getTipo(), "");
@@ -1749,7 +1880,6 @@ public class InformesPanel extends JPanel {
         sp.getHorizontalScrollBar().setPreferredSize(new Dimension(0, 10));
     }
 
-    // ===== Botones con estilo =====
     private static JButton primaryButton(String text) {
         JButton b = new JButton(text);
         b.setBackground(BRAND);
@@ -1775,9 +1905,8 @@ public class InformesPanel extends JPanel {
         return b;
     }
 
-    // Botón "pill" para las pestañas
     private JToggleButton pill(String text) {
-        final Color blue = new Color(0x0B, 0x2F, 0xB5); // azul fuerte
+        final Color blue = new Color(0x0B, 0x2F, 0xB5);
 
         JToggleButton t = new JToggleButton(text) {
             @Override
@@ -1797,19 +1926,13 @@ public class InformesPanel extends JPanel {
         t.setOpaque(false);
         t.setContentAreaFilled(false);
         t.setFont(t.getFont().deriveFont(Font.BOLD, 16f));
-
-        // estado por defecto (no seleccionado)
         t.setBackground(Color.WHITE);
         t.setForeground(blue);
         t.setBorder(BorderFactory.createCompoundBorder(
                 BorderFactory.createLineBorder(blue, 1, true),
                 new EmptyBorder(10, 20, 10, 20)
         ));
-
-        // texto blanco cuando está seleccionado
         t.addChangeListener(e -> t.setForeground(t.isSelected() ? Color.WHITE : blue));
-
-        // evita estilos especiales del LAF
         t.putClientProperty("JButton.buttonType", "square");
 
         return t;
@@ -1821,5 +1944,36 @@ public class InformesPanel extends JPanel {
         l.setForeground(Color.WHITE);
         l.setHorizontalAlignment(SwingConstants.LEFT);
         return l;
+    }
+
+    // =======================
+    // MÉTODOS NUEVOS PÚBLICOS
+    // =======================
+    /**
+     * Llamar esto APENAS termina OK el guardado del trámite.
+     */
+    public void reloadAfterTramiteSaved() {
+        SwingUtilities.invokeLater(() -> {
+            try {
+                reloadMetrics();
+                loadTableDataTramites();
+                loadTableDataMovimientos();
+            } catch (Exception ignore) {
+            }
+        });
+    }
+
+    /**
+     * Útil si sólo querés refrescar la grilla de Trámites.
+     */
+    public void reloadTramitesUI() {
+        SwingUtilities.invokeLater(this::loadTableDataTramites);
+    }
+
+    /**
+     * Útil si sólo querés refrescar la grilla de Movimientos.
+     */
+    public void reloadMovimientosUI() {
+        SwingUtilities.invokeLater(this::loadTableDataMovimientos);
     }
 }

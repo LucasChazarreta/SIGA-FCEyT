@@ -63,7 +63,7 @@ public class MainFrame extends JFrame {
         btnIns.addActionListener(e -> openInDesktop(new ar.edu.unse.siga.ui.inventario.InsumoFrame(inventarioService)));
 
         var btnTra = new JButton("Trámites", ThemeManager.svg("icons/search.svg", 16));
-        btnTra.addActionListener(e -> openInDesktop(new ar.edu.unse.siga.ui.tramites.TramiteFrame(tramiteService)));
+        btnTra.addActionListener(e -> openInDesktop(new TramiteFrame(tramiteService, inventarioService)));
 
         var btnCsv = new JButton("Movimientos CSV", ThemeManager.svg("icons/csv.svg", 16));
         btnCsv.addActionListener(e -> new ar.edu.unse.siga.ui.reportes.ReporteMovimientosDialog(this).setVisible(true));
@@ -99,7 +99,7 @@ public class MainFrame extends JFrame {
 
         var mTramites = new JMenu("Trámites");
         var miTramites = new JMenuItem("ABM Trámites");
-        miTramites.addActionListener(e -> openInDesktop(new TramiteFrame(tramiteService)));
+        miTramites.addActionListener(e -> openInDesktop(new TramiteFrame(tramiteService, inventarioService)));
         mTramites.add(miTramites);
 
         var mUsuarios = new JMenu("Usuarios");

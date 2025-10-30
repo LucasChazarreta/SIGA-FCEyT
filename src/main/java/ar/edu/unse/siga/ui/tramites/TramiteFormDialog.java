@@ -15,18 +15,37 @@ public class TramiteFormDialog extends JDialog {
     private final JTextField txtDestino = new JTextField(30);
     private boolean accepted = false;
 
-    public TramiteFormDialog(Window owner) {
-        super(owner, "Nuevo Trámite", ModalityType.APPLICATION_MODAL);
+    private final Runnable onSaved; // callback para refrescar UI del caller
 
+    /** Nuevo constructor con callback (recomendado) */
+    public TramiteFormDialog(Window owner, Runnable onSaved) {
+        super(owner, "Nuevo Trámite", ModalityType.APPLICATION_MODAL);
+        this.onSaved = onSaved;
+        buildUI(owner);
+    }
+
+    /** Constructor legacy (compatibilidad) */
+    public TramiteFormDialog(Window owner) {
+        this(owner, null);
+    }
+
+    private void buildUI(Window owner) {
         var form = new JPanel(new GridLayout(0, 2, 8, 8));
+
         form.add(new JLabel("Número:"));
         form.add(txtNro);
+
         form.add(new JLabel("Asunto:"));
         form.add(txtAsunto);
+
         form.add(new JLabel("Solicitante:"));
+        txtSolicitante.setText("Informes");      // solicitante fijo
+        txtSolicitante.setEditable(false);       // no editable
         form.add(txtSolicitante);
+
         form.add(new JLabel("Descripción:"));
         form.add(txtDescripcion);
+
         form.add(new JLabel("Destino:"));
         form.add(txtDestino);
 
@@ -36,13 +55,21 @@ public class TramiteFormDialog extends JDialog {
         ok.addActionListener(e -> {
             if (txtNro.getText().isBlank() || txtAsunto.getText().isBlank()) {
                 Dialogs.warn(this, "Número y Asunto son obligatorios.");
-                               
-
                 return;
             }
+            // Aquí deberías invocar tu Service para:
+            // - crear Tramite + Detalles
+            // - crear Movimientos SALIDA por los insumos seleccionados
+            // - descontar stock
+            // (todo en una transacción). Este diálogo sólo valida y notifica.
+
             accepted = true;
+            if (onSaved != null) {
+                try { onSaved.run(); } catch (Exception ignore) {}
+            }
             setVisible(false);
         });
+
         cancel.addActionListener(e -> setVisible(false));
 
         setLayout(new BorderLayout(10, 10));
@@ -70,9 +97,9 @@ public class TramiteFormDialog extends JDialog {
 
     public String getDescripcion() {
         return txtDescripcion.getText().trim();
-    } // <- NUEVO
+    }
 
     public String getDestino() {
         return txtDestino.getText().trim();
-    }         // <- NUEVO
+    }
 }
