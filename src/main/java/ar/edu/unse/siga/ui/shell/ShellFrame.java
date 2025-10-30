@@ -76,7 +76,7 @@ public class ShellFrame extends JFrame {
                 case "inventario" -> "Inventario";
                 case "movimientos" -> "Movimientos";
                 case "reportes" -> "Informes";
-                case "tramites" -> "Trámites";
+                case "tramites" -> "Solicitudes";
                 case "finanzas" -> "Finanzas";
                 default -> key;
             };
@@ -102,7 +102,7 @@ public class ShellFrame extends JFrame {
             }
 
             @Override
-            public void openTramitesNuevos() {
+            public void openSolicitudesNuevas() {
                 nav.accept("tramites");
                 if (tramitesHolder[0] != null) {
                     tramitesHolder[0].mostrarTramitesEstado("NUEVO");
@@ -183,7 +183,7 @@ public class ShellFrame extends JFrame {
         NavButton bInv = nav("Inventario", "ui/icons/inventory.svg", "inventario");
         NavButton bMov = nav("Movimientos", "ui/icons/movements.svg", "movimientos", 1);
         NavButton bInf = nav("Informes", "ui/icons/reports.svg", "reportes");
-        NavButton bTra = nav("Trámites", "ui/icons/tramites.svg", "tramites");
+        NavButton bTra = nav("Solicitudes", "ui/icons/tramites.svg", "tramites");
         // NavButton bFin  = nav("Finanzas",     "ui/icons/finanzas.svg",   "finanzas");
 
         navGroup.add(bHome);

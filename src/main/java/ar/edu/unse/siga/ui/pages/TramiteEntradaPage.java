@@ -22,8 +22,8 @@ import static javax.swing.SwingConstants.CENTER;
 import static javax.swing.SwingConstants.LEFT;
 
 /**
- * Pantalla de Trámites: registro + listados.
- * - Sidebar: "Trámites recientes" dinámico.
+ * Pantalla de Solicitudes: registro + listados.
+ * - Sidebar: "Solicitudes recientes" dinámico.
  * - Tabla de activos con edición inline del estado.
  * - Callback onTramiteCreado para notificar a HomePage.
  */
@@ -59,7 +59,7 @@ public class TramiteEntradaPage extends JPanel {
     // Tabla (solo columna Estado editable)
     private final JTable table = new JTable(new DefaultTableModel(
             new Object[][]{},
-            new String[]{"ID Trámite", "Asunto", "Fecha creación", "Última actualización", "Descripcion", "Estado"}
+            new String[]{"ID Solicitud", "Solicitud", "Fecha creación", "Última actualización", "Descripcion", "Estado"}
     )) {
         @Override
         public boolean isCellEditable(int row, int column) {
@@ -67,7 +67,7 @@ public class TramiteEntradaPage extends JPanel {
         }
     };
 
-    // Panel dinámico del sidebar "Trámites recientes"
+    // Panel dinámico del sidebar "Solicitudes recientes"
     private JPanel recientesSidebar;
 
     /* ========================  Constructores  ========================= */
@@ -135,7 +135,7 @@ public class TramiteEntradaPage extends JPanel {
                     String friendly = estadoFriendly(canon);
                     updatingEstado = true;
                     table.setValueAt(friendly, row, 5);
-                    recargarTramitesRecientesSidebar(); // 🔄 refresca el panel de trámites recientes
+                    recargarTramitesRecientesSidebar(); // 🔄 refresca el panel de solicitudes recientes
 
                 } catch (Exception ex) {
                     Ui.error(this, ex);
@@ -152,14 +152,14 @@ public class TramiteEntradaPage extends JPanel {
         JPanel header = new JPanel(new BorderLayout());
         header.setOpaque(false);
 
-        JLabel title = new JLabel("Trámites");
+        JLabel title = new JLabel("Solicitudes");
         title.setFont(new Font("Segoe UI", Font.BOLD, 32));
         title.setForeground(new Color(35, 55, 120));
         header.add(title, BorderLayout.WEST);
 
         ButtonGroup tabs = new ButtonGroup();
-        tabRegistrar = tabButton("Registrar nuevo trámite");
-        tabActivos   = tabButton("Trámites activos");
+        tabRegistrar = tabButton("Registrar nueva solicitud");
+        tabActivos   = tabButton("Estados de solicitudes");
         tabs.add(tabRegistrar);
         tabs.add(tabActivos);
         tabRegistrar.setSelected(true);
@@ -211,7 +211,7 @@ public class TramiteEntradaPage extends JPanel {
         CardPanel card = new CardPanel();
         card.setLayout(new BorderLayout(18, 18));
 
-        JLabel title = new JLabel("Detalle del trámite");
+        JLabel title = new JLabel("Detalle de la solicitud");
         title.setFont(new Font("Segoe UI", Font.BOLD, 16));
         title.setForeground(new Color(54, 92, 190));
         card.add(title, BorderLayout.NORTH);
@@ -222,7 +222,7 @@ public class TramiteEntradaPage extends JPanel {
 
         form.add(infoLabel("Número generado", lblNumero));
         form.add(Box.createVerticalStrut(16));
-        form.add(field("Asunto", txtAsunto));
+        form.add(field("Solicitud", txtAsunto));
         form.add(Box.createVerticalStrut(14));
         form.add(field("Solicitante", txtSolicitante));
         form.add(Box.createVerticalStrut(14));
@@ -254,7 +254,7 @@ public class TramiteEntradaPage extends JPanel {
 
 
 private JComponent buildSidebarPanel() {
-    // Solo el panel de trámites recientes, sin los antiguos
+    // Solo el panel de solicitudes recientes, sin los antiguos
     CardPanel soloRecientes = recentTramitesCard();
     return soloRecientes;
 }
@@ -263,7 +263,7 @@ private JComponent buildSidebarPanel() {
 private CardPanel recentTramitesCard() {
     CardPanel card = new CardPanel();
     card.setLayout(new BorderLayout(0, 12));
-    card.add(sideTitle("Trámites recientes"), BorderLayout.NORTH);
+        card.add(sideTitle("Solicitudes recientes"), BorderLayout.NORTH);
 
     recientesSidebar = new JPanel();
     recientesSidebar.setBorder(new javax.swing.border.EmptyBorder(8, 12, 12, 16)); // top,left,bottom,right
@@ -295,7 +295,7 @@ private CardPanel recentTramitesCard() {
 
 
 
-    /** Reconstruye la lista de “Trámites recientes” en el sidebar. */
+    /** Reconstruye la lista de “Solicitudes recientes” en el sidebar. */
   private void recargarTramitesRecientesSidebar() {
     if (recientesSidebar == null) return;
 
@@ -304,7 +304,7 @@ private CardPanel recentTramitesCard() {
     try {
         java.util.List<Tramite> ult = service.tramitesRecientes(20);
         for (Tramite t : ult) {
-            String asunto = "Asunto: " + (t.getAsunto() == null ? "-" : t.getAsunto());
+            String solicitudTxt = "Solicitud: " + (t.getAsunto() == null ? "-" : t.getAsunto());
             String estado = "Estado: " + (t.getEstado() == null ? "-" : t.getEstado());
 
             String badgeTxt = estadoFriendly(t.getEstado());
@@ -315,7 +315,7 @@ private CardPanel recentTramitesCard() {
                         default -> new Color(255, 170, 70); // pendiente
                     };
 
-            Component item = recentItem(asunto, estado, badgeTxt, badgeColor);
+            Component item = recentItem(solicitudTxt, estado, badgeTxt, badgeColor);
             // opcional: asegurar ancho completo
             if (item instanceof JComponent jc) jc.setMaximumSize(new Dimension(Integer.MAX_VALUE, jc.getPreferredSize().height));
 
@@ -413,7 +413,7 @@ private CardPanel recentTramitesCard() {
             service.registrarTramite(nro, asunto, solicitante,
                     (descripcion != null && !descripcion.isBlank()) ? descripcion : null, destino);
 
-            Ui.info(this, "Trámite registrado correctamente.");
+            Ui.info(this, "Solicitud registrada correctamente.");
 
             // Reset de campos
             lblNumero.setText(generateNumero(LocalDate.now()));

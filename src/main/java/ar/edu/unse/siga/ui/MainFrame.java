@@ -62,7 +62,7 @@ public class MainFrame extends JFrame {
         var btnIns = new JButton("Insumos", ThemeManager.svg("icons/add.svg", 16));
         btnIns.addActionListener(e -> openInDesktop(new ar.edu.unse.siga.ui.inventario.InsumoFrame(inventarioService)));
 
-        var btnTra = new JButton("Trámites", ThemeManager.svg("icons/search.svg", 16));
+        var btnTra = new JButton("Solicitudes", ThemeManager.svg("icons/search.svg", 16));
         btnTra.addActionListener(e -> openInDesktop(new TramiteFrame(tramiteService, inventarioService)));
 
         var btnCsv = new JButton("Movimientos CSV", ThemeManager.svg("icons/csv.svg", 16));
@@ -97,8 +97,8 @@ public class MainFrame extends JFrame {
         mInventario.addSeparator();
         mInventario.add(miReporte);
 
-        var mTramites = new JMenu("Trámites");
-        var miTramites = new JMenuItem("ABM Trámites");
+        var mTramites = new JMenu("Solicitudes");
+        var miTramites = new JMenuItem("ABM Solicitudes");
         miTramites.addActionListener(e -> openInDesktop(new TramiteFrame(tramiteService, inventarioService)));
         mTramites.add(miTramites);
 
@@ -185,7 +185,7 @@ public static MainFrame defaultWired() {
     // Services
     AuthService auth = new AuthService(usuarioDao);
 
-    // Inventario y Trámite salen de AppServices
+    // Inventario y Solicitudes salen de AppServices
     var inv = AppServices.inventario();
     var tra = AppServices.tramite();
 

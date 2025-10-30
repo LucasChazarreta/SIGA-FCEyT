@@ -19,7 +19,7 @@ public class TramiteFormDialog extends JDialog {
 
     /** Nuevo constructor con callback (recomendado) */
     public TramiteFormDialog(Window owner, Runnable onSaved) {
-        super(owner, "Nuevo Trámite", ModalityType.APPLICATION_MODAL);
+        super(owner, "Nueva Solicitud", ModalityType.APPLICATION_MODAL);
         this.onSaved = onSaved;
         buildUI(owner);
     }
@@ -35,7 +35,7 @@ public class TramiteFormDialog extends JDialog {
         form.add(new JLabel("Número:"));
         form.add(txtNro);
 
-        form.add(new JLabel("Asunto:"));
+        form.add(new JLabel("Solicitud:"));
         form.add(txtAsunto);
 
         form.add(new JLabel("Solicitante:"));
@@ -58,7 +58,7 @@ public class TramiteFormDialog extends JDialog {
                 return;
             }
             // Aquí deberías invocar tu Service para:
-            // - crear Tramite + Detalles
+            // - crear Solicitud + Detalles
             // - crear Movimientos SALIDA por los insumos seleccionados
             // - descontar stock
             // (todo en una transacción). Este diálogo sólo valida y notifica.

@@ -24,7 +24,6 @@ public class TramiteService {
     private final TramiteDetalleDao tramiteDetalleDao;
     private final MovimientoDao movimientoDao;
     private final InsumoDao insumoDao;
-    private static final String SOLICITANTE_INFORMES = "Informes";
 
     public TramiteService(TramiteDao tramiteDao) {
         this(tramiteDao, null, null, null);
@@ -116,9 +115,16 @@ public java.util.List<Tramite> tramitesRecientes(int limit) {
         return insumoDao.listActivosConStock();
     }
 
-    public Long registrarNuevoTramite(List<LineaTramite> lineas) {
+    public Long registrarNuevoTramite(String solicitud,
+                                      String solicitante,
+                                      String descripcion,
+                                      String destino,
+                                      List<LineaTramite> lineas) {
         if (movimientoDao == null || insumoDao == null || tramiteDetalleDao == null) {
             throw new IllegalStateException("Dependencias no configuradas para registrar trámite con insumos");
+        }
+        if (solicitud == null || solicitud.isBlank()) {
+            throw new IllegalArgumentException("La solicitud es obligatoria");
         }
         if (lineas == null || lineas.isEmpty()) {
             throw new IllegalArgumentException("Debe indicar al menos un insumo");
@@ -135,17 +141,26 @@ public java.util.List<Tramite> tramitesRecientes(int limit) {
             porInsumo.merge(l.insumoId, BigDecimal.valueOf(l.cantidad), BigDecimal::add);
         });
 
+        String solicitudTrim = solicitud.trim();
+        String solicitanteTrim = solicitante != null ? solicitante.trim() : "";
+        String destinoTrim = destino != null ? destino.trim() : "";
+        String descripcionTrim = descripcion != null ? descripcion.trim() : "";
+
+        String solicitanteFinal = solicitanteTrim.isEmpty() ? "Sin solicitante" : solicitanteTrim;
+        String destinoFinal = destinoTrim.isEmpty() ? "Secretaría FCEyT" : destinoTrim;
+        String descripcionFinal = descripcionTrim.isEmpty() ? null : descripcionTrim;
+
         try (Connection cn = DataSourceFactory.getConnection()) {
             boolean originalAuto = cn.getAutoCommit();
             try {
                 cn.setAutoCommit(false);
 
                 Tramite tramite = new Tramite();
-                tramite.setNro("");
-                tramite.setAsunto("Salida de insumos");
-                tramite.setSolicitante(SOLICITANTE_INFORMES);
-                tramite.setDescripcion("Trámite generado automáticamente para entrega de insumos.");
-                tramite.setDestino("Informes");
+                tramite.setNro(generarNumeroTramite());
+                tramite.setAsunto(solicitudTrim);
+                tramite.setSolicitante(solicitanteFinal);
+                tramite.setDescripcion(descripcionFinal);
+                tramite.setDestino(destinoFinal);
                 tramite.setEstado("NUEVO");
                 tramite.setFecha(LocalDateTime.now());
                 Long tramiteId = tramiteDao.create(tramite, cn);
@@ -168,7 +183,7 @@ public java.util.List<Tramite> tramitesRecientes(int limit) {
                     tramiteDetalleDao.create(detalle, cn);
 
                     try {
-                        movimientoDao.registrarSalida(cn, insumoId, cantidad, SOLICITANTE_INFORMES, tramiteId);
+                        movimientoDao.registrarSalida(cn, insumoId, cantidad, solicitanteFinal, tramiteId);
                     } catch (IllegalStateException ex) {
                         throw new IllegalStateException("El stock cambió. Revisá cantidades e intentá nuevamente.", ex);
                     }
@@ -181,13 +196,19 @@ public java.util.List<Tramite> tramitesRecientes(int limit) {
                 if (e instanceof IllegalStateException) {
                     throw e;
                 }
-                throw new RuntimeException("No se pudo registrar el trámite", e);
+                throw new RuntimeException("No se pudo registrar la solicitud", e);
             } finally {
                 try { cn.setAutoCommit(originalAuto); } catch (SQLException ignored) {}
             }
         } catch (SQLException e) {
-            throw new RuntimeException("Error registrando trámite", e);
+            throw new RuntimeException("Error registrando la solicitud", e);
         }
+    }
+
+    private String generarNumeroTramite() {
+        String fecha = java.time.LocalDate.now().format(java.time.format.DateTimeFormatter.BASIC_ISO_DATE);
+        int random = (int) (Math.random() * 90000) + 10000;
+        return fecha + "-" + random;
     }
 
     public static class LineaTramite {

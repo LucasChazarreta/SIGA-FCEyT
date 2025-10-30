@@ -47,7 +47,7 @@ import com.lowagie.text.pdf.PdfPTable;
 import com.lowagie.text.pdf.PdfWriter;
 
 /**
- * Panel de Informes con tres secciones: INVENTARIO, TRÁMITES y MOVIMIENTOS.
+ * Panel de Informes con tres secciones: INVENTARIO, SOLICITUDES y MOVIMIENTOS.
  * Incluye exportación a PDF/CSV y encabezado de PDF con logo, fecha, generado
  * por y filtros.
  */
@@ -81,12 +81,12 @@ public class InformesPanel extends JPanel {
         }
     };
 
-    // --- TRÁMITES (filtros) ---
+    // --- SOLICITUDES (filtros) ---
     private final JTextField filterSearch = new JTextField(18);
     private final JComboBox<String> filterEstado
             = new JComboBox<>(new String[]{"Todos", "Completado", "En proceso", "Pendiente"});
     private final DefaultTableModel modelTra = new DefaultTableModel(
-            new Object[]{"ID Trámite", "Asunto", "Fecha creación", "Última actualización", "Descripción", "Solicitante", "Estado"}, 0
+            new Object[]{"ID Solicitud", "Solicitud", "Fecha creación", "Última actualización", "Descripción", "Solicitante", "Estado"}, 0
     ) {
         @Override
         public boolean isCellEditable(int r, int c) {
@@ -94,7 +94,7 @@ public class InformesPanel extends JPanel {
         }
     };
 
-    // --- MOVIMIENTOS (similar a Trámites de UI) ---
+    // --- MOVIMIENTOS (similar a Solicitudes de UI) ---
     private final JTextField filterSearchMov = new JTextField(18);
     private final DefaultTableModel modelMov = new DefaultTableModel(
             new Object[]{"Fecha", "Tipo", "Cantidad", "Código", "Descripción", "Ubicación", "Destino", "Solicitante"}, 0
@@ -114,7 +114,7 @@ public class InformesPanel extends JPanel {
 
     private final javax.swing.table.DefaultTableModel retirosModel
             = new javax.swing.table.DefaultTableModel(
-                    new Object[]{"# Trámite", "Fecha", "Insumo", "Cantidad"}, 0) {
+                    new Object[]{"# Solicitud", "Fecha", "Insumo", "Cantidad"}, 0) {
         @Override
         public boolean isCellEditable(int r, int c) {
             return false;
@@ -233,7 +233,7 @@ public class InformesPanel extends JPanel {
                 String cantidad = (m.getCantidad() == null) ? "0"
                         : m.getCantidad().stripTrailingZeros().toPlainString();
 
-                // #Trámite: si tu Movimiento expone el id/nro del trámite, usalo;
+                // #Solicitud: si tu Movimiento expone el id/nro de la solicitud, usalo;
                 // si no, mostramos "-" hasta que lo agreguemos al modelo:
                 String nroTramite = "-";
                 try {
@@ -358,7 +358,7 @@ public class InformesPanel extends JPanel {
         // Tabs tipo "pill"
         ButtonGroup tabs = new ButtonGroup();
         btnInventario = pill("INVENTARIO");
-        btnTramites = pill("TRÁMITES");
+        btnTramites = pill("SOLICITUDES");
         btnMovimientos = pill("MOVIMIENTOS");
         btnInventario.setSelected(true);
         tabs.add(btnInventario);
@@ -380,14 +380,14 @@ public class InformesPanel extends JPanel {
         invPanel.add(buildMetrics(), BorderLayout.NORTH);
         invPanel.add(buildInventarioSplit(), BorderLayout.CENTER);
 
-        // TRÁMITES
+        // SOLICITUDES
         JPanel traPanel = new JPanel(new BorderLayout(12, 12));
         traPanel.setOpaque(true);
         traPanel.setBackground(Color.WHITE);
         traPanel.add(buildTramitesFilters(), BorderLayout.NORTH);
         traPanel.add(buildTramitesTableScroll(), BorderLayout.CENTER);
 
-        // MOVIMIENTOS (misma estética que TRÁMITES)
+        // MOVIMIENTOS (misma estética que SOLICITUDES)
         JPanel movPanel = new JPanel(new BorderLayout(12, 12));
         movPanel.setOpaque(true);
         movPanel.setBackground(Color.WHITE);
@@ -640,7 +640,7 @@ public class InformesPanel extends JPanel {
 
         CardPanel c1 = metricCardGradient("TOTAL INSUMOS", lblTotalInsumos,
                 new Color(70, 120, 255), new Color(110, 150, 255));
-        CardPanel c2 = metricCardGradient("TRÁMITES", lblTotalTramites,
+        CardPanel c2 = metricCardGradient("SOLICITUDES", lblTotalTramites,
                 new Color(70, 120, 255), new Color(140, 170, 255));
 
         c1.setPreferredSize(new Dimension(420, 110));
@@ -783,7 +783,7 @@ public class InformesPanel extends JPanel {
         }).collect(Collectors.toList());
     }
 
-    // ====== TRÁMITES ======
+    // ====== SOLICITUDES ======
     private Component buildTramitesFilters() {
         JPanel panel = new JPanel(new BorderLayout(18, 0));
         panel.setOpaque(false);
@@ -1372,8 +1372,8 @@ public class InformesPanel extends JPanel {
         }
         // Ajuste de headers para que coincida con modelTra (7 columnas, incluida "Solicitante")
         exportModelToPdf(
-                "INFORME DE TRÁMITES",
-                new String[]{"ID Trámite", "Asunto", "Fecha creación", "Última actualización", "Descripción", "Solicitante", "Estado"},
+                "INFORME DE SOLICITUDES",
+                new String[]{"ID Solicitud", "Solicitud", "Fecha creación", "Última actualización", "Descripción", "Solicitante", "Estado"},
                 modelTra,
                 estadoFiltro,
                 null,
@@ -1482,7 +1482,7 @@ public class InformesPanel extends JPanel {
             StringBuilder filtros = new StringBuilder();
             if (categoriaFiltro != null && !categoriaFiltro.isBlank()) {
                 String etiqueta;
-                if ("INFORME DE TRÁMITES".equalsIgnoreCase(titulo)) {
+                if ("INFORME DE SOLICITUDES".equalsIgnoreCase(titulo)) {
                     etiqueta = "Estado";
                 } else if ("INFORME DE MOVIMIENTOS".equalsIgnoreCase(titulo)) {
                     etiqueta = "Movimiento";
@@ -1964,7 +1964,7 @@ public class InformesPanel extends JPanel {
     }
 
     /**
-     * Útil si sólo querés refrescar la grilla de Trámites.
+     * Útil si sólo querés refrescar la grilla de Solicitudes.
      */
     public void reloadTramitesUI() {
         SwingUtilities.invokeLater(this::loadTableDataTramites);

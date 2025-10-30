@@ -10,6 +10,7 @@ import ar.edu.unse.siga.ui.base.UiBus;
 import ar.edu.unse.siga.ui.reportes.InformesPanel;
 
 import javax.swing.*;
+import javax.swing.border.EmptyBorder;
 import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
 import javax.swing.table.DefaultTableCellRenderer;
@@ -27,19 +28,17 @@ public class TramiteFrame extends BaseCrudFrame<Tramite> {
 
     private final JTextField txtSearch = new JTextField(20);
     private final JComboBox<String> cbCampo
-            = new JComboBox<>(new String[]{"ID", "Nro", "Asunto", "Estado", "Fecha", "Solicitante"});
+            = new JComboBox<>(new String[]{"ID", "Nro", "Solicitud", "Estado", "Fecha", "Solicitante"});
 
     private TableRowSorter<TableModel> sorter;
 
     public TramiteFrame(TramiteService service, InventarioService invService) {
-        super("ABM Trámites");
+        super("Solicitudes");
         this.service = service;
         this.invService = invService;
         table.setModel(model);
 
-        JButton btnRegistrarSalida = new JButton("Registrar retiro");
-        actionsPanel.add(btnRegistrarSalida, 0);
-        btnRegistrarSalida.addActionListener(e -> onRegistrarSalida());
+        styleActionsBar();
 
         // ---- Ordenamiento y filtro
         sorter = new TableRowSorter<>(table.getModel());
@@ -65,7 +64,7 @@ public class TramiteFrame extends BaseCrudFrame<Tramite> {
                         0;
                     case "Nro" ->
                         1;
-                    case "Asunto" ->
+                    case "Solicitud" ->
                         2;
                     case "Estado" ->
                         3;
@@ -116,7 +115,7 @@ public class TramiteFrame extends BaseCrudFrame<Tramite> {
         var cm = table.getColumnModel();
         cm.getColumn(0).setPreferredWidth(120); // ID
         cm.getColumn(1).setPreferredWidth(160); // Nro
-        cm.getColumn(2).setPreferredWidth(260); // Asunto
+        cm.getColumn(2).setPreferredWidth(260); // Solicitud
         cm.getColumn(3).setPreferredWidth(160); // Estado
         cm.getColumn(4).setPreferredWidth(180); // Fecha
         cm.getColumn(5).setPreferredWidth(220); // Solicitante
@@ -159,12 +158,61 @@ public class TramiteFrame extends BaseCrudFrame<Tramite> {
         });
 
         // ---- Botón Cambiar estado
-        JButton btnEstado = new JButton("Cambiar estado");
-        ((JPanel) getContentPane().getComponent(0)).add(btnEstado);
-        btnEstado.addActionListener(e -> onEstado());
-
         // ---- Cargar
         loadData();
+    }
+
+    private void styleActionsBar() {
+        btnNuevo.setText("Registrar nueva solicitud");
+        btnEditar.setVisible(false);
+        btnBaja.setVisible(false);
+
+        stylePrimaryButton(btnNuevo);
+        styleOutlineButton(btnRefrescar);
+
+        JPanel top = (JPanel) ((BorderLayout) getContentPane().getLayout())
+                .getLayoutComponent(BorderLayout.NORTH);
+        top.removeAll();
+
+        actionsPanel.removeAll();
+        actionsPanel.setOpaque(false);
+        actionsPanel.setLayout(new FlowLayout(FlowLayout.CENTER, 12, 10));
+        actionsPanel.add(btnNuevo);
+
+        JButton btnEstados = new JButton("Estados de solicitudes");
+        btnEstados.addActionListener(e -> onEstado());
+        styleOutlineButton(btnEstados);
+        actionsPanel.add(btnEstados);
+
+        btnRefrescar.setText("Refrescar");
+        actionsPanel.add(btnRefrescar);
+
+        top.setLayout(new BorderLayout());
+        top.add(actionsPanel, BorderLayout.CENTER);
+        top.revalidate();
+        top.repaint();
+    }
+
+    private static void stylePrimaryButton(AbstractButton b) {
+        b.setBackground(new Color(58, 96, 224));
+        b.setForeground(Color.WHITE);
+        b.setFont(b.getFont().deriveFont(Font.BOLD, 14f));
+        b.setFocusPainted(false);
+        b.setBorder(BorderFactory.createEmptyBorder(10, 16, 10, 16));
+        b.putClientProperty("JButton.buttonType", "roundRect");
+    }
+
+    private static void styleOutlineButton(AbstractButton b) {
+        Color brand = new Color(58, 96, 224);
+        b.setBackground(Color.WHITE);
+        b.setForeground(brand);
+        b.setFont(b.getFont().deriveFont(Font.BOLD, 14f));
+        b.setFocusPainted(false);
+        b.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createLineBorder(brand, 1, true),
+                new EmptyBorder(9, 15, 9, 15)
+        ));
+        b.putClientProperty("JButton.buttonType", "roundRect");
     }
 
     @Override
@@ -181,15 +229,15 @@ public class TramiteFrame extends BaseCrudFrame<Tramite> {
     protected void onNuevo() {
         Window owner = SwingUtilities.getWindowAncestor(this);
 
-        // Usa el constructor que realmente existe (Window, TramiteService)
-        RegistrarTramiteDialog dlg = new RegistrarTramiteDialog(owner, service);
+        // Usa el constructor que realmente existe (Window, TramiteService, InventarioService)
+        RegistrarTramiteDialog dlg = new RegistrarTramiteDialog(owner, service, invService);
         dlg.setVisible(true);
 
         if (!dlg.isAccepted()) {
             return;
         }
 
-        // 1) refresca la tabla local de Trámites
+        // 1) refresca la tabla local de Solicitudes
         loadData();
 
         // 2) avisa globalmente para que InformesPanel se recargue (métricas, movimientos, etc.)
@@ -206,12 +254,12 @@ public class TramiteFrame extends BaseCrudFrame<Tramite> {
 
     @Override
     protected void onEditar() {
-        Ui.info(this, "Edición de campos no implementada (solo cambio de estado).");
+        Ui.info(this, "Edición de solicitudes no implementada (solo cambio de estado).");
     }
 
     @Override
     protected void onBaja() {
-        Ui.info(this, "No se implementa baja física de trámites.");
+        Ui.info(this, "No se implementa baja física de solicitudes.");
     }
 
     private void onEstado() {
@@ -235,22 +283,6 @@ public class TramiteFrame extends BaseCrudFrame<Tramite> {
             } catch (Exception e) {
                 Ui.error(this, e);
             }
-        }
-    }
-
-    private void onRegistrarSalida() {
-        Window owner = SwingUtilities.getWindowAncestor(this);
-        RegistrarTramiteDialog dlg = new RegistrarTramiteDialog(owner, service);
-        if (!dlg.isReady()) {
-            return;
-        }
-        dlg.setVisible(true);
-        /*if (dlg.isAccepted()) {
-            loadData();
-        }*/
-        if (dlg.isAccepted()) {
-            loadData();                 // refresca la grilla local de trámites
-            UiBus.fire("tramite-saved"); // <- avisa globalmente a quien escuche (Informes)
         }
     }
 }
