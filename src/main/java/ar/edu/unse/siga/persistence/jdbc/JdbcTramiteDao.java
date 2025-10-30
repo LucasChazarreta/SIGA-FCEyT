@@ -158,7 +158,7 @@ public class JdbcTramiteDao implements TramiteDao {
         }
     }
 
-    /** NUEVO: últimos N trámites por fecha desc (para “Trámites recientes”). */
+    /** NUEVO: últimas N solicitudes por fecha desc (para “Solicitudes recientes”). */
     @Override
     public List<Tramite> listRecientes(int limit) {
         final String sql = """

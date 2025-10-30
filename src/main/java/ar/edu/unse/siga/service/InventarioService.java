@@ -158,6 +158,10 @@ public class InventarioService {
 
     public List<Insumo> listarTodos() { return insumoDao.listAll(); }
 
+    public List<Insumo> insumosConStockDisponible() {
+        return insumoDao.listActivosConStock();
+    }
+
     // === Movimientos ===
     public Long registrarMovimiento(Long insumoId,
                                     String tipo,

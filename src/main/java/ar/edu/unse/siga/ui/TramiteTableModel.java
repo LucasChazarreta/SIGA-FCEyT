@@ -6,7 +6,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class TramiteTableModel extends AbstractTableModel {
-    private final String[] cols = {"ID","Nro","Asunto","Estado","Fecha","Solicitante"};
+    private final String[] cols = {"ID","Nro","Solicitud","Estado","Fecha","Solicitante"};
     private final List<Tramite> data = new ArrayList<>();
 
     public void setData(List<Tramite> list) {

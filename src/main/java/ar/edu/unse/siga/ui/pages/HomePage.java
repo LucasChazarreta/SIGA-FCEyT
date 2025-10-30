@@ -20,9 +20,9 @@ import java.math.BigDecimal;
 /**
  * Dashboard de Inicio con métricas y actividad reciente dinámica.
  * - Usa InventarioService para métricas en tiempo real.
- * - Usa TramiteService para cargar los últimos movimientos de trámites.
+ * - Usa TramiteService para cargar las últimas solicitudes registradas.
  * - Expone recargarTramitesRecientes() para que TramiteEntradaPage actualice la actividad
- *   inmediatamente después de registrar un nuevo trámite.
+ *   inmediatamente después de registrar una nueva solicitud.
  */
 public class HomePage extends JPanel {
 
@@ -32,7 +32,7 @@ public class HomePage extends JPanel {
     public interface HomeNavigation {
         void navigateTo(String key);
         void openInventarioBajoMinimo();
-        void openTramitesNuevos();
+        void openSolicitudesNuevas();
         void openMovimientosHoy();
     }
 
@@ -40,7 +40,7 @@ public class HomePage extends JPanel {
 
     // Labels de métricas (para refrescar)
     private JLabel lblInsumosCriticos;
-    private JLabel lblTramitesNuevos;
+    private JLabel lblSolicitudesNuevas;
     private JLabel lblSalidasHoy;
     private JLabel lblAlertStock;
 
@@ -193,8 +193,8 @@ public class HomePage extends JPanel {
 
         row.add(metricCard("Insumos bajo mínimo", lblInsumosCriticos = new JLabel("0"),
                 "Stock por reponer", new Color(255, 99, 99), this::openInventarioBajoMinimo));
-        row.add(metricCard("Trámites nuevos", lblTramitesNuevos = new JLabel("0"),
-                "Ingresados recientemente", new Color(86, 127, 255), this::openTramitesNuevos));
+        row.add(metricCard("Solicitudes nuevas", lblSolicitudesNuevas = new JLabel("0"),
+                "Ingresadas recientemente", new Color(86, 127, 255), this::openSolicitudesNuevas));
         row.add(metricCard("Últimas salidas (hoy)", lblSalidasHoy = new JLabel("0"),
                 "Movimientos registrados hoy", new Color(58, 182, 186), this::openMovimientosHoy));
         return row;
@@ -354,7 +354,7 @@ public class HomePage extends JPanel {
         }
 
         lblInsumosCriticos.setText(String.valueOf(criticos));
-        lblTramitesNuevos.setText(String.valueOf(tramitesNuevos));
+        lblSolicitudesNuevas.setText(String.valueOf(tramitesNuevos));
         lblSalidasHoy.setText(String.valueOf(salidasHoy));
         updateAlertStock(criticos);
     }
@@ -415,8 +415,8 @@ public class HomePage extends JPanel {
         else navigateOrInfo("inventario");
     }
 
-    private void openTramitesNuevos() {
-        if (navigation != null) navigation.openTramitesNuevos();
+    private void openSolicitudesNuevas() {
+        if (navigation != null) navigation.openSolicitudesNuevas();
         else navigateOrInfo("tramites");
     }
 
@@ -478,7 +478,7 @@ public class HomePage extends JPanel {
 
     private String descripcionActividad(Tramite t) {
         String nro = (t.getNro() == null || t.getNro().isBlank()) ? "-" : t.getNro();
-        String asunto = (t.getAsunto() == null || t.getAsunto().isBlank()) ? "Trámite sin asunto" : t.getAsunto();
+        String asunto = (t.getAsunto() == null || t.getAsunto().isBlank()) ? "Solicitud sin asunto" : t.getAsunto();
         String estado = estadoFriendly(t.getEstado());
         String solicitante = (t.getSolicitante() == null || t.getSolicitante().isBlank())
                 ? ""
