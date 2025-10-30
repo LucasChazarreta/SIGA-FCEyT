@@ -92,7 +92,12 @@ class TramiteServiceTest {
 
     @Test
     void registrarTramiteConMultiplesInsumos() throws Exception {
-        Long id = service.registrarNuevoTramite(List.of(
+        Long id = service.registrarNuevoTramite(
+                "Pedido de insumos de laboratorio",
+                "Informes",
+                "Reposición de materiales para prácticas",
+                "Laboratorio Central",
+                List.of(
                 new TramiteService.LineaTramite(1, 3),
                 new TramiteService.LineaTramite(2, 2)
         ));
@@ -136,7 +141,12 @@ class TramiteServiceTest {
     @Test
     void rollbackPorStockInsuficiente() {
         assertThrows(IllegalStateException.class, () ->
-                service.registrarNuevoTramite(List.of(new TramiteService.LineaTramite(2, 6))));
+                service.registrarNuevoTramite(
+                        "Solicitud extraordinaria",
+                        "Informes",
+                        "Pedido que excede el stock disponible",
+                        "Depósito",
+                        List.of(new TramiteService.LineaTramite(2, 6))));
 
         try (Connection cn = DataSourceFactory.getConnection(); Statement st = cn.createStatement()) {
             try (ResultSet rs = st.executeQuery("SELECT COUNT(*) FROM tramite")) {
@@ -150,7 +160,12 @@ class TramiteServiceTest {
 
     @Test
     void unificaLineasDuplicadas() throws Exception {
-        Long id = service.registrarNuevoTramite(List.of(
+        Long id = service.registrarNuevoTramite(
+                "Pedido de reposición",
+                "Informes",
+                "Unificación de pedidos repetidos",
+                "Laboratorio Central",
+                List.of(
                 new TramiteService.LineaTramite(1, 2),
                 new TramiteService.LineaTramite(1, 3)
         ));
