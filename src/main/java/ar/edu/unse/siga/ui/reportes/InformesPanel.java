@@ -20,6 +20,7 @@ import java.lang.reflect.Method;
 import java.text.ParseException;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
+import java.time.format.TextStyle;
 
 import java.time.LocalDateTime;
 import java.time.ZoneId;
@@ -37,8 +38,12 @@ import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 
 // OpenPDF
+import com.lowagie.text.BaseColor;
+import com.lowagie.text.Chunk;
 import com.lowagie.text.Document;
+import com.lowagie.text.DocumentException;
 import com.lowagie.text.Element;
+import com.lowagie.text.Image;
 import com.lowagie.text.PageSize;
 import com.lowagie.text.Paragraph;
 import com.lowagie.text.Phrase;
@@ -59,6 +64,30 @@ public class InformesPanel extends JPanel {
     private static final Color BRAND = new Color(58, 96, 224);
     private static final Color CARD_BORDER = new Color(225, 230, 246);
     private static final Color HEADER_TXT = new Color(24, 63, 150);
+
+    private static final BaseColor PDF_PRIMARY = new BaseColor(0x1E, 0x3A, 0x8A);
+    private static final BaseColor PDF_LIGHT_GRAY = new BaseColor(0xE5, 0xE7, 0xEB);
+    private static final BaseColor PDF_BORDER = new BaseColor(0xD1, 0xD5, 0xDB);
+    private static final BaseColor PDF_ROW_ALT = new BaseColor(0xF5, 0xF6, 0xFA);
+
+    private static final com.lowagie.text.Font FONT_HEADER_INFO
+            = new com.lowagie.text.Font(com.lowagie.text.Font.FontFamily.HELVETICA, 11, com.lowagie.text.Font.NORMAL, BaseColor.BLACK);
+    private static final com.lowagie.text.Font FONT_HEADER_TITLE
+            = new com.lowagie.text.Font(com.lowagie.text.Font.FontFamily.HELVETICA, 14, com.lowagie.text.Font.BOLD, BaseColor.BLACK);
+    private static final com.lowagie.text.Font FONT_HEADER_DATE
+            = new com.lowagie.text.Font(com.lowagie.text.Font.FontFamily.HELVETICA, 10, com.lowagie.text.Font.NORMAL, BaseColor.BLACK);
+    private static final com.lowagie.text.Font FONT_SECTION
+            = new com.lowagie.text.Font(com.lowagie.text.Font.FontFamily.HELVETICA, 12, com.lowagie.text.Font.BOLD, PDF_PRIMARY);
+    private static final com.lowagie.text.Font FONT_TABLE_HEADER
+            = new com.lowagie.text.Font(com.lowagie.text.Font.FontFamily.HELVETICA, 10, com.lowagie.text.Font.BOLD, BaseColor.WHITE);
+    private static final com.lowagie.text.Font FONT_TABLE_CELL
+            = new com.lowagie.text.Font(com.lowagie.text.Font.FontFamily.HELVETICA, 9, com.lowagie.text.Font.NORMAL, BaseColor.BLACK);
+    private static final com.lowagie.text.Font FONT_SUMMARY_LABEL
+            = new com.lowagie.text.Font(com.lowagie.text.Font.FontFamily.HELVETICA, 10, com.lowagie.text.Font.BOLD, BaseColor.BLACK);
+    private static final com.lowagie.text.Font FONT_SUMMARY_VALUE
+            = new com.lowagie.text.Font(com.lowagie.text.Font.FontFamily.HELVETICA, 10, com.lowagie.text.Font.NORMAL, BaseColor.BLACK);
+    private static final com.lowagie.text.Font FONT_FOOTER
+            = new com.lowagie.text.Font(com.lowagie.text.Font.FontFamily.HELVETICA, 8, com.lowagie.text.Font.ITALIC, new BaseColor(80, 80, 80));
 
     private final InventarioService invService;
     private final TramiteService traService;
@@ -1317,51 +1346,452 @@ public class InformesPanel extends JPanel {
 
     // ====== Export ======
     private void exportInventarioToPdf() {
-        String categoria = getFiltroCategoria();
-        String fDesde = getFiltroFechaDesde();
-        String fHasta = getFiltroFechaHasta();
+        File out = choosePdfDestination("informe-inventario.pdf");
+        if (out == null) {
+            return;
+        }
 
-        exportModelToPdf(
-                "INFORME DE INVENTARIO",
-                new String[]{"Código", "Descripción", "Estado", "Fecha"},
-                modelInv,
-                categoria, fDesde, fHasta
-        );
+        Document doc = new Document(PageSize.A4, 56f, 56f, 56f, 56f);
+        try (FileOutputStream fos = new FileOutputStream(out)) {
+            PdfWriter.getInstance(doc, fos);
+            doc.open();
+
+            addPdfHeader(doc, "Informe de Inventario");
+
+            List<String[]> rows = new ArrayList<>();
+            for (int r = 0; r < modelInv.getRowCount(); r++) {
+                rows.add(new String[]{
+                        displayString(modelInv.getValueAt(r, 0)),
+                        displayString(modelInv.getValueAt(r, 1)),
+                        displayString(modelInv.getValueAt(r, 2)),
+                        displayString(modelInv.getValueAt(r, 3))
+                });
+            }
+
+            PdfPTable table = buildStyledTable(
+                    new String[]{"Código", "Descripción", "Estado", "Fecha"},
+                    rows,
+                    new float[]{2.2f, 4f, 2f, 2f},
+                    new int[]{Element.ALIGN_LEFT, Element.ALIGN_LEFT, Element.ALIGN_CENTER, Element.ALIGN_CENTER}
+            );
+            doc.add(table);
+
+            LinkedHashMap<String, String> resumen = new LinkedHashMap<>();
+            resumen.put("Total de ítems registrados", String.valueOf(modelInv.getRowCount()));
+            resumen.put("Stock general", formatDecimal(calcularStockGeneralInventario()));
+            addSummarySection(doc, "Totales", resumen);
+
+            addPdfFooter(doc);
+
+            JOptionPane.showMessageDialog(this, "PDF generado:\n" + out.getAbsolutePath(),
+                    "Exportar PDF", JOptionPane.INFORMATION_MESSAGE);
+        } catch (Exception ex) {
+            JOptionPane.showMessageDialog(this, "No se pudo generar el PDF:\n" + ex.getMessage(),
+                    "Error", JOptionPane.ERROR_MESSAGE);
+        } finally {
+            if (doc.isOpen()) {
+                doc.close();
+            }
+        }
     }
 
     private void exportTramitesToPdf() {
-        String estadoFiltro = (String) filterEstado.getSelectedItem();
-        if (estadoFiltro != null && estadoFiltro.equalsIgnoreCase("Todos")) {
-            estadoFiltro = null;
+        File out = choosePdfDestination("informe-solicitudes.pdf");
+        if (out == null) {
+            return;
         }
-        // Ajuste de headers para que coincida con modelTra (7 columnas, incluida "Solicitante")
-        exportModelToPdf(
-                "INFORME DE SOLICITUDES",
-                new String[]{"ID Solicitud", "Solicitud", "Fecha creación", "Última actualización", "Descripción", "Solicitante", "Estado"},
-                modelTra,
-                estadoFiltro,
-                null,
-                null
-        );
+
+        Document doc = new Document(PageSize.A4, 56f, 56f, 56f, 56f);
+        try (FileOutputStream fos = new FileOutputStream(out)) {
+            PdfWriter.getInstance(doc, fos);
+            doc.open();
+
+            addPdfHeader(doc, "Informe de Solicitudes Registradas");
+
+            List<String[]> rows = new ArrayList<>();
+            for (int r = 0; r < modelTra.getRowCount(); r++) {
+                rows.add(new String[]{
+                        displayString(modelTra.getValueAt(r, 0)),
+                        displayString(modelTra.getValueAt(r, 5)),
+                        displayString(modelTra.getValueAt(r, 1)),
+                        displayString(modelTra.getValueAt(r, 2)),
+                        displayString(modelTra.getValueAt(r, 6))
+                });
+            }
+
+            PdfPTable table = buildStyledTable(
+                    new String[]{"Nro Trámite", "Solicitante", "Destino", "Fecha", "Estado"},
+                    rows,
+                    new float[]{2f, 3f, 3f, 2f, 2f},
+                    new int[]{Element.ALIGN_CENTER, Element.ALIGN_LEFT, Element.ALIGN_LEFT, Element.ALIGN_CENTER, Element.ALIGN_CENTER}
+            );
+            doc.add(table);
+
+            LinkedHashMap<String, String> resumen = new LinkedHashMap<>();
+            Map<String, Integer> estados = contarEstadosTramites();
+            resumen.put("Total de solicitudes", String.valueOf(modelTra.getRowCount()));
+            resumen.put("Estado NUEVO", String.valueOf(estados.getOrDefault("NUEVO", 0)));
+            resumen.put("Estado APROBADO", String.valueOf(estados.getOrDefault("APROBADO", 0)));
+            resumen.put("Estado RECHAZADO", String.valueOf(estados.getOrDefault("RECHAZADO", 0)));
+            addSummarySection(doc, "Estadísticas", resumen);
+
+            addPdfFooter(doc);
+
+            JOptionPane.showMessageDialog(this, "PDF generado:\n" + out.getAbsolutePath(),
+                    "Exportar PDF", JOptionPane.INFORMATION_MESSAGE);
+        } catch (Exception ex) {
+            JOptionPane.showMessageDialog(this, "No se pudo generar el PDF:\n" + ex.getMessage(),
+                    "Error", JOptionPane.ERROR_MESSAGE);
+        } finally {
+            if (doc.isOpen()) {
+                doc.close();
+            }
+        }
     }
 
     private void exportMovimientosToPdf() {
-        String filtroTipo = "Todos";
-        try {
-            if (cbTipoMov != null && cbTipoMov.getSelectedItem() != null) {
-                filtroTipo = cbTipoMov.getSelectedItem().toString();
-            }
-        } catch (Exception ignore) {
+        File out = choosePdfDestination("informe-movimientos.pdf");
+        if (out == null) {
+            return;
         }
 
-        exportModelToPdf(
-                "INFORME DE MOVIMIENTOS",
-                new String[]{"Fecha", "Tipo", "Cantidad", "Código", "Descripción", "Ubicación", "Destino", "Solicitante"},
-                modelMov,
-                filtroTipo,
-                null,
-                null
+        Document doc = new Document(PageSize.A4, 56f, 56f, 56f, 56f);
+        try (FileOutputStream fos = new FileOutputStream(out)) {
+            PdfWriter.getInstance(doc, fos);
+            doc.open();
+
+            addPdfHeader(doc, "Informe de Movimientos de Inventario");
+
+            List<String[]> entradas = new ArrayList<>();
+            List<String[]> salidas = new ArrayList<>();
+            BigDecimal totalEntradas = BigDecimal.ZERO;
+            BigDecimal totalSalidas = BigDecimal.ZERO;
+
+            for (int r = 0; r < modelMov.getRowCount(); r++) {
+                String tipo = rawString(modelMov.getValueAt(r, 1)).toUpperCase(Locale.ROOT);
+                BigDecimal cantidad = parseCantidad(modelMov.getValueAt(r, 2));
+                String fecha = displayString(modelMov.getValueAt(r, 0));
+                String codigo = rawString(modelMov.getValueAt(r, 3));
+                String descripcion = rawString(modelMov.getValueAt(r, 4));
+                String insumo = (codigo.isBlank() ? descripcion : (codigo + " - " + descripcion));
+                if (insumo == null || insumo.isBlank()) {
+                    insumo = "-";
+                }
+                String ubicacion = rawString(modelMov.getValueAt(r, 5));
+                String destino = rawString(modelMov.getValueAt(r, 6));
+                String origenDestino = destino.isBlank() ? (ubicacion.isBlank() ? "-" : ubicacion) : destino;
+
+                String[] data = new String[]{
+                        fecha,
+                        insumo,
+                        formatDecimal(cantidad),
+                        origenDestino,
+                        tipo.isBlank() ? "-" : tipo
+                };
+
+                if ("ENTRADA".equalsIgnoreCase(tipo)) {
+                    entradas.add(data);
+                    totalEntradas = totalEntradas.add(cantidad);
+                } else if ("SALIDA".equalsIgnoreCase(tipo)) {
+                    salidas.add(data);
+                    totalSalidas = totalSalidas.add(cantidad);
+                }
+            }
+
+            String[] headers = new String[]{"Fecha", "Insumo", "Cantidad", "Origen/Destino", "Tipo"};
+            float[] widths = new float[]{2f, 4f, 1.8f, 3f, 1.6f};
+            int[] alignments = new int[]{Element.ALIGN_CENTER, Element.ALIGN_LEFT, Element.ALIGN_RIGHT, Element.ALIGN_LEFT, Element.ALIGN_CENTER};
+
+            if (!entradas.isEmpty()) {
+                Paragraph sec = new Paragraph("Movimientos de Entrada", FONT_SECTION);
+                sec.setSpacingBefore(8f);
+                sec.setSpacingAfter(4f);
+                doc.add(sec);
+                doc.add(buildStyledTable(headers, entradas, widths, alignments));
+            }
+
+            if (!salidas.isEmpty()) {
+                Paragraph sec = new Paragraph("Movimientos de Salida", FONT_SECTION);
+                sec.setSpacingBefore(12f);
+                sec.setSpacingAfter(4f);
+                doc.add(sec);
+                doc.add(buildStyledTable(headers, salidas, widths, alignments));
+            }
+
+            if (entradas.isEmpty() && salidas.isEmpty()) {
+                Paragraph sinDatos = new Paragraph("No se registran movimientos para el período seleccionado.", FONT_TABLE_CELL);
+                sinDatos.setAlignment(Element.ALIGN_LEFT);
+                doc.add(sinDatos);
+            }
+
+            LinkedHashMap<String, String> resumen = new LinkedHashMap<>();
+            resumen.put("Total de entradas", formatDecimal(totalEntradas));
+            resumen.put("Total de salidas", formatDecimal(totalSalidas));
+            addSummarySection(doc, "Totales", resumen);
+
+            addPdfFooter(doc);
+
+            JOptionPane.showMessageDialog(this, "PDF generado:\n" + out.getAbsolutePath(),
+                    "Exportar PDF", JOptionPane.INFORMATION_MESSAGE);
+        } catch (Exception ex) {
+            JOptionPane.showMessageDialog(this, "No se pudo generar el PDF:\n" + ex.getMessage(),
+                    "Error", JOptionPane.ERROR_MESSAGE);
+        } finally {
+            if (doc.isOpen()) {
+                doc.close();
+            }
+        }
+    }
+
+    private File choosePdfDestination(String defaultName) {
+        JFileChooser fc = new JFileChooser();
+        fc.setDialogTitle("Guardar informe en PDF");
+        fc.setFileFilter(new FileNameExtensionFilter("Archivo PDF (*.pdf)", "pdf"));
+        fc.setSelectedFile(new File(defaultName));
+        int opt = fc.showSaveDialog(this);
+        if (opt != JFileChooser.APPROVE_OPTION) {
+            return null;
+        }
+
+        File selected = fc.getSelectedFile();
+        if (!selected.getName().toLowerCase(Locale.ROOT).endsWith(".pdf")) {
+            selected = new File(selected.getParentFile(), selected.getName() + ".pdf");
+        }
+        return selected;
+    }
+
+    private void addPdfHeader(Document doc, String titulo) throws Exception {
+        PdfPTable header = new PdfPTable(new float[]{1f, 4f});
+        header.setWidthPercentage(100);
+        header.getDefaultCell().setBorder(PdfPCell.NO_BORDER);
+
+        PdfPCell logoCell = new PdfPCell();
+        logoCell.setBorder(PdfPCell.NO_BORDER);
+        try {
+            Image logo = Image.getInstance(getClass().getResource("/branding/logo_sigav2.png"));
+            logo.scaleToFit(60, 60);
+            logoCell.addElement(logo);
+        } catch (Exception e) {
+            Paragraph fallback = new Paragraph("SIGA", FONT_HEADER_TITLE);
+            fallback.setAlignment(Element.ALIGN_LEFT);
+            logoCell.addElement(fallback);
+        }
+        header.addCell(logoCell);
+
+        PdfPCell infoCell = new PdfPCell();
+        infoCell.setBorder(PdfPCell.NO_BORDER);
+        Paragraph sistema = new Paragraph(
+                "SIGA – Sistema de Gestión Administrativa\n" +
+                        "Facultad de Ciencias Exactas y Tecnologías\n" +
+                        "Universidad Nacional de Santiago del Estero",
+                FONT_HEADER_INFO
         );
+        sistema.setAlignment(Element.ALIGN_LEFT);
+        infoCell.addElement(sistema);
+
+        Paragraph tituloParrafo = new Paragraph(titulo.toUpperCase(Locale.ROOT), FONT_HEADER_TITLE);
+        tituloParrafo.setSpacingBefore(6f);
+        tituloParrafo.setSpacingAfter(2f);
+        infoCell.addElement(tituloParrafo);
+
+        header.addCell(infoCell);
+        doc.add(header);
+
+        Paragraph fecha = new Paragraph(formatFechaEmision(), FONT_HEADER_DATE);
+        fecha.setAlignment(Element.ALIGN_RIGHT);
+        doc.add(fecha);
+        doc.add(Chunk.NEWLINE);
+    }
+
+    private void addPdfFooter(Document doc) throws DocumentException {
+        doc.add(Chunk.NEWLINE);
+        Paragraph footer = new Paragraph(
+                "SIGA – Sistema de Gestión Administrativa FCEyT\n" +
+                        "Universidad Nacional de Santiago del Estero – 2025\n" +
+                        "\"Generado automáticamente. Documento sin valor legal.\"",
+                FONT_FOOTER
+        );
+        footer.setAlignment(Element.ALIGN_CENTER);
+        doc.add(footer);
+    }
+
+    private PdfPTable buildStyledTable(String[] headers, List<String[]> rows,
+            float[] widths, int[] alignments) throws DocumentException {
+        PdfPTable table = new PdfPTable(headers.length);
+        table.setWidthPercentage(100);
+        if (widths != null) {
+            table.setWidths(widths);
+        }
+        table.setSpacingBefore(8f);
+        table.setSpacingAfter(6f);
+
+        for (String h : headers) {
+            PdfPCell cell = new PdfPCell(new Phrase(h, FONT_TABLE_HEADER));
+            cell.setHorizontalAlignment(Element.ALIGN_CENTER);
+            cell.setVerticalAlignment(Element.ALIGN_MIDDLE);
+            cell.setPadding(7f);
+            cell.setBackgroundColor(PDF_PRIMARY);
+            cell.setBorderColor(PDF_BORDER);
+            cell.setBorderWidth(0.6f);
+            table.addCell(cell);
+        }
+
+        for (int r = 0; r < rows.size(); r++) {
+            String[] row = rows.get(r);
+            BaseColor bg = (r % 2 == 0) ? BaseColor.WHITE : PDF_ROW_ALT;
+            for (int c = 0; c < headers.length; c++) {
+                String value = (row != null && c < row.length) ? row[c] : "-";
+                if (value == null || value.isBlank()) {
+                    value = "-";
+                }
+                PdfPCell cell = new PdfPCell(new Phrase(value, FONT_TABLE_CELL));
+                cell.setHorizontalAlignment((alignments != null && c < alignments.length) ? alignments[c] : Element.ALIGN_LEFT);
+                cell.setVerticalAlignment(Element.ALIGN_MIDDLE);
+                cell.setPadding(6f);
+                cell.setBorderColor(PDF_BORDER);
+                cell.setBorderWidth(0.5f);
+                cell.setBackgroundColor(bg);
+                table.addCell(cell);
+            }
+        }
+        return table;
+    }
+
+    private void addSummarySection(Document doc, String titulo, LinkedHashMap<String, String> valores)
+            throws DocumentException {
+        if (valores == null || valores.isEmpty()) {
+            return;
+        }
+        Paragraph section = new Paragraph(titulo.toUpperCase(Locale.ROOT), FONT_SECTION);
+        section.setSpacingBefore(14f);
+        section.setSpacingAfter(6f);
+        doc.add(section);
+
+        PdfPTable resumen = new PdfPTable(new float[]{3f, 2f});
+        resumen.setWidthPercentage(60);
+        resumen.setHorizontalAlignment(Element.ALIGN_LEFT);
+
+        for (Map.Entry<String, String> entry : valores.entrySet()) {
+            PdfPCell label = new PdfPCell(new Phrase(entry.getKey(), FONT_SUMMARY_LABEL));
+            label.setBackgroundColor(PDF_LIGHT_GRAY);
+            label.setBorderColor(PDF_BORDER);
+            label.setBorderWidth(0.5f);
+            label.setPadding(6f);
+            resumen.addCell(label);
+
+            PdfPCell value = new PdfPCell(new Phrase(entry.getValue(), FONT_SUMMARY_VALUE));
+            value.setBorderColor(PDF_BORDER);
+            value.setBorderWidth(0.5f);
+            value.setPadding(6f);
+            resumen.addCell(value);
+        }
+
+        doc.add(resumen);
+    }
+
+    private String formatFechaEmision() {
+        LocalDate hoy = LocalDate.now();
+        Locale locale = new Locale("es", "AR");
+        String mes = hoy.getMonth().getDisplayName(TextStyle.FULL, locale);
+        if (!mes.isEmpty()) {
+            mes = mes.substring(0, 1).toUpperCase(locale) + mes.substring(1);
+        }
+        return String.format(locale, "Santiago del Estero, %d de %s de %d",
+                hoy.getDayOfMonth(), mes, hoy.getYear());
+    }
+
+    private String rawString(Object value) {
+        if (value == null) {
+            return "";
+        }
+        return value.toString().trim();
+    }
+
+    private String displayString(Object value) {
+        String s = rawString(value);
+        return s.isEmpty() ? "-" : s;
+    }
+
+    private BigDecimal calcularStockGeneralInventario() {
+        BigDecimal total = BigDecimal.ZERO;
+        for (int r = 0; r < modelInv.getRowCount(); r++) {
+            String codigo = rawString(modelInv.getValueAt(r, 0));
+            if (codigo.isEmpty()) {
+                continue;
+            }
+            try {
+                Optional<Insumo> ins = invService.buscarPorCodigo(codigo);
+                if (ins.isPresent() && ins.get().getId() != null) {
+                    BigDecimal stock = invService.stockActualExacto(ins.get().getId());
+                    if (stock != null) {
+                        total = total.add(stock);
+                    }
+                }
+            } catch (Exception ignore) {
+            }
+        }
+        return total;
+    }
+
+    private Map<String, Integer> contarEstadosTramites() {
+        Map<String, Integer> counts = new LinkedHashMap<>();
+        counts.put("NUEVO", 0);
+        counts.put("APROBADO", 0);
+        counts.put("RECHAZADO", 0);
+
+        for (int r = 0; r < modelTra.getRowCount(); r++) {
+            String estado = rawString(modelTra.getValueAt(r, 6)).toUpperCase(Locale.ROOT);
+            if (estado.contains("NUEV")) {
+                counts.computeIfPresent("NUEVO", (k, v) -> v + 1);
+            } else if (estado.contains("APR")) {
+                counts.computeIfPresent("APROBADO", (k, v) -> v + 1);
+            } else if (estado.contains("RECH")) {
+                counts.computeIfPresent("RECHAZADO", (k, v) -> v + 1);
+            }
+        }
+        return counts;
+    }
+
+    private BigDecimal parseCantidad(Object value) {
+        if (value == null) {
+            return BigDecimal.ZERO;
+        }
+        if (value instanceof BigDecimal bd) {
+            return bd;
+        }
+        if (value instanceof Number n) {
+            return BigDecimal.valueOf(n.doubleValue());
+        }
+        String s = rawString(value);
+        if (s.isEmpty()) {
+            return BigDecimal.ZERO;
+        }
+        s = s.replace(" ", "");
+        if (s.contains(",")) {
+            if (s.lastIndexOf(',') > s.lastIndexOf('.')) {
+                s = s.replace(".", "");
+                s = s.replace(',', '.');
+            } else {
+                s = s.replace(",", "");
+            }
+        }
+        try {
+            return new BigDecimal(s);
+        } catch (Exception e) {
+            return BigDecimal.ZERO;
+        }
+    }
+
+    private String formatDecimal(BigDecimal value) {
+        if (value == null) {
+            return "0";
+        }
+        BigDecimal normalized = value.stripTrailingZeros();
+        if (normalized.compareTo(BigDecimal.ZERO) == 0) {
+            return "0";
+        }
+        String str = normalized.toPlainString();
+        return str.replace('.', ',');
     }
 
     private void exportInventarioToCsv() {
@@ -1374,253 +1804,6 @@ public class InformesPanel extends JPanel {
 
     private void exportMovimientosToCsv() {
         exportModelToCsv(modelMov, ',');
-    }
-
-    // ===== Compat: firma anterior =====
-    private void exportModelToPdf(String titulo, String[] headers, DefaultTableModel model) {
-        exportModelToPdf(titulo, headers, model, null, null, null);
-    }
-
-    // ===== Core PDF con encabezado (logo, fecha, generado por, filtros opcionales)
-    private void exportModelToPdf(String titulo, String[] headers, DefaultTableModel model,
-            String categoriaFiltro, String fechaDesdeFiltro, String fechaHastaFiltro) {
-        JFileChooser fc = new JFileChooser();
-        fc.setDialogTitle("Guardar informe en PDF");
-        fc.setFileFilter(new FileNameExtensionFilter("Archivo PDF (*.pdf)", "pdf"));
-        fc.setSelectedFile(new File(titulo.toLowerCase().replace(" ", "-") + ".pdf"));
-        int opt = fc.showSaveDialog(this);
-        if (opt != JFileChooser.APPROVE_OPTION) {
-            return;
-        }
-
-        File out = fc.getSelectedFile();
-        if (!out.getName().toLowerCase().endsWith(".pdf")) {
-            out = new File(out.getParentFile(), out.getName() + ".pdf");
-        }
-
-        Document doc = new Document(PageSize.A4.rotate(), 36, 36, 36, 36);
-        try (FileOutputStream fos = new FileOutputStream(out)) {
-            PdfWriter.getInstance(doc, fos);
-            doc.open();
-
-            PdfPTable head = new PdfPTable(2);
-            head.setWidthPercentage(100);
-            head.setWidths(new float[]{1f, 1f});
-            head.getDefaultCell().setBorder(PdfPCell.NO_BORDER);
-
-            PdfPCell left = new PdfPCell();
-            left.setBorder(PdfPCell.NO_BORDER);
-            try {
-                com.lowagie.text.Image logo = com.lowagie.text.Image.getInstance("ui/icons/logo-fceyt.png");
-                logo.scaleToFit(90, 90);
-                logo.setAlignment(com.lowagie.text.Image.ALIGN_LEFT);
-                left.addElement(logo);
-            } catch (Exception ignore) {
-                com.lowagie.text.Font fOrg = new com.lowagie.text.Font(
-                        com.lowagie.text.Font.HELVETICA, 12, com.lowagie.text.Font.BOLD, Color.BLACK);
-                left.addElement(new Paragraph("SIGA-FCEyT", fOrg));
-            }
-            head.addCell(left);
-
-            com.lowagie.text.Font fFecha = new com.lowagie.text.Font(
-                    com.lowagie.text.Font.HELVETICA, 10, com.lowagie.text.Font.NORMAL, Color.BLACK);
-            String fechaHoy = new java.text.SimpleDateFormat("dd/MM/yyyy").format(new java.util.Date());
-            Paragraph pFecha = new Paragraph("Fecha: " + fechaHoy, fFecha);
-            pFecha.setAlignment(Element.ALIGN_RIGHT);
-
-            PdfPCell right = new PdfPCell();
-            right.setBorder(PdfPCell.NO_BORDER);
-            right.addElement(pFecha);
-            head.addCell(right);
-
-            doc.add(head);
-
-            String generadoPor = "Administrador";
-            com.lowagie.text.Font fGen = new com.lowagie.text.Font(
-                    com.lowagie.text.Font.HELVETICA, 10, com.lowagie.text.Font.NORMAL, Color.BLACK);
-            Paragraph pGen = new Paragraph("Generado por: " + generadoPor, fGen);
-            pGen.setSpacingBefore(4f);
-            pGen.setSpacingAfter(2f);
-            doc.add(pGen);
-
-            StringBuilder filtros = new StringBuilder();
-            if (categoriaFiltro != null && !categoriaFiltro.isBlank()) {
-                String etiqueta;
-                if ("INFORME DE SOLICITUDES".equalsIgnoreCase(titulo)) {
-                    etiqueta = "Estado";
-                } else if ("INFORME DE MOVIMIENTOS".equalsIgnoreCase(titulo)) {
-                    etiqueta = "Movimiento";
-                } else {
-                    etiqueta = "Categoría";
-                }
-                filtros.append(etiqueta).append(": ").append(categoriaFiltro);
-            }
-            if ((fechaDesdeFiltro != null && !fechaDesdeFiltro.isBlank())
-                    || (fechaHastaFiltro != null && !fechaHastaFiltro.isBlank())) {
-                if (filtros.length() > 0) {
-                    filtros.append("    |    ");
-                }
-                filtros.append("Rango: ");
-                filtros.append(fechaDesdeFiltro != null && !fechaDesdeFiltro.isBlank() ? fechaDesdeFiltro : "—");
-                filtros.append(" – ");
-                filtros.append(fechaHastaFiltro != null && !fechaHastaFiltro.isBlank() ? fechaHastaFiltro : "—");
-            }
-            if (filtros.length() > 0) {
-                com.lowagie.text.Font fFilt = new com.lowagie.text.Font(
-                        com.lowagie.text.Font.HELVETICA, 9, com.lowagie.text.Font.ITALIC, Color.BLACK);
-                Paragraph pFilt = new Paragraph(filtros.toString(), fFilt);
-                pFilt.setSpacingAfter(8f);
-                doc.add(pFilt);
-            }
-
-            com.lowagie.text.Font fTitle = new com.lowagie.text.Font(
-                    com.lowagie.text.Font.HELVETICA, 18, com.lowagie.text.Font.BOLD, HEADER_TXT);
-            Paragraph title = new Paragraph(titulo, fTitle);
-            title.setAlignment(Element.ALIGN_CENTER);
-            title.setSpacingAfter(8f);
-            doc.add(title);
-
-            PdfPTable table = new PdfPTable(headers.length);
-            table.setWidthPercentage(100);
-            float[] w = new float[headers.length];
-            Arrays.fill(w, 1f);
-            table.setWidths(w);
-
-            com.lowagie.text.Font fHeader = new com.lowagie.text.Font(
-                    com.lowagie.text.Font.HELVETICA, 11, com.lowagie.text.Font.BOLD, Color.WHITE);
-            for (String h : headers) {
-                PdfPCell cell = new PdfPCell(new Phrase(h, fHeader));
-                cell.setHorizontalAlignment(Element.ALIGN_CENTER);
-                cell.setBackgroundColor(BRAND);
-                cell.setPadding(6f);
-                table.addCell(cell);
-            }
-
-            com.lowagie.text.Font fCell = new com.lowagie.text.Font(
-                    com.lowagie.text.Font.HELVETICA, 10, com.lowagie.text.Font.NORMAL, Color.BLACK);
-            for (int r = 0; r < model.getRowCount(); r++) {
-                for (int c = 0; c < model.getColumnCount(); c++) {
-                    Object v = model.getValueAt(r, c);
-                    String txt = (v == null) ? "" : v.toString();
-                    PdfPCell cell = new PdfPCell(new Phrase(txt, fCell));
-                    cell.setHorizontalAlignment(c == 1 ? Element.ALIGN_LEFT : Element.ALIGN_CENTER);
-                    cell.setPadding(5f);
-                    table.addCell(cell);
-                }
-            }
-
-            doc.add(table);
-
-            if ("INFORME DE MOVIMIENTOS".equalsIgnoreCase(titulo)) {
-                com.lowagie.text.Font fSub = new com.lowagie.text.Font(
-                        com.lowagie.text.Font.HELVETICA, 13, com.lowagie.text.Font.BOLD, HEADER_TXT);
-
-                com.lowagie.text.Font fCell2 = new com.lowagie.text.Font(
-                        com.lowagie.text.Font.HELVETICA, 10, com.lowagie.text.Font.NORMAL, Color.BLACK);
-
-                Paragraph sep = new Paragraph("\nTRAZABILIDAD DE MOVIMIENTOS", fSub);
-                sep.setSpacingBefore(10f);
-                sep.setSpacingAfter(6f);
-                doc.add(sep);
-
-                Map<String, Insumo> byCodigo = new HashMap<>();
-                try {
-                    for (Insumo ins : invService.listarTodos()) {
-                        if (ins.getCodigo() != null) {
-                            byCodigo.put(ins.getCodigo(), ins);
-                        }
-                    }
-                } catch (Exception ignore) {
-                }
-
-                DateTimeFormatter fmtMov = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm");
-
-                for (int r = 0; r < model.getRowCount(); r++) {
-                    String codigo = Objects.toString(model.getValueAt(r, 0), "");
-                    String descripcion = Objects.toString(model.getValueAt(r, 1), "");
-                    Insumo ins = byCodigo.get(codigo);
-                    if (ins == null) {
-                        continue;
-                    }
-
-                    List<Movimiento> movs;
-                    try {
-                        movs = invService.ultimosMovimientos(ins.getId(), 200);
-                    } catch (Exception ex) {
-                        continue;
-                    }
-                    if (movs == null || movs.isEmpty()) {
-                        continue;
-                    }
-
-                    Paragraph pIns = new Paragraph(
-                            String.format("%s - %s", codigo, descripcion),
-                            new com.lowagie.text.Font(com.lowagie.text.Font.HELVETICA, 11, com.lowagie.text.Font.BOLD, Color.BLACK)
-                    );
-                    pIns.setSpacingBefore(6f);
-                    pIns.setSpacingAfter(2f);
-                    doc.add(pIns);
-
-                    PdfPTable tMov = new PdfPTable(5);
-                    tMov.setWidthPercentage(100);
-                    tMov.setWidths(new float[]{1.2f, 0.8f, 0.6f, 1.2f, 1.2f});
-
-                    for (String h : List.of("Fecha", "Tipo", "Cantidad", "Destino", "Solicitante")) {
-                        PdfPCell hc = new PdfPCell(new Phrase(h, fHeader));
-                        hc.setHorizontalAlignment(Element.ALIGN_CENTER);
-                        hc.setBackgroundColor(BRAND);
-                        hc.setPadding(5f);
-                        tMov.addCell(hc);
-                    }
-
-                    for (Movimiento m : movs) {
-                        String f = (m.getFecha() == null) ? "" : m.getFecha().format(fmtMov);
-                        String tipo = Objects.toString(m.getTipo(), "");
-                        String cant = String.valueOf(m.getCantidad() == null ? 0 : m.getCantidad());
-                        String dest = (m.getDestinoFuente() == null || m.getDestinoFuente().isBlank()) ? "-" : m.getDestinoFuente();
-                        String sol = (m.getSolicitante() == null || m.getSolicitante().isBlank()) ? "-" : m.getSolicitante();
-
-                        PdfPCell c1 = new PdfPCell(new Phrase(f, fCell2));
-                        c1.setHorizontalAlignment(Element.ALIGN_CENTER);
-                        c1.setPadding(4f);
-                        tMov.addCell(c1);
-
-                        PdfPCell c2 = new PdfPCell(new Phrase(tipo, fCell2));
-                        c2.setHorizontalAlignment(Element.ALIGN_CENTER);
-                        c2.setPadding(4f);
-                        tMov.addCell(c2);
-
-                        PdfPCell c3 = new PdfPCell(new Phrase(cant, fCell2));
-                        c3.setHorizontalAlignment(Element.ALIGN_CENTER);
-                        c3.setPadding(4f);
-                        tMov.addCell(c3);
-
-                        PdfPCell c4 = new PdfPCell(new Phrase(dest, fCell2));
-                        c4.setHorizontalAlignment(Element.ALIGN_LEFT);
-                        c4.setPadding(4f);
-                        tMov.addCell(c4);
-
-                        PdfPCell c5 = new PdfPCell(new Phrase(sol, fCell2));
-                        c5.setHorizontalAlignment(Element.ALIGN_LEFT);
-                        c5.setPadding(4f);
-                        tMov.addCell(c5);
-                    }
-
-                    doc.add(tMov);
-                }
-            }
-
-            doc.close();
-            JOptionPane.showMessageDialog(this, "PDF generado:\n" + out.getAbsolutePath(),
-                    "Exportar PDF", JOptionPane.INFORMATION_MESSAGE);
-        } catch (Exception ex) {
-            try {
-                doc.close();
-            } catch (Exception ignore) {
-            }
-            JOptionPane.showMessageDialog(this, "No se pudo generar el PDF:\n" + ex.getMessage(),
-                    "Error", JOptionPane.ERROR_MESSAGE);
-        }
     }
 
     private void exportModelToCsv(DefaultTableModel model, char sep) {
