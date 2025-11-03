@@ -18,12 +18,8 @@ public class JdbcTramiteDao implements TramiteDao {
         t.setNro(rs.getString("nro"));
         t.setAsunto(rs.getString("asunto"));
         t.setEstado(rs.getString("estado"));
-
         Timestamp ts = rs.getTimestamp("fecha");
-        if (ts != null) {
-            t.setFecha(ts.toLocalDateTime());
-        }
-
+        if (ts != null) t.setFecha(ts.toLocalDateTime());
         t.setSolicitante(rs.getString("solicitante"));
         t.setDescripcion(rs.getString("descripcion"));
         t.setDestino(rs.getString("destino"));
@@ -41,17 +37,19 @@ public class JdbcTramiteDao implements TramiteDao {
 
     @Override
     public Long create(Tramite t, Connection cn) throws SQLException {
-        String sql = "INSERT INTO tramite"+"(nro, asunto, estado, fecha, solicitante, descripcion, destino) VALUES (?,?,?,?,?,?,?)";
+        final String sql = """
+            INSERT INTO tramite
+              (nro, asunto, estado, fecha, solicitante, descripcion, destino)
+            VALUES (?,   ?,      ?,      ?,     ?,           ?,           ?)
+            """;
         try (PreparedStatement ps = cn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
-
             ps.setString(1, t.getNro());
             ps.setString(2, t.getAsunto());
             ps.setString(3, t.getEstado());
             ps.setTimestamp(4, Timestamp.valueOf(t.getFecha() != null ? t.getFecha() : LocalDateTime.now()));
             ps.setString(5, t.getSolicitante());
-            ps.setString(6, t.getDescripcion()); // puede ser null
-            ps.setString(7, t.getDestino());     // puede ser null según esquema
-
+            ps.setString(6, t.getDescripcion());
+            ps.setString(7, t.getDestino());
             ps.executeUpdate();
 
             try (ResultSet rs = ps.getGeneratedKeys()) {
@@ -74,7 +72,7 @@ public class JdbcTramiteDao implements TramiteDao {
             ps.setLong(2, id);
             ps.executeUpdate();
         } catch (SQLException e) {
-            throw new RuntimeException("Error cambiando estado de trámite id=" + id, e);
+            throw new RuntimeException("Error actualizando estado id=" + id, e);
         }
     }
 
@@ -85,10 +83,7 @@ public class JdbcTramiteDao implements TramiteDao {
              PreparedStatement ps = cn.prepareStatement(sql)) {
             ps.setString(1, nuevoEstado);
             ps.setString(2, nro);
-            int updated = ps.executeUpdate();
-            if (updated == 0) {
-                throw new SQLException("No existe trámite con nro=" + nro);
-            }
+            ps.executeUpdate();
         } catch (SQLException e) {
             throw new RuntimeException("Error actualizando estado por nro=" + nro, e);
         }
@@ -105,13 +100,11 @@ public class JdbcTramiteDao implements TramiteDao {
              PreparedStatement ps = cn.prepareStatement(sql)) {
             ps.setString(1, nro);
             try (ResultSet rs = ps.executeQuery()) {
-                if (rs.next()) {
-                    return Optional.of(mapRow(rs));
-                }
+                if (rs.next()) return Optional.of(mapRow(rs));
                 return Optional.empty();
             }
         } catch (SQLException e) {
-            throw new RuntimeException("Error buscando trámite nro=" + nro, e);
+            throw new RuntimeException("Error buscando trámite por nro", e);
         }
     }
 
@@ -125,11 +118,8 @@ public class JdbcTramiteDao implements TramiteDao {
         try (Connection cn = DataSourceFactory.getConnection();
              PreparedStatement ps = cn.prepareStatement(sql);
              ResultSet rs = ps.executeQuery()) {
-
             List<Tramite> list = new ArrayList<>();
-            while (rs.next()) {
-                list.add(mapRow(rs));
-            }
+            while (rs.next()) list.add(mapRow(rs));
             return list;
         } catch (SQLException e) {
             throw new RuntimeException("Error listando trámites", e);
@@ -141,24 +131,20 @@ public class JdbcTramiteDao implements TramiteDao {
         final String sql = """
             SELECT id, nro, asunto, estado, fecha, solicitante, descripcion, destino
             FROM tramite
-            WHERE estado IN ('PENDIENTE','EN_PROCESO','NUEVO')
+            WHERE estado <> 'ANULADO'
             ORDER BY fecha DESC
             """;
         try (Connection cn = DataSourceFactory.getConnection();
              PreparedStatement ps = cn.prepareStatement(sql);
              ResultSet rs = ps.executeQuery()) {
-
             List<Tramite> list = new ArrayList<>();
-            while (rs.next()) {
-                list.add(mapRow(rs));
-            }
+            while (rs.next()) list.add(mapRow(rs));
             return list;
         } catch (SQLException e) {
             throw new RuntimeException("Error listando trámites activos", e);
         }
     }
 
-    /** NUEVO: últimas N solicitudes por fecha desc (para “Solicitudes recientes”). */
     @Override
     public List<Tramite> listRecientes(int limit) {
         final String sql = """
@@ -167,16 +153,14 @@ public class JdbcTramiteDao implements TramiteDao {
             ORDER BY fecha DESC
             LIMIT ?
             """;
-        List<Tramite> list = new ArrayList<>();
         try (Connection cn = DataSourceFactory.getConnection();
              PreparedStatement ps = cn.prepareStatement(sql)) {
             ps.setInt(1, Math.max(1, limit));
             try (ResultSet rs = ps.executeQuery()) {
-                while (rs.next()) {
-                    list.add(mapRow(rs));
-                }
+                List<Tramite> list = new ArrayList<>();
+                while (rs.next()) list.add(mapRow(rs));
+                return list;
             }
-            return list;
         } catch (SQLException e) {
             throw new RuntimeException("Error listando trámites recientes", e);
         }
