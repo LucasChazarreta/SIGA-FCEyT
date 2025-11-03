@@ -434,111 +434,56 @@ public class InformesPanel extends JPanel {
 
     // ====== INVENTARIO: división filtros/tabla ======
     private JPanel buildInventarioSplit() {
-        JPanel split = new JPanel(new GridBagLayout());
-        split.setOpaque(true);
-        split.setBackground(Color.WHITE);
+        JPanel panel = new JPanel(new BorderLayout(12, 12));
+        panel.setOpaque(true);
+        panel.setBackground(Color.WHITE);
 
-        GridBagConstraints gc = new GridBagConstraints();
-        gc.gridy = 0;
-        gc.fill = GridBagConstraints.BOTH;
-        gc.weighty = 1.0;
+        panel.add(buildFiltrosPanelInventario(), BorderLayout.NORTH);
+        panel.add(buildTablaPanelInventario(), BorderLayout.CENTER);
 
-        // IZQ: filtros
-        JPanel filtros = buildFiltrosPanelInventario();
-        JPanel holder = new JPanel(new FlowLayout(FlowLayout.CENTER, 0, 0));
-        holder.setOpaque(false);
-        holder.add(filtros);
-
-        gc.gridx = 0;
-        gc.weightx = 0.33;
-        gc.insets = new Insets(16, 0, 0, 12);
-        split.add(holder, gc);
-
-        // DER: tabla
-        CardPanel tabla = buildTablaPanelInventario();
-        tabla.setOpaque(true);
-        tabla.setBackground(Color.WHITE);
-
-        gc.gridx = 1;
-        gc.weightx = 0.67;
-        gc.insets = new Insets(0, 0, 0, 0);
-        split.add(tabla, gc);
-
-        return split;
+        return panel;
     }
 
     // === Panel de filtros INVENTARIO ===
     private JPanel buildFiltrosPanelInventario() {
-        JPanel card = new JPanel(new BorderLayout());
-        card.setOpaque(false);
-        card.setBorder(BorderFactory.createEmptyBorder());
+        JPanel panel = new JPanel(new BorderLayout(18, 8));
+        panel.setOpaque(false);
 
-        // Título
         JLabel title = new JLabel("FILTROS");
-        title.setFont(title.getFont().deriveFont(Font.BOLD, 18f));
-        title.setForeground(new Color(73, 103, 204));
-        JPanel titleRow = new JPanel(new FlowLayout(FlowLayout.CENTER, 0, 0));
-        titleRow.setBorder(BorderFactory.createEmptyBorder(120, 0, 0, 0));
-        titleRow.setOpaque(false);
-        titleRow.add(title);
-        card.add(titleRow, BorderLayout.NORTH);
+        title.setFont(new Font("Segoe UI", Font.BOLD, 16));
+        title.setForeground(BRAND);
+        panel.add(title, BorderLayout.WEST);
 
-        // Campos
-        JPanel fields = new JPanel();
+        JPanel fields = new JPanel(new FlowLayout(FlowLayout.LEFT, 16, 8));
         fields.setOpaque(false);
-        fields.setLayout(new BoxLayout(fields, BoxLayout.Y_AXIS));
 
-        Dimension fieldSize = new Dimension(260, 34);
-        cbCategoria.setPreferredSize(fieldSize);
-        cbCategoria.setMaximumSize(fieldSize);
+        styleFilterField(cbCategoria, 200);
+        fields.add(labeledFilterField("Categoría", cbCategoria));
 
         JComponent desdeComp = dfDesde.getComponent();
-        desdeComp.setPreferredSize(fieldSize);
-        desdeComp.setMaximumSize(fieldSize);
-        desdeComp.setMinimumSize(fieldSize);
+        styleFilterField(desdeComp, 160);
+        fields.add(labeledFilterField("Desde", desdeComp));
 
         JComponent hastaComp = dfHasta.getComponent();
-        hastaComp.setPreferredSize(fieldSize);
-        hastaComp.setMaximumSize(fieldSize);
-        hastaComp.setMinimumSize(fieldSize);
+        styleFilterField(hastaComp, 160);
+        fields.add(labeledFilterField("Hasta", hastaComp));
 
-        fields.add(Box.createVerticalStrut(40));
-        fields.add(leftField("Categoría", cbCategoria));
-        fields.add(Box.createVerticalStrut(18));
-        fields.add(leftField("Desde", desdeComp));
-        fields.add(Box.createVerticalStrut(18));
-        fields.add(leftField("Hasta", hastaComp));
         chkSoloBajoMinimo.setOpaque(false);
         chkSoloBajoMinimo.addActionListener(e -> runQueryInventario());
-        fields.add(Box.createVerticalStrut(18));
-        fields.add(chkSoloBajoMinimo);
-        fields.add(Box.createVerticalStrut(28));
+        fields.add(wrapCheckbox(chkSoloBajoMinimo));
 
-        // Botón
         JButton apply = primaryButton("APLICAR FILTROS");
         apply.addActionListener(e -> runQueryInventario());
-        JPanel btnRow = new JPanel(new FlowLayout(FlowLayout.CENTER, 0, 0));
-        btnRow.setOpaque(false);
-        btnRow.add(apply);
-        fields.add(btnRow);
+        fields.add(wrapButton(apply));
 
-        // Centrado vertical
-        JPanel center = new JPanel();
-        center.setOpaque(false);
-        center.setLayout(new BoxLayout(center, BoxLayout.Y_AXIS));
-        center.add(Box.createVerticalGlue());
-        center.add(fields);
-        center.add(Box.createVerticalGlue());
-
-        card.add(center, BorderLayout.CENTER);
-        return card;
+        panel.add(fields, BorderLayout.CENTER);
+        return panel;
     }
 
-    // Etiqueta a la izquierda + campo
-    private JPanel leftField(String label, JComponent field) {
-        JPanel p = new JPanel();
-        p.setOpaque(false);
-        p.setLayout(new BoxLayout(p, BoxLayout.Y_AXIS));
+    private JPanel labeledFilterField(String label, JComponent field) {
+        JPanel wrapper = new JPanel();
+        wrapper.setOpaque(false);
+        wrapper.setLayout(new BoxLayout(wrapper, BoxLayout.Y_AXIS));
 
         JLabel lbl = new JLabel(label.toUpperCase());
         lbl.setFont(lbl.getFont().deriveFont(Font.PLAIN, 12f));
@@ -546,12 +491,31 @@ public class InformesPanel extends JPanel {
         lbl.setAlignmentX(Component.LEFT_ALIGNMENT);
 
         field.setAlignmentX(Component.LEFT_ALIGNMENT);
-        field.setBorder(BorderFactory.createLineBorder(new Color(225, 230, 246)));
 
-        p.add(lbl);
-        p.add(Box.createVerticalStrut(4));
-        p.add(field);
-        return p;
+        wrapper.add(lbl);
+        wrapper.add(Box.createVerticalStrut(4));
+        wrapper.add(field);
+        return wrapper;
+    }
+
+    private JPanel wrapCheckbox(JCheckBox check) {
+        JPanel wrapper = new JPanel();
+        wrapper.setOpaque(false);
+        wrapper.setLayout(new BoxLayout(wrapper, BoxLayout.Y_AXIS));
+        wrapper.add(Box.createVerticalStrut(16));
+        check.setAlignmentX(Component.LEFT_ALIGNMENT);
+        wrapper.add(check);
+        return wrapper;
+    }
+
+    private JPanel wrapButton(JButton button) {
+        JPanel wrapper = new JPanel();
+        wrapper.setOpaque(false);
+        wrapper.setLayout(new BoxLayout(wrapper, BoxLayout.Y_AXIS));
+        wrapper.add(Box.createVerticalStrut(16));
+        button.setAlignmentX(Component.LEFT_ALIGNMENT);
+        wrapper.add(button);
+        return wrapper;
     }
 
     private CardPanel buildTablaPanelInventario() {
@@ -785,7 +749,7 @@ public class InformesPanel extends JPanel {
 
     // ====== SOLICITUDES ======
     private Component buildTramitesFilters() {
-        JPanel panel = new JPanel(new BorderLayout(18, 0));
+        JPanel panel = new JPanel(new BorderLayout(18, 8));
         panel.setOpaque(false);
 
         JLabel lbl = new JLabel("FILTRO");
@@ -793,7 +757,7 @@ public class InformesPanel extends JPanel {
         lbl.setForeground(BRAND);
         panel.add(lbl, BorderLayout.WEST);
 
-        JPanel fields = new JPanel(new FlowLayout(FlowLayout.LEFT, 12, 0));
+        JPanel fields = new JPanel(new FlowLayout(FlowLayout.LEFT, 12, 8));
         fields.setOpaque(false);
 
         styleFilterField(filterSearch, 220);
@@ -1050,7 +1014,7 @@ public class InformesPanel extends JPanel {
 
     // == MOVIMIENTOS: fila de filtros (usa SIEMPRE los campos txtFiltroMov y cbTipoMov) ==
     private JComponent buildMovimientosFilters() {
-        JPanel panel = new JPanel(new BorderLayout(18, 0));
+        JPanel panel = new JPanel(new BorderLayout(18, 8));
         panel.setOpaque(false);
 
         JLabel lbl = new JLabel("FILTRO");
@@ -1058,7 +1022,7 @@ public class InformesPanel extends JPanel {
         lbl.setForeground(BRAND);
         panel.add(lbl, BorderLayout.WEST);
 
-        JPanel fields = new JPanel(new FlowLayout(FlowLayout.LEFT, 12, 0));
+        JPanel fields = new JPanel(new FlowLayout(FlowLayout.LEFT, 12, 8));
         fields.setOpaque(false);
 
         // Usa los CAMPOS, NO crear variables locales nuevas:
