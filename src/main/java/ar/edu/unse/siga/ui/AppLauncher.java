@@ -1,56 +1,57 @@
 package ar.edu.unse.siga.ui;
 
-import ar.edu.unse.siga.common.CurrentSession;
 import ar.edu.unse.siga.persistence.dao.*;
 import ar.edu.unse.siga.persistence.jdbc.*;
 import ar.edu.unse.siga.service.AuthService;
 import ar.edu.unse.siga.service.InventarioService;
 import ar.edu.unse.siga.service.TramiteService;
-import ar.edu.unse.siga.persistence.jdbc.JdbcCategoriaDao;
-import ar.edu.unse.siga.persistence.jdbc.JdbcUbicacionDao;
-
+import ar.edu.unse.siga.config.AppServices;
 import javax.swing.*;
+import java.awt.*;
 
 public class AppLauncher {
 
     public static void launch() {
-        ar.edu.unse.siga.ui.base.ThemeManager.installDefaults();
+        try {
+            // Look & Feel (opcional)
+            // com.formdev.flatlaf.FlatLightLaf.setup();
 
-        // DAOs
-        InsumoDao insumoDao = new JdbcInsumoDao();
-        MovimientoDao movDao = new JdbcMovimientoDao();
-        UsuarioDao usuarioDao = new JdbcUsuarioDao();
-        TramiteDao tramiteDao = new JdbcTramiteDao();
-        CategoriaDao categoriaDao = new JdbcCategoriaDao();
-        UbicacionDao ubicacionDao = new JdbcUbicacionDao();
+            // ==== DAOs / Servicios ====
+            UsuarioDao usuarioDao = new JdbcUsuarioDao();
+            CategoriaDao categoriaDao = new JdbcCategoriaDao();
+            InsumoDao insumoDao = new JdbcInsumoDao();
+            MovimientoDao movDao = new JdbcMovimientoDao();
+            TramiteDao tramiteDao = new JdbcTramiteDao();
+            UbicacionDao ubicDao = new JdbcUbicacionDao();
 
-        // Services
-        AuthService auth = new AuthService(usuarioDao);
-        InventarioService inv = new InventarioService(insumoDao, movDao, categoriaDao, ubicacionDao);
-        TramiteService tra = new TramiteService(tramiteDao);
-        
-        
+            AuthService auth = new AuthService(usuarioDao);
+            AppServices.init();                       // crea DAOs y Services internamente
+            InventarioService inv = AppServices.inventario();
+            TramiteService tra = AppServices.tramite();
+            Window owner = null; // sin owner
+            var login = new LoginScreen(owner, auth);
+            var usuario = login.showDialog(); // bloquea hasta cerrar
 
-        // Login (nueva pantalla)
-        var login = new LoginScreen(null, auth);
-        var user = login.showDialog();
-        if (user == null) {
-            System.exit(0);
-            return;
+            if (usuario == null) {
+                // canceló o falló => cerramos la app de forma limpia
+                System.exit(0);
+                return;
+            }
+
+            // ==== SHELL PRINCIPAL ====
+            var main = new ar.edu.unse.siga.ui.shell.ShellFrame(inv, tra, auth);
+            main.setLocationRelativeTo(null);
+            main.setVisible(true);
+
+        } catch (Exception ex) {
+            ex.printStackTrace();
+            JOptionPane.showMessageDialog(null,
+                    ex.getMessage(), "Error al iniciar", JOptionPane.ERROR_MESSAGE);
+            System.exit(1);
         }
-        ar.edu.unse.siga.common.CurrentSession.setUser(user);
-
-        // Shell principal
-        var main = new ar.edu.unse.siga.ui.shell.ShellFrame(inv, tra, auth);
-        main.setVisible(true);
-
     }
-    
-    
 
     public static void main(String[] args) {
         SwingUtilities.invokeLater(AppLauncher::launch);
     }
-    
-    
 }
