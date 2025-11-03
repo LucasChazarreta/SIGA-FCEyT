@@ -38,7 +38,6 @@ import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 
 // OpenPDF
-import com.lowagie.text.BaseColor;
 import com.lowagie.text.Chunk;
 import com.lowagie.text.Document;
 import com.lowagie.text.DocumentException;
@@ -65,29 +64,31 @@ public class InformesPanel extends JPanel {
     private static final Color CARD_BORDER = new Color(225, 230, 246);
     private static final Color HEADER_TXT = new Color(24, 63, 150);
 
-    private static final BaseColor PDF_PRIMARY = new BaseColor(0x1E, 0x3A, 0x8A);
-    private static final BaseColor PDF_LIGHT_GRAY = new BaseColor(0xE5, 0xE7, 0xEB);
-    private static final BaseColor PDF_BORDER = new BaseColor(0xD1, 0xD5, 0xDB);
-    private static final BaseColor PDF_ROW_ALT = new BaseColor(0xF5, 0xF6, 0xFA);
+    // Colores PDF (java.awt.Color)
+    private static final Color PDF_PRIMARY = new Color(0x1E, 0x3A, 0x8A);
+    private static final Color PDF_LIGHT_GRAY = new Color(0xE5, 0xE7, 0xEB);
+    private static final Color PDF_BORDER = new Color(0xD1, 0xD5, 0xDB);
+    private static final Color PDF_ROW_ALT = new Color(0xF5, 0xF6, 0xFA);
 
+// Fuentes (OpenPDF acepta java.awt.Color)
     private static final com.lowagie.text.Font FONT_HEADER_INFO
-            = new com.lowagie.text.Font(com.lowagie.text.Font.FontFamily.HELVETICA, 11, com.lowagie.text.Font.NORMAL, BaseColor.BLACK);
+            = new com.lowagie.text.Font(com.lowagie.text.Font.HELVETICA, 11, com.lowagie.text.Font.NORMAL, Color.BLACK);
     private static final com.lowagie.text.Font FONT_HEADER_TITLE
-            = new com.lowagie.text.Font(com.lowagie.text.Font.FontFamily.HELVETICA, 14, com.lowagie.text.Font.BOLD, BaseColor.BLACK);
+            = new com.lowagie.text.Font(com.lowagie.text.Font.HELVETICA, 14, com.lowagie.text.Font.BOLD, Color.BLACK);
     private static final com.lowagie.text.Font FONT_HEADER_DATE
-            = new com.lowagie.text.Font(com.lowagie.text.Font.FontFamily.HELVETICA, 10, com.lowagie.text.Font.NORMAL, BaseColor.BLACK);
+            = new com.lowagie.text.Font(com.lowagie.text.Font.HELVETICA, 10, com.lowagie.text.Font.NORMAL, Color.BLACK);
     private static final com.lowagie.text.Font FONT_SECTION
-            = new com.lowagie.text.Font(com.lowagie.text.Font.FontFamily.HELVETICA, 12, com.lowagie.text.Font.BOLD, PDF_PRIMARY);
+            = new com.lowagie.text.Font(com.lowagie.text.Font.HELVETICA, 12, com.lowagie.text.Font.BOLD, PDF_PRIMARY);
     private static final com.lowagie.text.Font FONT_TABLE_HEADER
-            = new com.lowagie.text.Font(com.lowagie.text.Font.FontFamily.HELVETICA, 10, com.lowagie.text.Font.BOLD, BaseColor.WHITE);
+            = new com.lowagie.text.Font(com.lowagie.text.Font.HELVETICA, 10, com.lowagie.text.Font.BOLD, Color.WHITE);
     private static final com.lowagie.text.Font FONT_TABLE_CELL
-            = new com.lowagie.text.Font(com.lowagie.text.Font.FontFamily.HELVETICA, 9, com.lowagie.text.Font.NORMAL, BaseColor.BLACK);
+            = new com.lowagie.text.Font(com.lowagie.text.Font.HELVETICA, 9, com.lowagie.text.Font.NORMAL, Color.BLACK);
     private static final com.lowagie.text.Font FONT_SUMMARY_LABEL
-            = new com.lowagie.text.Font(com.lowagie.text.Font.FontFamily.HELVETICA, 10, com.lowagie.text.Font.BOLD, BaseColor.BLACK);
+            = new com.lowagie.text.Font(com.lowagie.text.Font.HELVETICA, 10, com.lowagie.text.Font.BOLD, Color.BLACK);
     private static final com.lowagie.text.Font FONT_SUMMARY_VALUE
-            = new com.lowagie.text.Font(com.lowagie.text.Font.FontFamily.HELVETICA, 10, com.lowagie.text.Font.NORMAL, BaseColor.BLACK);
+            = new com.lowagie.text.Font(com.lowagie.text.Font.HELVETICA, 10, com.lowagie.text.Font.NORMAL, Color.BLACK);
     private static final com.lowagie.text.Font FONT_FOOTER
-            = new com.lowagie.text.Font(com.lowagie.text.Font.FontFamily.HELVETICA, 8, com.lowagie.text.Font.ITALIC, new BaseColor(80, 80, 80));
+            = new com.lowagie.text.Font(com.lowagie.text.Font.HELVETICA, 8, com.lowagie.text.Font.ITALIC, new Color(80, 80, 80));
 
     private final InventarioService invService;
     private final TramiteService traService;
@@ -1351,47 +1352,80 @@ public class InformesPanel extends JPanel {
             return;
         }
 
-        Document doc = new Document(PageSize.A4, 56f, 56f, 56f, 56f);
-        try (FileOutputStream fos = new FileOutputStream(out)) {
-            PdfWriter.getInstance(doc, fos);
-            doc.open();
+        try {
+            writePdfSafely(out, doc -> {
+                addPdfHeader(doc, "Informe de Inventario");
 
-            addPdfHeader(doc, "Informe de Inventario");
-
-            List<String[]> rows = new ArrayList<>();
-            for (int r = 0; r < modelInv.getRowCount(); r++) {
-                rows.add(new String[]{
+                java.util.List<String[]> rows = new java.util.ArrayList<>();
+                for (int r = 0; r < modelInv.getRowCount(); r++) {
+                    rows.add(new String[]{
                         displayString(modelInv.getValueAt(r, 0)),
                         displayString(modelInv.getValueAt(r, 1)),
                         displayString(modelInv.getValueAt(r, 2)),
                         displayString(modelInv.getValueAt(r, 3))
-                });
-            }
+                    });
+                }
 
-            PdfPTable table = buildStyledTable(
-                    new String[]{"Código", "Descripción", "Estado", "Fecha"},
-                    rows,
-                    new float[]{2.2f, 4f, 2f, 2f},
-                    new int[]{Element.ALIGN_LEFT, Element.ALIGN_LEFT, Element.ALIGN_CENTER, Element.ALIGN_CENTER}
-            );
-            doc.add(table);
+                PdfPTable table = buildStyledTable(
+                        new String[]{"Código", "Descripción", "Estado", "Fecha"},
+                        rows,
+                        new float[]{2.2f, 4f, 2f, 2f},
+                        new int[]{Element.ALIGN_LEFT, Element.ALIGN_LEFT, Element.ALIGN_CENTER, Element.ALIGN_CENTER}
+                );
+                doc.add(table);
 
-            LinkedHashMap<String, String> resumen = new LinkedHashMap<>();
-            resumen.put("Total de ítems registrados", String.valueOf(modelInv.getRowCount()));
-            resumen.put("Stock general", formatDecimal(calcularStockGeneralInventario()));
-            addSummarySection(doc, "Totales", resumen);
+                java.util.LinkedHashMap<String, String> resumen = new java.util.LinkedHashMap<>();
+                resumen.put("Total de ítems registrados", String.valueOf(modelInv.getRowCount()));
+                resumen.put("Stock general", formatDecimal(calcularStockGeneralInventario()));
+                addSummarySection(doc, "Totales", resumen);
 
-            addPdfFooter(doc);
-
+                addPdfFooter(doc);
+            });
             JOptionPane.showMessageDialog(this, "PDF generado:\n" + out.getAbsolutePath(),
                     "Exportar PDF", JOptionPane.INFORMATION_MESSAGE);
         } catch (Exception ex) {
             JOptionPane.showMessageDialog(this, "No se pudo generar el PDF:\n" + ex.getMessage(),
                     "Error", JOptionPane.ERROR_MESSAGE);
+        }
+    }
+
+    private interface PdfBody {
+
+        void build(Document doc) throws Exception;
+    }
+
+    private void writePdfSafely(File out, PdfBody body) throws Exception {
+        // Genera el PDF en memoria primero
+        java.io.ByteArrayOutputStream baos = new java.io.ByteArrayOutputStream(32 * 1024);
+        Document doc = new Document(PageSize.A4, 56f, 56f, 56f, 56f);
+        PdfWriter writer = null;
+        try {
+            writer = PdfWriter.getInstance(doc, baos);
+            // Evita que el writer cierre el stream de memoria por su cuenta
+            writer.setCloseStream(false);
+            doc.open();
+
+            // Construye el contenido del PDF
+            body.build(doc);
+
         } finally {
             if (doc.isOpen()) {
                 doc.close();
             }
+            if (writer != null) {
+                writer.close();
+            }
+        }
+
+        // Si llegamos acá, el PDF está completo en memoria. Ahora sí, guardar al disco.
+        byte[] bytes = baos.toByteArray();
+        if (bytes.length < 100) {
+            // umbral mínimo “sanidad” (ajustable) — evita guardar PDFs vacíos
+            throw new IllegalStateException("El PDF resultó vacío o incompleto.");
+        }
+        try (java.io.FileOutputStream fos = new java.io.FileOutputStream(out, false)) {
+            fos.write(bytes);
+            fos.flush();
         }
     }
 
@@ -1401,51 +1435,43 @@ public class InformesPanel extends JPanel {
             return;
         }
 
-        Document doc = new Document(PageSize.A4, 56f, 56f, 56f, 56f);
-        try (FileOutputStream fos = new FileOutputStream(out)) {
-            PdfWriter.getInstance(doc, fos);
-            doc.open();
+        try {
+            writePdfSafely(out, doc -> {
+                addPdfHeader(doc, "Informe de Solicitudes Registradas");
 
-            addPdfHeader(doc, "Informe de Solicitudes Registradas");
+                java.util.List<String[]> rows = new java.util.ArrayList<>();
+                for (int r = 0; r < modelTra.getRowCount(); r++) {
+                    String nro = displayString(modelTra.getValueAt(r, 0)); // Nro Trámite
+                    String solicitante = displayString(modelTra.getValueAt(r, 5)); // Solicitante
+                    String destino = displayString(modelTra.getValueAt(r, 1)); // << Asegúrate que modelTra col 1 sea Destino en tu UI
+                    String fecha = displayString(modelTra.getValueAt(r, 2));
+                    String estado = displayString(modelTra.getValueAt(r, 6));
+                    rows.add(new String[]{nro, solicitante, destino, fecha, estado});
+                }
 
-            List<String[]> rows = new ArrayList<>();
-            for (int r = 0; r < modelTra.getRowCount(); r++) {
-                rows.add(new String[]{
-                        displayString(modelTra.getValueAt(r, 0)),
-                        displayString(modelTra.getValueAt(r, 5)),
-                        displayString(modelTra.getValueAt(r, 1)),
-                        displayString(modelTra.getValueAt(r, 2)),
-                        displayString(modelTra.getValueAt(r, 6))
-                });
-            }
+                PdfPTable table = buildStyledTable(
+                        new String[]{"Nro Trámite", "Solicitante", "Destino", "Fecha", "Estado"},
+                        rows,
+                        new float[]{2f, 3f, 3f, 2f, 2f},
+                        new int[]{Element.ALIGN_CENTER, Element.ALIGN_LEFT, Element.ALIGN_LEFT, Element.ALIGN_CENTER, Element.ALIGN_CENTER}
+                );
+                doc.add(table);
 
-            PdfPTable table = buildStyledTable(
-                    new String[]{"Nro Trámite", "Solicitante", "Destino", "Fecha", "Estado"},
-                    rows,
-                    new float[]{2f, 3f, 3f, 2f, 2f},
-                    new int[]{Element.ALIGN_CENTER, Element.ALIGN_LEFT, Element.ALIGN_LEFT, Element.ALIGN_CENTER, Element.ALIGN_CENTER}
-            );
-            doc.add(table);
+                java.util.LinkedHashMap<String, String> resumen = new java.util.LinkedHashMap<>();
+                java.util.Map<String, Integer> estados = contarEstadosTramites();
+                resumen.put("Total de solicitudes", String.valueOf(modelTra.getRowCount()));
+                resumen.put("Estado NUEVO", String.valueOf(estados.getOrDefault("NUEVO", 0)));
+                resumen.put("Estado APROBADO", String.valueOf(estados.getOrDefault("APROBADO", 0)));
+                resumen.put("Estado RECHAZADO", String.valueOf(estados.getOrDefault("RECHAZADO", 0)));
+                addSummarySection(doc, "Estadísticas", resumen);
 
-            LinkedHashMap<String, String> resumen = new LinkedHashMap<>();
-            Map<String, Integer> estados = contarEstadosTramites();
-            resumen.put("Total de solicitudes", String.valueOf(modelTra.getRowCount()));
-            resumen.put("Estado NUEVO", String.valueOf(estados.getOrDefault("NUEVO", 0)));
-            resumen.put("Estado APROBADO", String.valueOf(estados.getOrDefault("APROBADO", 0)));
-            resumen.put("Estado RECHAZADO", String.valueOf(estados.getOrDefault("RECHAZADO", 0)));
-            addSummarySection(doc, "Estadísticas", resumen);
-
-            addPdfFooter(doc);
-
+                addPdfFooter(doc);
+            });
             JOptionPane.showMessageDialog(this, "PDF generado:\n" + out.getAbsolutePath(),
                     "Exportar PDF", JOptionPane.INFORMATION_MESSAGE);
         } catch (Exception ex) {
             JOptionPane.showMessageDialog(this, "No se pudo generar el PDF:\n" + ex.getMessage(),
                     "Error", JOptionPane.ERROR_MESSAGE);
-        } finally {
-            if (doc.isOpen()) {
-                doc.close();
-            }
         }
     }
 
@@ -1455,91 +1481,78 @@ public class InformesPanel extends JPanel {
             return;
         }
 
-        Document doc = new Document(PageSize.A4, 56f, 56f, 56f, 56f);
-        try (FileOutputStream fos = new FileOutputStream(out)) {
-            PdfWriter.getInstance(doc, fos);
-            doc.open();
+        try {
+            writePdfSafely(out, doc -> {
+                addPdfHeader(doc, "Informe de Movimientos de Inventario");
 
-            addPdfHeader(doc, "Informe de Movimientos de Inventario");
+                java.util.List<String[]> entradas = new java.util.ArrayList<>();
+                java.util.List<String[]> salidas = new java.util.ArrayList<>();
+                java.math.BigDecimal totalEntradas = java.math.BigDecimal.ZERO;
+                java.math.BigDecimal totalSalidas = java.math.BigDecimal.ZERO;
 
-            List<String[]> entradas = new ArrayList<>();
-            List<String[]> salidas = new ArrayList<>();
-            BigDecimal totalEntradas = BigDecimal.ZERO;
-            BigDecimal totalSalidas = BigDecimal.ZERO;
+                for (int r = 0; r < modelMov.getRowCount(); r++) {
+                    String tipo = rawString(modelMov.getValueAt(r, 1)).toUpperCase(java.util.Locale.ROOT);
+                    java.math.BigDecimal cantidad = parseCantidad(modelMov.getValueAt(r, 2));
+                    String fecha = displayString(modelMov.getValueAt(r, 0));
+                    String codigo = rawString(modelMov.getValueAt(r, 3));
+                    String desc = rawString(modelMov.getValueAt(r, 4));
+                    String insumo = (codigo.isBlank() ? desc : (codigo + " - " + desc));
+                    if (insumo == null || insumo.isBlank()) {
+                        insumo = "-";
+                    }
+                    String ubicacion = rawString(modelMov.getValueAt(r, 5));
+                    String destino = rawString(modelMov.getValueAt(r, 6));
+                    String origenDestino = destino.isBlank() ? (ubicacion.isBlank() ? "-" : ubicacion) : destino;
 
-            for (int r = 0; r < modelMov.getRowCount(); r++) {
-                String tipo = rawString(modelMov.getValueAt(r, 1)).toUpperCase(Locale.ROOT);
-                BigDecimal cantidad = parseCantidad(modelMov.getValueAt(r, 2));
-                String fecha = displayString(modelMov.getValueAt(r, 0));
-                String codigo = rawString(modelMov.getValueAt(r, 3));
-                String descripcion = rawString(modelMov.getValueAt(r, 4));
-                String insumo = (codigo.isBlank() ? descripcion : (codigo + " - " + descripcion));
-                if (insumo == null || insumo.isBlank()) {
-                    insumo = "-";
+                    String[] data = new String[]{fecha, insumo, formatDecimal(cantidad), origenDestino, (tipo.isBlank() ? "-" : tipo)};
+
+                    if ("ENTRADA".equalsIgnoreCase(tipo)) {
+                        entradas.add(data);
+                        totalEntradas = totalEntradas.add(cantidad);
+                    } else if ("SALIDA".equalsIgnoreCase(tipo)) {
+                        salidas.add(data);
+                        totalSalidas = totalSalidas.add(cantidad);
+                    }
                 }
-                String ubicacion = rawString(modelMov.getValueAt(r, 5));
-                String destino = rawString(modelMov.getValueAt(r, 6));
-                String origenDestino = destino.isBlank() ? (ubicacion.isBlank() ? "-" : ubicacion) : destino;
 
-                String[] data = new String[]{
-                        fecha,
-                        insumo,
-                        formatDecimal(cantidad),
-                        origenDestino,
-                        tipo.isBlank() ? "-" : tipo
-                };
+                String[] headers = new String[]{"Fecha", "Insumo", "Cantidad", "Origen/Destino", "Tipo"};
+                float[] widths = new float[]{2f, 4f, 1.8f, 3f, 1.6f};
+                int[] aligns = new int[]{Element.ALIGN_CENTER, Element.ALIGN_LEFT, Element.ALIGN_RIGHT, Element.ALIGN_LEFT, Element.ALIGN_CENTER};
 
-                if ("ENTRADA".equalsIgnoreCase(tipo)) {
-                    entradas.add(data);
-                    totalEntradas = totalEntradas.add(cantidad);
-                } else if ("SALIDA".equalsIgnoreCase(tipo)) {
-                    salidas.add(data);
-                    totalSalidas = totalSalidas.add(cantidad);
+                if (!entradas.isEmpty()) {
+                    Paragraph sec = new Paragraph("Movimientos de Entrada", FONT_SECTION);
+                    sec.setSpacingBefore(8f);
+                    sec.setSpacingAfter(4f);
+                    doc.add(sec);
+                    doc.add(buildStyledTable(headers, entradas, widths, aligns));
                 }
-            }
 
-            String[] headers = new String[]{"Fecha", "Insumo", "Cantidad", "Origen/Destino", "Tipo"};
-            float[] widths = new float[]{2f, 4f, 1.8f, 3f, 1.6f};
-            int[] alignments = new int[]{Element.ALIGN_CENTER, Element.ALIGN_LEFT, Element.ALIGN_RIGHT, Element.ALIGN_LEFT, Element.ALIGN_CENTER};
+                if (!salidas.isEmpty()) {
+                    Paragraph sec = new Paragraph("Movimientos de Salida", FONT_SECTION);
+                    sec.setSpacingBefore(12f);
+                    sec.setSpacingAfter(4f);
+                    doc.add(sec);
+                    doc.add(buildStyledTable(headers, salidas, widths, aligns));
+                }
 
-            if (!entradas.isEmpty()) {
-                Paragraph sec = new Paragraph("Movimientos de Entrada", FONT_SECTION);
-                sec.setSpacingBefore(8f);
-                sec.setSpacingAfter(4f);
-                doc.add(sec);
-                doc.add(buildStyledTable(headers, entradas, widths, alignments));
-            }
+                if (entradas.isEmpty() && salidas.isEmpty()) {
+                    Paragraph sinDatos = new Paragraph("No se registran movimientos para el período seleccionado.", FONT_TABLE_CELL);
+                    sinDatos.setAlignment(Element.ALIGN_LEFT);
+                    doc.add(sinDatos);
+                }
 
-            if (!salidas.isEmpty()) {
-                Paragraph sec = new Paragraph("Movimientos de Salida", FONT_SECTION);
-                sec.setSpacingBefore(12f);
-                sec.setSpacingAfter(4f);
-                doc.add(sec);
-                doc.add(buildStyledTable(headers, salidas, widths, alignments));
-            }
+                java.util.LinkedHashMap<String, String> resumen = new java.util.LinkedHashMap<>();
+                resumen.put("Total de entradas", formatDecimal(totalEntradas));
+                resumen.put("Total de salidas", formatDecimal(totalSalidas));
+                addSummarySection(doc, "Totales", resumen);
 
-            if (entradas.isEmpty() && salidas.isEmpty()) {
-                Paragraph sinDatos = new Paragraph("No se registran movimientos para el período seleccionado.", FONT_TABLE_CELL);
-                sinDatos.setAlignment(Element.ALIGN_LEFT);
-                doc.add(sinDatos);
-            }
-
-            LinkedHashMap<String, String> resumen = new LinkedHashMap<>();
-            resumen.put("Total de entradas", formatDecimal(totalEntradas));
-            resumen.put("Total de salidas", formatDecimal(totalSalidas));
-            addSummarySection(doc, "Totales", resumen);
-
-            addPdfFooter(doc);
-
+                addPdfFooter(doc);
+            });
             JOptionPane.showMessageDialog(this, "PDF generado:\n" + out.getAbsolutePath(),
                     "Exportar PDF", JOptionPane.INFORMATION_MESSAGE);
         } catch (Exception ex) {
             JOptionPane.showMessageDialog(this, "No se pudo generar el PDF:\n" + ex.getMessage(),
                     "Error", JOptionPane.ERROR_MESSAGE);
-        } finally {
-            if (doc.isOpen()) {
-                doc.close();
-            }
         }
     }
 
@@ -1581,9 +1594,9 @@ public class InformesPanel extends JPanel {
         PdfPCell infoCell = new PdfPCell();
         infoCell.setBorder(PdfPCell.NO_BORDER);
         Paragraph sistema = new Paragraph(
-                "SIGA – Sistema de Gestión Administrativa\n" +
-                        "Facultad de Ciencias Exactas y Tecnologías\n" +
-                        "Universidad Nacional de Santiago del Estero",
+                "SIGA – Sistema de Gestión Administrativa\n"
+                + "Facultad de Ciencias Exactas y Tecnologías\n"
+                + "Universidad Nacional de Santiago del Estero",
                 FONT_HEADER_INFO
         );
         sistema.setAlignment(Element.ALIGN_LEFT);
@@ -1606,9 +1619,9 @@ public class InformesPanel extends JPanel {
     private void addPdfFooter(Document doc) throws DocumentException {
         doc.add(Chunk.NEWLINE);
         Paragraph footer = new Paragraph(
-                "SIGA – Sistema de Gestión Administrativa FCEyT\n" +
-                        "Universidad Nacional de Santiago del Estero – 2025\n" +
-                        "\"Generado automáticamente. Documento sin valor legal.\"",
+                "SIGA – Sistema de Gestión Administrativa FCEyT\n"
+                + "Universidad Nacional de Santiago del Estero – 2025\n"
+                + "\"Generado automáticamente. Documento sin valor legal.\"",
                 FONT_FOOTER
         );
         footer.setAlignment(Element.ALIGN_CENTER);
@@ -1638,7 +1651,7 @@ public class InformesPanel extends JPanel {
 
         for (int r = 0; r < rows.size(); r++) {
             String[] row = rows.get(r);
-            BaseColor bg = (r % 2 == 0) ? BaseColor.WHITE : PDF_ROW_ALT;
+            Color bg = (r % 2 == 0) ? Color.WHITE : PDF_ROW_ALT;
             for (int c = 0; c < headers.length; c++) {
                 String value = (row != null && c < row.length) ? row[c] : "-";
                 if (value == null || value.isBlank()) {
