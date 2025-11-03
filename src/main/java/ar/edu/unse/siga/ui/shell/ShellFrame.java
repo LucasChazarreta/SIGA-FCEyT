@@ -1,6 +1,7 @@
 package ar.edu.unse.siga.ui.shell;
 
 import ar.edu.unse.siga.common.CurrentSession;
+import ar.edu.unse.siga.common.RoleName;
 import ar.edu.unse.siga.service.AuthService;
 import ar.edu.unse.siga.service.InventarioService;
 import ar.edu.unse.siga.service.TramiteService;
@@ -8,6 +9,7 @@ import ar.edu.unse.siga.ui.base.CardPanel;
 import ar.edu.unse.siga.ui.base.GradientPanel;
 import ar.edu.unse.siga.ui.base.ThemeManager;
 import ar.edu.unse.siga.ui.base.WaveSidebarPanel;
+import ar.edu.unse.siga.ui.pages.GestionesPage;
 import ar.edu.unse.siga.ui.pages.HomePage;
 import ar.edu.unse.siga.ui.pages.InventoryMovementsPage;
 import ar.edu.unse.siga.ui.pages.InventoryPage;
@@ -38,6 +40,7 @@ public class ShellFrame extends JFrame {
     private InventoryMovementsPage movimientosPage;
     private TramiteEntradaPage tramitesPage;
     private InformesPanel informesPanel;
+    private GestionesPage gestionesPage;
 
     // mapa de clave de tarjeta -> botón del sidebar
     private final Map<String, NavButton> navByKey = new HashMap<>();
@@ -77,6 +80,7 @@ public class ShellFrame extends JFrame {
                 case "movimientos" -> "Movimientos";
                 case "reportes" -> "Informes";
                 case "tramites" -> "Solicitudes";
+                case "gestiones" -> "Gestiones";
                 case "finanzas" -> "Finanzas";
                 default -> key;
             };
@@ -87,10 +91,13 @@ public class ShellFrame extends JFrame {
         informesPanel = new InformesPanel(inventarioService, tramiteService);
 
         final TramiteEntradaPage[] tramitesHolder = new TramiteEntradaPage[1];
+        boolean isAdmin = RoleName.isAdmin(CurrentSession.getUser());
         homePage = new HomePage(CurrentSession.getUser(), inventarioService, tramiteService, new HomePage.HomeNavigation() {
             @Override
             public void navigateTo(String key) {
-                nav.accept(key);
+                if (navByKey.containsKey(key)) {
+                    nav.accept(key);
+                }
             }
 
             @Override
@@ -111,9 +118,13 @@ public class ShellFrame extends JFrame {
 
             @Override
             public void openMovimientosHoy() {
-                nav.accept("reportes");
-                if (informesPanel != null) {
-                    informesPanel.mostrarMovimientosSalidasHoy();
+                if (isAdmin && navByKey.containsKey("movimientos")) {
+                    nav.accept("movimientos");
+                } else {
+                    nav.accept("reportes");
+                    if (informesPanel != null) {
+                        informesPanel.mostrarMovimientosSalidasHoy();
+                    }
                 }
             }
         });
@@ -121,13 +132,21 @@ public class ShellFrame extends JFrame {
         tramitesPage = new TramiteEntradaPage(tramiteService, inventarioService, homePage::recargarTramitesRecientes);
         tramitesHolder[0] = tramitesPage;
 
-        movimientosPage = new InventoryMovementsPage(inventarioService);
+        if (isAdmin) {
+            movimientosPage = new InventoryMovementsPage(inventarioService);
+            gestionesPage = new GestionesPage(inventarioService);
+        }
 
         addPage("home", homePage);
         addPage("inventario", inventoryPage);
-        addPage("movimientos", movimientosPage);
+        if (isAdmin) {
+            addPage("movimientos", movimientosPage);
+        }
         addPage("tramites", tramitesPage);
         addPage("reportes", informesPanel);
+        if (isAdmin) {
+            addPage("gestiones", gestionesPage);
+        }
         // addPage("finanzas",    new FinanzasPage()); // si la usás, descomentar
 
         setSize(1200, 760);
@@ -181,29 +200,35 @@ public class ShellFrame extends JFrame {
 
         NavButton bHome = nav("Inicio", "ui/icons/home.svg", "home");
         NavButton bInv = nav("Inventario", "ui/icons/inventory.svg", "inventario");
-        NavButton bMov = nav("Movimientos", "ui/icons/movements.svg", "movimientos", 1);
+        boolean isAdmin = RoleName.isAdmin(CurrentSession.getUser());
+        NavButton bMov = isAdmin ? nav("Movimientos", "ui/icons/movements.svg", "movimientos", 1) : null;
         NavButton bInf = nav("Informes", "ui/icons/reports.svg", "reportes");
         NavButton bTra = nav("Solicitudes", "ui/icons/tramites.svg", "tramites");
-        // NavButton bFin  = nav("Finanzas",     "ui/icons/finanzas.svg",   "finanzas");
+        NavButton bGes = isAdmin ? nav("Gestiones", "ui/icons/gestiones.svg", "gestiones") : null;
 
         navGroup.add(bHome);
         navGroup.add(bInv);
-        navGroup.add(bMov);
+        if (bMov != null) navGroup.add(bMov);
         navGroup.add(bInf);
         navGroup.add(bTra);
-        // navGroup.add(bFin);
+        if (bGes != null) navGroup.add(bGes);
 
         menu.add(bHome);
         menu.add(Box.createVerticalStrut(8));
         menu.add(bInv);
         menu.add(Box.createVerticalStrut(4));
-        menu.add(bMov);
-        menu.add(Box.createVerticalStrut(12));
+        if (bMov != null) {
+            menu.add(bMov);
+            menu.add(Box.createVerticalStrut(12));
+        }
         menu.add(bInf);
         menu.add(Box.createVerticalStrut(8));
         menu.add(bTra);
         menu.add(Box.createVerticalStrut(8));
-        // menu.add(bFin);
+        if (bGes != null) {
+            menu.add(bGes);
+            menu.add(Box.createVerticalStrut(8));
+        }
         menu.add(Box.createVerticalGlue());
 
         side.add(menu, BorderLayout.CENTER);

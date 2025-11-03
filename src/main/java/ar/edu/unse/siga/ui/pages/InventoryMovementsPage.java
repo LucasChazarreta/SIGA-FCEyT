@@ -26,7 +26,6 @@ public class InventoryMovementsPage extends JPanel {
     private final JTextArea taSeleccion = new JTextArea();
     private Color resumenColorNormal;
     private final JButton btnEntrada = new JButton("Registrar ENTRADA");
-    private final JButton btnSalida = new JButton("Registrar SALIDA");
 
     private final DefaultListModel<String> historialModel = new DefaultListModel<>();
     private final JList<String> lstHistorial = new JList<>(historialModel);
@@ -192,13 +191,10 @@ public class InventoryMovementsPage extends JPanel {
         actions.setOpaque(false);
 
         stylePrimary(btnEntrada);
-        stylePrimary(btnSalida);
 
-        btnEntrada.addActionListener(e -> onRegistrarMovimiento("ENTRADA"));
-        btnSalida.addActionListener(e -> onRegistrarMovimiento("SALIDA"));
+        btnEntrada.addActionListener(e -> onRegistrarEntrada());
 
         actions.add(btnEntrada);
-        actions.add(btnSalida);
         card.add(actions, BorderLayout.SOUTH);
 
         return card;
@@ -231,7 +227,6 @@ public class InventoryMovementsPage extends JPanel {
 
     private void setActionsEnabled(boolean enabled) {
         btnEntrada.setEnabled(enabled);
-        btnSalida.setEnabled(enabled);
     }
 
     private void loadInsumos(String filtro) {
@@ -251,7 +246,7 @@ public class InventoryMovementsPage extends JPanel {
         }
     }
 
-    private void onRegistrarMovimiento(String tipoInicial) {
+    private void onRegistrarEntrada() {
         Insumo sel = lstInsumos.getSelectedValue();
         if (sel == null) {
             JOptionPane.showMessageDialog(this, "Seleccioná un insumo primero.", "Atención", JOptionPane.WARNING_MESSAGE);
@@ -281,7 +276,7 @@ public class InventoryMovementsPage extends JPanel {
                 .filter(s -> s != null && !s.isBlank())
                 .collect(Collectors.toList());
 
-        MovimientoDialog dlg = new MovimientoDialog(win, ctx, tipoInicial, allowDecimal, ubicaciones);
+        MovimientoDialog dlg = new MovimientoDialog(win, ctx, "ENTRADA", allowDecimal, ubicaciones);
         dlg.setVisible(true);
         if (!dlg.isAccepted()) return;
 
@@ -295,14 +290,14 @@ public class InventoryMovementsPage extends JPanel {
         }
 
         try {
-            service.registrarMovimiento(sel.getId(), tipoInicial, cantidad, destino, solicitante);
+            service.registrarMovimiento(sel.getId(), "ENTRADA", cantidad, destino, solicitante);
 
             StockCheckResult res = service.stockActual(sel.getId());
             BigDecimal nuevoStock = res == null ? BigDecimal.ZERO : res.getStockActualDecimal();
 
             JOptionPane.showMessageDialog(this,
-                    String.format("%s registrada.\nStock actual: %s",
-                            tipoInicial, formatCantidad(nuevoStock)),
+                    String.format("ENTRADA registrada.\nStock actual: %s",
+                            formatCantidad(nuevoStock)),
                     "OK", JOptionPane.INFORMATION_MESSAGE);
 
             if (res != null && res.isBajoMinimo()) {
