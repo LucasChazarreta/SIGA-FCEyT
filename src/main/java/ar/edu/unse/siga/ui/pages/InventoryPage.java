@@ -2,6 +2,7 @@ package ar.edu.unse.siga.ui.pages;
 
 import ar.edu.unse.siga.common.CurrentSession;
 import ar.edu.unse.siga.domain.Categoria;
+import ar.edu.unse.siga.common.RoleName;
 import ar.edu.unse.siga.domain.Insumo;
 import ar.edu.unse.siga.domain.Ubicacion;
 import ar.edu.unse.siga.domain.Usuario;
@@ -155,9 +156,7 @@ public class InventoryPage extends JPanel {
     }
 
     private boolean isAdmin() {
-        Usuario u = CurrentSession.getUser();
-        return u != null && u.getRol() != null && u.getRol().getNombre() != null
-                && "ADMIN".equalsIgnoreCase(u.getRol().getNombre());
+        return RoleName.isAdmin(CurrentSession.getUser());
     }
 
     private List<Insumo> buscarInsumos(String query) {

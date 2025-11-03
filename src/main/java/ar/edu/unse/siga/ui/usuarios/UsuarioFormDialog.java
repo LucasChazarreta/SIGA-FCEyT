@@ -1,5 +1,6 @@
 package ar.edu.unse.siga.ui.usuarios;
 
+import ar.edu.unse.siga.common.RoleName;
 import ar.edu.unse.siga.ui.base.Dialogs;
 import ar.edu.unse.siga.ui.base.Ui;
 
@@ -10,11 +11,20 @@ public class UsuarioFormDialog extends JDialog {
     private final JTextField txtUser = new JTextField(20);
     private final JPasswordField txtPass = new JPasswordField(20);
     private final JTextField txtEmail = new JTextField(25);
-    private final JComboBox<String> cbRol = new JComboBox<>(new String[]{"ADMIN","INVENTARIO"});
+    private final JComboBox<String> cbRol;
     private boolean accepted = false;
 
     public UsuarioFormDialog(Window owner) {
+        this(owner, new String[]{RoleName.ADMINISTRATIVO, RoleName.ADMIN});
+    }
+
+    public UsuarioFormDialog(Window owner, String[] roles) {
         super(owner, "Nuevo Usuario", ModalityType.APPLICATION_MODAL);
+
+        String[] options = roles == null || roles.length == 0
+                ? new String[]{RoleName.ADMINISTRATIVO}
+                : roles;
+        cbRol = new JComboBox<>(options);
 
         var form = Ui.grid2Cols(
                 new String[]{"Usuario:","Contraseña:","Email:","Rol:"},

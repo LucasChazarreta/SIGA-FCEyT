@@ -14,6 +14,7 @@ public class JdbcUsuarioDao implements UsuarioDao {
         Usuario u = new Usuario();
         u.setId(rs.getLong("id"));
         u.setUsername(rs.getString("username"));
+        u.setPassword(rs.getString("password"));
         u.setPasswordHash(rs.getString("password_hash"));
         u.setEmail(rs.getString("email"));
         u.setEstado(rs.getString("estado"));
@@ -47,16 +48,17 @@ public class JdbcUsuarioDao implements UsuarioDao {
     @Override
     public Long create(Usuario u) {
         String sql = """
-            INSERT INTO usuario(username, password_hash, email, estado, rol_id)
-            VALUES (?,?,?,?,?)
+            INSERT INTO usuario(username, password, password_hash, email, estado, rol_id)
+            VALUES (?,?,?,?,?,?)
         """;
         try (var cn = DataSourceFactory.getConnection();
              var ps = cn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
             ps.setString(1, u.getUsername());
-            ps.setString(2, u.getPasswordHash());
-            ps.setString(3, u.getEmail());
-            ps.setString(4, u.getEstado() == null ? "ACTIVO" : u.getEstado());
-            ps.setInt(5, u.getRol().getId());
+            ps.setString(2, u.getPassword());
+            ps.setString(3, u.getPasswordHash());
+            ps.setString(4, u.getEmail());
+            ps.setString(5, u.getEstado() == null ? "ACTIVO" : u.getEstado());
+            ps.setInt(6, u.getRol().getId());
 
             ps.executeUpdate();
             try (var rs = ps.getGeneratedKeys()) {

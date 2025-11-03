@@ -1,6 +1,7 @@
 package ar.edu.unse.siga.ui;
 
 import ar.edu.unse.siga.common.CurrentSession;
+import ar.edu.unse.siga.common.RoleName;
 import ar.edu.unse.siga.persistence.dao.*;
 import ar.edu.unse.siga.persistence.jdbc.*;
 import ar.edu.unse.siga.service.AuthService;
@@ -56,8 +57,7 @@ public class MainFrame extends JFrame {
         var tb = new JToolBar();
         tb.setFloatable(false);
 
-        boolean isAdmin = CurrentSession.getUser() != null
-                && "ADMIN".equalsIgnoreCase(CurrentSession.getUser().getRol().getNombre());
+        boolean isAdmin = RoleName.isAdmin(CurrentSession.getUser());
 
         var btnIns = new JButton("Insumos", ThemeManager.svg("icons/add.svg", 16));
         btnIns.addActionListener(e -> openInDesktop(new ar.edu.unse.siga.ui.inventario.InsumoFrame(inventarioService)));
@@ -131,8 +131,7 @@ public class MainFrame extends JFrame {
         mSesion.add(miLogout);
 
         // Autorización básica por rol
-        boolean isAdmin = CurrentSession.getUser() != null
-                && "ADMIN".equalsIgnoreCase(CurrentSession.getUser().getRol().getNombre());
+        boolean isAdmin = RoleName.isAdmin(CurrentSession.getUser());
         mUsuarios.setEnabled(isAdmin);
 
         mb.add(mInventario);

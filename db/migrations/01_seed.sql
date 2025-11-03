@@ -4,6 +4,10 @@ USE siga;
 INSERT INTO rol (nombre)
 SELECT 'ADMIN' WHERE NOT EXISTS (SELECT 1 FROM rol WHERE nombre='ADMIN');
 
+-- Rol ADMINISTRATIVO
+INSERT INTO rol (nombre)
+SELECT 'ADMINISTRATIVO' WHERE NOT EXISTS (SELECT 1 FROM rol WHERE nombre='ADMINISTRATIVO');
+
 -- Ubicación + Categoría base
 INSERT INTO ubicacion (nombre, activo)
 SELECT 'Depósito Principal', 1

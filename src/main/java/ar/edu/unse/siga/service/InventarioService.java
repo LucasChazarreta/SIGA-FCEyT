@@ -1,6 +1,7 @@
 package ar.edu.unse.siga.service;
 
 import ar.edu.unse.siga.common.CurrentSession;
+import ar.edu.unse.siga.common.RoleName;
 import ar.edu.unse.siga.domain.Categoria;
 import ar.edu.unse.siga.domain.Insumo;
 import ar.edu.unse.siga.domain.Movimiento;
@@ -340,8 +341,7 @@ public class InventarioService {
 
     private boolean usuarioActualEsAdmin() {
         Usuario u = CurrentSession.getUser();
-        if (u == null || u.getRol() == null || u.getRol().getNombre() == null) return false;
-        return "ADMIN".equalsIgnoreCase(u.getRol().getNombre());
+        return RoleName.isAdmin(u);
     }
 
     private String formatCantidad(BigDecimal valor) {
