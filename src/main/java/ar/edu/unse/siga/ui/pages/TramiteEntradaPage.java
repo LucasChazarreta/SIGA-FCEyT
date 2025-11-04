@@ -55,11 +55,11 @@ public class TramiteEntradaPage extends JPanel {
     // Tabla (solo columna Estado editable)
     private final JTable table = new JTable(new DefaultTableModel(
             new Object[][]{},
-            new String[]{"ID Solicitud", "Solicitud", "Fecha de solicitud", "Fecha de atención", "Descripción", "Estado"}
+            new String[]{"ID Solicitud", "Solicitud", "Fecha de solicitud", "Fecha de atención", "Estado"}
     )) {
         @Override
         public boolean isCellEditable(int row, int column) {
-            return column == 5;
+            return column == 4;
         }
     };
 
@@ -95,10 +95,10 @@ public class TramiteEntradaPage extends JPanel {
     private void installEstadoEditor() {
         SwingUtilities.invokeLater(() -> {
             try {
-                if (table.getColumnCount() > 5) {
+                if (table.getColumnCount() > 4) {
                     String[] estados = {"PENDIENTE", "COMPLETADO", "RECHAZADO"};
                     JComboBox<String> comboEstado = new JComboBox<>(estados);
-                    table.getColumnModel().getColumn(5).setCellEditor(new DefaultCellEditor(comboEstado));
+                    table.getColumnModel().getColumn(4).setCellEditor(new DefaultCellEditor(comboEstado));
                     if (table.getRowHeight() < 28) table.setRowHeight(28);
                 }
             } catch (Exception ex) {
@@ -112,7 +112,7 @@ public class TramiteEntradaPage extends JPanel {
             if (updatingEstado) return;
             int col = e.getColumn();
             int row = e.getFirstRow();
-            if (row >= 0 && col == 5) { // columna ESTADO
+            if (row >= 0 && col == 4) { // columna ESTADO
                 try {
                     String elegido = String.valueOf(table.getValueAt(row, col)).trim().toUpperCase(Locale.ROOT);
                     String canon = switch (elegido) {
@@ -129,7 +129,7 @@ public class TramiteEntradaPage extends JPanel {
                     t.setEstado(canon);
                     String friendly = estadoFriendly(canon);
                     updatingEstado = true;
-                    table.setValueAt(friendly, row, 5);
+                    table.setValueAt(friendly, row, 4);
                     recargarTramitesRecientesSidebar(); // 🔄 refresca el panel de solicitudes recientes
 
                 } catch (Exception ex) {
@@ -402,7 +402,7 @@ public class TramiteEntradaPage extends JPanel {
         header.setPreferredSize(new Dimension(header.getPreferredSize().width, 46));
         header.setDefaultRenderer(new TableHeaderRenderer());
 
-        table.getColumnModel().getColumn(5).setCellRenderer(new BadgeRenderer(BadgeRenderer.Type.STATUS));
+        table.getColumnModel().getColumn(4).setCellRenderer(new BadgeRenderer(BadgeRenderer.Type.STATUS));
 
         JScrollPane scroll = new JScrollPane(table);
         scroll.setBorder(BorderFactory.createEmptyBorder());
@@ -435,7 +435,8 @@ public class TramiteEntradaPage extends JPanel {
             for (Tramite t : tramites) {
                 if (!search.isEmpty()) {
                     String texto = (t.getAsunto() + " " + t.getNro() + " " +
-                            (t.getDescripcion() != null ? t.getDescripcion() : ""))
+                            (t.getDescripcion() != null ? t.getDescripcion() : "") + " " +
+                            obtenerNombreInsumoSolicitado(t))
                             .toLowerCase(Locale.ROOT);
                     if (!texto.contains(search)) continue;
                 }
@@ -452,16 +453,35 @@ public class TramiteEntradaPage extends JPanel {
                         fechaAtencion = fechaSolicitud;
                     }
                 }
-                String descripcion = (t.getDescripcion() == null || t.getDescripcion().isBlank()) ? "-" : t.getDescripcion();
+                String solicitudNombre = obtenerNombreInsumoSolicitado(t);
                 String estado = estadoFriendly(t.getEstado());
 
-                model.addRow(new Object[]{ t.getNro(), t.getAsunto(), fechaSolicitud, fechaAtencion, descripcion, estado });
+                model.addRow(new Object[]{ t.getNro(), solicitudNombre, fechaSolicitud, fechaAtencion, estado });
 
                 currentRows.add(t);
             }
         } catch (Exception ex) {
             Ui.error(this, ex);
         }
+    }
+
+    private String obtenerNombreInsumoSolicitado(Tramite tramite) {
+        if (tramite == null) {
+            return "-";
+        }
+        String nombre = service.obtenerNombreInsumoSolicitado(tramite.getId());
+        if (nombre != null && !nombre.isBlank()) {
+            return nombre.trim();
+        }
+        String asunto = tramite.getAsunto();
+        if (asunto == null || asunto.isBlank()) {
+            return "-";
+        }
+        int idx = asunto.lastIndexOf(" - ");
+        if (idx >= 0 && idx + 3 < asunto.length()) {
+            return asunto.substring(idx + 3).trim();
+        }
+        return asunto.trim();
     }
 
     public void mostrarTramitesEstado(String estado) {

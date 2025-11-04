@@ -9,6 +9,7 @@ import java.math.BigDecimal;
 import java.sql.*;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 
 public class JdbcTramiteDetalleDao implements TramiteDetalleDao {
 
@@ -83,6 +84,33 @@ public class JdbcTramiteDetalleDao implements TramiteDetalleDao {
             }
         } catch (SQLException e) {
             throw new RuntimeException("Error listando detalles por trámite", e);
+        }
+    }
+
+    @Override
+    public Optional<String> findNombreInsumoByTramiteId(Long tramiteId) {
+        if (tramiteId == null) {
+            return Optional.empty();
+        }
+        final String sql = """
+            SELECT i.nombre
+            FROM tramite_detalle td
+            JOIN insumo i ON i.id = td.insumo_id
+            WHERE td.tramite_id = ?
+            ORDER BY td.id
+            LIMIT 1
+            """;
+        try (Connection cn = DataSourceFactory.getConnection();
+             PreparedStatement ps = cn.prepareStatement(sql)) {
+            ps.setLong(1, tramiteId);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) {
+                    return Optional.ofNullable(rs.getString(1));
+                }
+            }
+            return Optional.empty();
+        } catch (SQLException e) {
+            throw new RuntimeException("Error obteniendo nombre de insumo para trámite id=" + tramiteId, e);
         }
     }
 

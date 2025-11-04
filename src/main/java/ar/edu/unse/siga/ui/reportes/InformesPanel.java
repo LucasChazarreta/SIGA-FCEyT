@@ -102,14 +102,19 @@ public class InformesPanel extends JPanel {
     private final DateField dfDesde = new DateField();
     private final DateField dfHasta = new DateField();
     private final JCheckBox chkSoloBajoMinimo = new JCheckBox("Solo bajo mínimo");
+    private final JComboBox<String> cbEstadoInventario = new JComboBox<>(new String[]{"Todos", "Activos", "Inactivos"});
+    private final JComboBox<String> cbTipoInventario = new JComboBox<>(new String[]{"Todos", "Insumos", "Bienes"});
+    private final JLabel lblTotalStockMinimo = bigValueLabel("0");
     private final DefaultTableModel modelInv = new DefaultTableModel(
-            new Object[]{"Código", "Descripción", "Estado", "Fecha"}, 0
+            new Object[]{"Código", "Descripción", "Tipo", "Estado", "Stock actual", "Stock mínimo"}, 0
     ) {
         @Override
         public boolean isCellEditable(int r, int c) {
             return false;
         }
     };
+
+    private final JPanel panelInventarioTablas = new JPanel();
 
     // --- SOLICITUDES (filtros) ---
     private final JTextField filterSearch = new JTextField(18);
@@ -498,6 +503,14 @@ public class InformesPanel extends JPanel {
         styleFilterField(hastaComp, 160);
         fields.add(labeledFilterField("Hasta", hastaComp));
 
+        styleFilterField(cbEstadoInventario, 160);
+        cbEstadoInventario.addActionListener(e -> runQueryInventario());
+        fields.add(labeledFilterField("Estado", cbEstadoInventario));
+
+        styleFilterField(cbTipoInventario, 160);
+        cbTipoInventario.addActionListener(e -> runQueryInventario());
+        fields.add(labeledFilterField("Tipo", cbTipoInventario));
+
         chkSoloBajoMinimo.setOpaque(false);
         chkSoloBajoMinimo.addActionListener(e -> runQueryInventario());
         fields.add(wrapCheckbox(chkSoloBajoMinimo));
@@ -557,64 +570,12 @@ public class InformesPanel extends JPanel {
         title.setForeground(BRAND);
         card.add(title, BorderLayout.NORTH);
 
-        JTable table = new JTable(modelInv) {
-            @Override
-            public boolean getScrollableTracksViewportWidth() {
-                return getParent() instanceof JViewport
-                        && getPreferredSize().width < getParent().getWidth();
-            }
-        };
-        table.setAutoResizeMode(JTable.AUTO_RESIZE_OFF);
-        table.setRowHeight(40);
-        table.setIntercellSpacing(new Dimension(0, 6));
-        table.setShowGrid(true);
-        table.setGridColor(new Color(232, 232, 232));
-        table.setFillsViewportHeight(true);
-        table.setDefaultEditor(Object.class, null);
-        table.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+        panelInventarioTablas.setLayout(new BoxLayout(panelInventarioTablas, BoxLayout.Y_AXIS));
+        panelInventarioTablas.setOpaque(false);
 
-        // Anchos
-        TableColumnModel tcm = table.getColumnModel();
-        if (tcm.getColumnCount() >= 4) {
-            tcm.getColumn(0).setPreferredWidth(200);
-            tcm.getColumn(1).setPreferredWidth(330);
-            tcm.getColumn(2).setPreferredWidth(140);
-            tcm.getColumn(3).setPreferredWidth(140);
-        }
-
-        // Header
-        JTableHeader header = table.getTableHeader();
-        header.setPreferredSize(new Dimension(header.getPreferredSize().width, 42));
-        header.setReorderingAllowed(false);
-        header.setDefaultRenderer(new DefaultTableCellRenderer() {
-            @Override
-            public Component getTableCellRendererComponent(JTable t, Object v, boolean s, boolean f, int r, int c) {
-                JLabel lbl = (JLabel) super.getTableCellRendererComponent(t, v, s, f, r, c);
-                lbl.setHorizontalAlignment(SwingConstants.CENTER);
-                lbl.setForeground(Color.WHITE);
-                lbl.setBackground(new Color(58, 96, 224));
-                lbl.setFont(lbl.getFont().deriveFont(Font.BOLD, 13f));
-                lbl.setBorder(new EmptyBorder(10, 6, 10, 6));
-                return lbl;
-            }
-        });
-
-        // Contenido centrado + zebra
-        table.setDefaultRenderer(Object.class, new DefaultTableCellRenderer() {
-            @Override
-            public Component getTableCellRendererComponent(JTable t, Object v, boolean s, boolean f, int r, int c) {
-                Component comp = super.getTableCellRendererComponent(t, v, s, f, r, c);
-                setHorizontalAlignment(SwingConstants.CENTER);
-                if (!s) {
-                    comp.setBackground((r % 2 == 0) ? new Color(250, 252, 255) : Color.WHITE);
-                }
-                return comp;
-            }
-        });
-
-        JScrollPane scroll = new JScrollPane(table,
+        JScrollPane scroll = new JScrollPane(panelInventarioTablas,
                 ScrollPaneConstants.VERTICAL_SCROLLBAR_AS_NEEDED,
-                ScrollPaneConstants.HORIZONTAL_SCROLLBAR_AS_NEEDED);
+                ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
         beautifyScroll(scroll);
         scroll.setBorder(BorderFactory.createCompoundBorder(
                 new javax.swing.border.LineBorder(new Color(232, 232, 232), 1, true),
@@ -636,12 +597,17 @@ public class InformesPanel extends JPanel {
                 new Color(70, 120, 255), new Color(110, 150, 255));
         CardPanel c2 = metricCardGradient("SOLICITUDES", lblTotalTramites,
                 new Color(70, 120, 255), new Color(140, 170, 255));
+        CardPanel c3 = metricCardGradient("TOTAL CON STOCK MINIMO", lblTotalStockMinimo,
+                new Color(255, 128, 92), new Color(255, 170, 120));
 
-        c1.setPreferredSize(new Dimension(420, 110));
-        c2.setPreferredSize(new Dimension(420, 110));
+        Dimension size = new Dimension(360, 110);
+        c1.setPreferredSize(size);
+        c2.setPreferredSize(size);
+        c3.setPreferredSize(size);
 
         row.add(c1);
         row.add(c2);
+        row.add(c3);
         return row;
     }
 
@@ -719,38 +685,52 @@ public class InformesPanel extends JPanel {
 
     private void runQueryInventario() {
         modelInv.setRowCount(0);
+        lblTotalStockMinimo.setText("0");
         try {
             Categoria sel = (Categoria) cbCategoria.getSelectedItem();
             String cat = (sel == null ? null : sel.getNombre());
             LocalDate d1 = dfDesde.getDate();
             LocalDate d2 = dfHasta.getDate();
-            DateTimeFormatter fmt = DateTimeFormatter.ofPattern("dd/MM/yyyy");
 
-            List<Insumo> data = filtrarLocal(invService.listarTodos(), cat, d1, d2);
-            if (chkSoloBajoMinimo.isSelected()) {
-                data = data.stream()
-                        .filter(i -> {
-                            Integer minimo = i.getStockMinimo();
-                            if (minimo == null || i.getId() == null) {
-                                return false;
-                            }
-                            try {
-                                BigDecimal stock = invService.stockActualExacto(i.getId());
-                                return stock.compareTo(BigDecimal.valueOf(minimo)) < 0;
-                            } catch (Exception ex) {
-                                return false;
-                            }
-                        })
-                        .collect(Collectors.toList());
-            }
-            for (Insumo i : data) {
-                LocalDate fa = i.getFechaAlta();
-                if (fa == null && i.getCreatedAt() != null) {
-                    fa = java.time.ZonedDateTime.ofInstant(i.getCreatedAt(), java.time.ZoneId.systemDefault()).toLocalDate();
+            String estadoSel = (String) cbEstadoInventario.getSelectedItem();
+            String tipoSel = (String) cbTipoInventario.getSelectedItem();
+
+            List<Insumo> base = filtrarLocal(invService.listarTodos(), cat, d1, d2);
+            List<InventarioRegistro> registros = new ArrayList<>();
+            int totalConMinimo = 0;
+
+            for (Insumo insumo : base) {
+                if (!matchesEstado(insumo, estadoSel) || !matchesTipo(insumo, tipoSel)) {
+                    continue;
                 }
-                String fecha = (fa != null) ? fa.format(fmt) : "-";
-                modelInv.addRow(new Object[]{i.getCodigo(), i.getDescripcion(), i.getEstado(), fecha});
+
+                if (insumo.getId() == null) {
+                    continue;
+                }
+
+                BigDecimal stock = invService.stockActualExacto(insumo.getId());
+                InventarioRegistro registro = new InventarioRegistro(insumo, stock);
+                if (chkSoloBajoMinimo.isSelected() && !registro.esBajoMinimo()) {
+                    continue;
+                }
+
+                registros.add(registro);
+                if (registro.esBajoMinimo()) {
+                    totalConMinimo++;
+                }
+
+                modelInv.addRow(new Object[]{
+                        insumo.getCodigo(),
+                        insumo.getDescripcion(),
+                        tipoDisplay(normalizeTipo(insumo.getTipo())),
+                        estadoDisplay(normalizeEstado(insumo.getEstado())),
+                        formatDecimal(registro.stockActual),
+                        insumo.getStockMinimo() == null ? "-" : insumo.getStockMinimo()
+                });
             }
+
+            lblTotalStockMinimo.setText(String.valueOf(totalConMinimo));
+            updateInventarioTables(agruparInventario(registros, estadoSel, tipoSel));
         } catch (Exception e) {
             JOptionPane.showMessageDialog(this, e.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
         }
@@ -775,6 +755,307 @@ public class InformesPanel extends JPanel {
             }
             return true;
         }).collect(Collectors.toList());
+    }
+
+    private boolean matchesEstado(Insumo insumo, String filtro) {
+        if (filtro == null || filtro.equalsIgnoreCase("Todos")) {
+            return true;
+        }
+        String estado = normalizeEstado(insumo.getEstado());
+        if (filtro.equalsIgnoreCase("Activos")) {
+            return "ACTIVO".equals(estado);
+        }
+        if (filtro.equalsIgnoreCase("Inactivos")) {
+            return "INACTIVO".equals(estado);
+        }
+        return true;
+    }
+
+    private boolean matchesTipo(Insumo insumo, String filtro) {
+        if (filtro == null || filtro.equalsIgnoreCase("Todos")) {
+            return true;
+        }
+        String tipo = normalizeTipo(insumo.getTipo());
+        if (filtro.equalsIgnoreCase("Insumos")) {
+            return "INSUMO".equals(tipo);
+        }
+        if (filtro.equalsIgnoreCase("Bienes")) {
+            return "BIEN".equals(tipo);
+        }
+        return true;
+    }
+
+    private String normalizeEstado(String estado) {
+        if (estado == null) {
+            return "DESCONOCIDO";
+        }
+        String value = estado.trim().toUpperCase(Locale.ROOT);
+        if (value.startsWith("ACT")) {
+            return "ACTIVO";
+        }
+        if (value.startsWith("INA")) {
+            return "INACTIVO";
+        }
+        return "DESCONOCIDO";
+    }
+
+    private String normalizeTipo(String tipo) {
+        if (tipo == null) {
+            return "INSUMO";
+        }
+        String value = tipo.trim().toUpperCase(Locale.ROOT);
+        if (value.startsWith("BIE")) {
+            return "BIEN";
+        }
+        return "INSUMO";
+    }
+
+    private String estadoTitulo(String estadoNormalizado) {
+        return switch (estadoNormalizado) {
+            case "ACTIVO" -> "Activos";
+            case "INACTIVO" -> "Inactivos";
+            default -> "Otros";
+        };
+    }
+
+    private String estadoDisplay(String estadoNormalizado) {
+        return switch (estadoNormalizado) {
+            case "ACTIVO" -> "Activo";
+            case "INACTIVO" -> "Inactivo";
+            default -> "Otro";
+        };
+    }
+
+    private String tipoTitulo(String tipoNormalizado) {
+        return switch (tipoNormalizado) {
+            case "BIEN" -> "Bienes";
+            default -> "Insumos";
+        };
+    }
+
+    private String tipoDisplay(String tipoNormalizado) {
+        return switch (tipoNormalizado) {
+            case "BIEN" -> "Bien";
+            default -> "Insumo";
+        };
+    }
+
+    private List<InventarioGroup> agruparInventario(List<InventarioRegistro> registros,
+                                                    String estadoSel,
+                                                    String tipoSel) {
+        List<InventarioGroup> grupos = new ArrayList<>();
+        if (registros.isEmpty()) {
+            return grupos;
+        }
+
+        LinkedHashSet<String> estados = registros.stream()
+                .map(r -> normalizeEstado(r.insumo.getEstado()))
+                .collect(Collectors.toCollection(LinkedHashSet::new));
+        LinkedHashSet<String> tipos = registros.stream()
+                .map(r -> normalizeTipo(r.insumo.getTipo()))
+                .collect(Collectors.toCollection(LinkedHashSet::new));
+
+        boolean dividirEstado = estadoSel != null && estadoSel.equalsIgnoreCase("Todos") && estados.size() > 1;
+        boolean dividirTipo = tipoSel != null && tipoSel.equalsIgnoreCase("Todos") && tipos.size() > 1;
+
+        if (dividirEstado && dividirTipo) {
+            for (String estado : estados) {
+                for (String tipo : tipos) {
+                    List<InventarioRegistro> subset = registros.stream()
+                            .filter(r -> normalizeEstado(r.insumo.getEstado()).equals(estado)
+                                    && normalizeTipo(r.insumo.getTipo()).equals(tipo))
+                            .collect(Collectors.toList());
+                    if (!subset.isEmpty()) {
+                        grupos.add(new InventarioGroup(estadoTitulo(estado) + " - " + tipoTitulo(tipo), subset));
+                    }
+                }
+            }
+        } else if (dividirEstado) {
+            for (String estado : estados) {
+                List<InventarioRegistro> subset = registros.stream()
+                        .filter(r -> normalizeEstado(r.insumo.getEstado()).equals(estado))
+                        .collect(Collectors.toList());
+                if (!subset.isEmpty()) {
+                    grupos.add(new InventarioGroup(estadoTitulo(estado), subset));
+                }
+            }
+        } else if (dividirTipo) {
+            for (String tipo : tipos) {
+                List<InventarioRegistro> subset = registros.stream()
+                        .filter(r -> normalizeTipo(r.insumo.getTipo()).equals(tipo))
+                        .collect(Collectors.toList());
+                if (!subset.isEmpty()) {
+                    grupos.add(new InventarioGroup(tipoTitulo(tipo), subset));
+                }
+            }
+        } else {
+            grupos.add(new InventarioGroup(construirTituloInventario(estadoSel, tipoSel), registros));
+        }
+        return grupos;
+    }
+
+    private String construirTituloInventario(String estadoSel, String tipoSel) {
+        List<String> partes = new ArrayList<>();
+        if (estadoSel != null && !estadoSel.equalsIgnoreCase("Todos")) {
+            partes.add(estadoSel);
+        }
+        if (tipoSel != null && !tipoSel.equalsIgnoreCase("Todos")) {
+            partes.add(tipoSel);
+        }
+        if (partes.isEmpty()) {
+            return "Inventario";
+        }
+        return String.join(" - ", partes);
+    }
+
+    private void updateInventarioTables(List<InventarioGroup> grupos) {
+        panelInventarioTablas.removeAll();
+        if (grupos.isEmpty()) {
+            JLabel lbl = new JLabel("Sin resultados");
+            lbl.setForeground(new Color(120, 120, 120));
+            lbl.setFont(lbl.getFont().deriveFont(Font.ITALIC, 14f));
+            lbl.setAlignmentX(Component.CENTER_ALIGNMENT);
+            panelInventarioTablas.add(Box.createVerticalStrut(12));
+            panelInventarioTablas.add(lbl);
+            panelInventarioTablas.add(Box.createVerticalStrut(12));
+        } else {
+            for (int i = 0; i < grupos.size(); i++) {
+                panelInventarioTablas.add(buildInventarioGroupPanel(grupos.get(i)));
+                if (i < grupos.size() - 1) {
+                    panelInventarioTablas.add(Box.createVerticalStrut(14));
+                }
+            }
+        }
+        panelInventarioTablas.revalidate();
+        panelInventarioTablas.repaint();
+    }
+
+    private JComponent buildInventarioGroupPanel(InventarioGroup grupo) {
+        CardPanel card = new CardPanel();
+        card.setLayout(new BorderLayout(0, 8));
+        card.setOpaque(false);
+        card.setBorder(new EmptyBorder(4, 4, 4, 4));
+
+        JLabel title = new JLabel(grupo.titulo.toUpperCase());
+        title.setFont(title.getFont().deriveFont(Font.BOLD, 14f));
+        title.setForeground(HEADER_TXT);
+        card.add(title, BorderLayout.NORTH);
+
+        JTable table = buildInventarioTable(grupo.registros);
+        JScrollPane scroll = new JScrollPane(table,
+                ScrollPaneConstants.VERTICAL_SCROLLBAR_AS_NEEDED,
+                ScrollPaneConstants.HORIZONTAL_SCROLLBAR_AS_NEEDED);
+        beautifyScroll(scroll);
+        scroll.setBorder(BorderFactory.createCompoundBorder(
+                new javax.swing.border.LineBorder(new Color(232, 232, 232), 1, true),
+                BorderFactory.createEmptyBorder(6, 6, 6, 6)
+        ));
+        scroll.getViewport().setBackground(Color.WHITE);
+
+        card.add(scroll, BorderLayout.CENTER);
+        return card;
+    }
+
+    private JTable buildInventarioTable(List<InventarioRegistro> registros) {
+        DefaultTableModel model = new DefaultTableModel(
+                new Object[]{"Código", "Descripción", "Stock actual", "Stock mínimo"}, 0
+        ) {
+            @Override
+            public boolean isCellEditable(int r, int c) {
+                return false;
+            }
+        };
+
+        for (InventarioRegistro reg : registros) {
+            model.addRow(new Object[]{
+                    reg.insumo.getCodigo(),
+                    reg.insumo.getDescripcion(),
+                    formatDecimal(reg.stockActual),
+                    reg.insumo.getStockMinimo() == null ? "-" : reg.insumo.getStockMinimo()
+            });
+        }
+
+        JTable table = new JTable(model) {
+            @Override
+            public boolean getScrollableTracksViewportWidth() {
+                return getParent() instanceof JViewport
+                        && getPreferredSize().width < getParent().getWidth();
+            }
+        };
+        table.setAutoResizeMode(JTable.AUTO_RESIZE_OFF);
+        table.setRowHeight(40);
+        table.setIntercellSpacing(new Dimension(0, 6));
+        table.setShowGrid(true);
+        table.setGridColor(new Color(232, 232, 232));
+        table.setFillsViewportHeight(true);
+        table.setDefaultEditor(Object.class, null);
+        table.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+
+        TableColumnModel tcm = table.getColumnModel();
+        if (tcm.getColumnCount() >= 4) {
+            tcm.getColumn(0).setPreferredWidth(200);
+            tcm.getColumn(1).setPreferredWidth(330);
+            tcm.getColumn(2).setPreferredWidth(140);
+            tcm.getColumn(3).setPreferredWidth(140);
+        }
+
+        JTableHeader header = table.getTableHeader();
+        header.setPreferredSize(new Dimension(header.getPreferredSize().width, 42));
+        header.setReorderingAllowed(false);
+        header.setDefaultRenderer(new DefaultTableCellRenderer() {
+            @Override
+            public Component getTableCellRendererComponent(JTable t, Object v, boolean s, boolean f, int r, int c) {
+                JLabel lbl = (JLabel) super.getTableCellRendererComponent(t, v, s, f, r, c);
+                lbl.setHorizontalAlignment(SwingConstants.CENTER);
+                lbl.setForeground(Color.WHITE);
+                lbl.setBackground(new Color(58, 96, 224));
+                lbl.setFont(lbl.getFont().deriveFont(Font.BOLD, 13f));
+                lbl.setBorder(new EmptyBorder(10, 6, 10, 6));
+                return lbl;
+            }
+        });
+
+        table.setDefaultRenderer(Object.class, new DefaultTableCellRenderer() {
+            @Override
+            public Component getTableCellRendererComponent(JTable t, Object v, boolean s, boolean f, int r, int c) {
+                Component comp = super.getTableCellRendererComponent(t, v, s, f, r, c);
+                setHorizontalAlignment(c == 1 ? SwingConstants.LEFT : SwingConstants.CENTER);
+                if (!s) {
+                    comp.setBackground((r % 2 == 0) ? new Color(250, 252, 255) : Color.WHITE);
+                }
+                return comp;
+            }
+        });
+
+        return table;
+    }
+
+    private static class InventarioRegistro {
+        private final Insumo insumo;
+        private final BigDecimal stockActual;
+
+        private InventarioRegistro(Insumo insumo, BigDecimal stockActual) {
+            this.insumo = insumo;
+            this.stockActual = stockActual == null ? BigDecimal.ZERO : stockActual;
+        }
+
+        private boolean esBajoMinimo() {
+            Integer minimo = insumo.getStockMinimo();
+            if (minimo == null) {
+                return false;
+            }
+            return stockActual.compareTo(BigDecimal.valueOf(minimo)) <= 0;
+        }
+    }
+
+    private static class InventarioGroup {
+        private final String titulo;
+        private final List<InventarioRegistro> registros;
+
+        private InventarioGroup(String titulo, List<InventarioRegistro> registros) {
+            this.titulo = titulo;
+            this.registros = registros;
+        }
     }
 
     // ====== SOLICITUDES ======
@@ -1361,15 +1642,15 @@ public class InformesPanel extends JPanel {
                     rows.add(new String[]{
                         displayString(modelInv.getValueAt(r, 0)),
                         displayString(modelInv.getValueAt(r, 1)),
-                        displayString(modelInv.getValueAt(r, 2)),
-                        displayString(modelInv.getValueAt(r, 3))
+                        displayString(modelInv.getValueAt(r, 4)),
+                        displayString(modelInv.getValueAt(r, 5))
                     });
                 }
 
                 PdfPTable table = buildStyledTable(
-                        new String[]{"Código", "Descripción", "Estado", "Fecha"},
+                        new String[]{"Código", "Descripción", "Stock actual", "Stock mínimo"},
                         rows,
-                        new float[]{2.2f, 4f, 2f, 2f},
+                        new float[]{2.2f, 4f, 2.2f, 2.2f},
                         new int[]{Element.ALIGN_LEFT, Element.ALIGN_LEFT, Element.ALIGN_CENTER, Element.ALIGN_CENTER}
                 );
                 doc.add(table);
@@ -1377,6 +1658,7 @@ public class InformesPanel extends JPanel {
                 java.util.LinkedHashMap<String, String> resumen = new java.util.LinkedHashMap<>();
                 resumen.put("Total de ítems registrados", String.valueOf(modelInv.getRowCount()));
                 resumen.put("Stock general", formatDecimal(calcularStockGeneralInventario()));
+                resumen.put("Total con stock mínimo", lblTotalStockMinimo.getText());
                 addSummarySection(doc, "Totales", resumen);
 
                 addPdfFooter(doc);
@@ -1808,7 +2090,18 @@ public class InformesPanel extends JPanel {
     }
 
     private void exportInventarioToCsv() {
-        exportModelToCsv(modelInv, ',');
+        DefaultTableModel subset = new DefaultTableModel(
+                new Object[]{"Código", "Descripción", "Stock actual", "Stock mínimo"}, 0
+        );
+        for (int r = 0; r < modelInv.getRowCount(); r++) {
+            subset.addRow(new Object[]{
+                    modelInv.getValueAt(r, 0),
+                    modelInv.getValueAt(r, 1),
+                    modelInv.getValueAt(r, 4),
+                    modelInv.getValueAt(r, 5)
+            });
+        }
+        exportModelToCsv(subset, ',');
     }
 
     private void exportTramitesToCsv() {
