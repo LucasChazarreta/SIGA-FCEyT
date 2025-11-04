@@ -1,5 +1,6 @@
 package ar.edu.unse.siga.service;
 
+import ar.edu.unse.siga.domain.Tramite;
 import ar.edu.unse.siga.persistence.DataSourceFactory;
 import ar.edu.unse.siga.persistence.dao.InsumoDao;
 import ar.edu.unse.siga.persistence.dao.MovimientoDao;
@@ -91,44 +92,67 @@ class TramiteServiceTest {
     }
 
     @Test
-    void registrarTramiteConMultiplesInsumos() throws Exception {
-        Long id = service.registrarNuevoTramite(
+    void registroParcialGeneraSolicitudesCompletadasYPendientes() throws Exception {
+        TramiteService.RegistroTramite resultado = service.registrarNuevoTramite(
                 "Entrega de insumos",
                 "Informes",
                 "Reposición semanal",
                 "Mesa de entradas",
                 List.of(
-                        new TramiteService.LineaTramite(1, 3),
-                        new TramiteService.LineaTramite(2, 2)
+                        TramiteService.LineaTramite.deInsumo(1, "Insumo A", 3),
+                        TramiteService.LineaTramite.deInsumo(2, "Insumo B", 6)
                 )
         );
 
-        assertNotNull(id);
+        assertEquals(2, resultado.getTramites().size());
+        assertNotNull(resultado.getNumeroBase());
+        assertTrue(resultado.getTramites().stream()
+                .allMatch(t -> t.getNro() != null && t.getNro().startsWith(resultado.getNumeroBase())));
+
+        Tramite completado = resultado.getTramites().stream()
+                .filter(t -> "COMPLETADO".equals(t.getEstado()))
+                .findFirst()
+                .orElseThrow();
+        Tramite pendiente = resultado.getTramites().stream()
+                .filter(t -> "PENDIENTE".equals(t.getEstado()))
+                .findFirst()
+                .orElseThrow();
 
         try (Connection cn = DataSourceFactory.getConnection()) {
-            try (PreparedStatement ps = cn.prepareStatement("SELECT solicitante FROM tramite WHERE id=?")) {
-                ps.setLong(1, id);
-                try (ResultSet rs = ps.executeQuery()) {
-                    assertTrue(rs.next());
-                    assertEquals("Informes", rs.getString(1));
-                }
-            }
-
-            try (PreparedStatement ps = cn.prepareStatement("SELECT COUNT(*) FROM tramite_detalle WHERE tramite_id=?")) {
-                ps.setLong(1, id);
+            try (PreparedStatement ps = cn.prepareStatement("SELECT COUNT(*) FROM tramite")) {
                 try (ResultSet rs = ps.executeQuery()) {
                     assertTrue(rs.next());
                     assertEquals(2, rs.getInt(1));
                 }
             }
 
-            try (PreparedStatement ps = cn.prepareStatement("SELECT cantidad FROM movimiento WHERE tramite_id=? ORDER BY insumo_id")) {
-                ps.setLong(1, id);
+            try (PreparedStatement ps = cn.prepareStatement("SELECT COUNT(*) FROM tramite_detalle WHERE tramite_id=?")) {
+                ps.setLong(1, completado.getId());
                 try (ResultSet rs = ps.executeQuery()) {
                     assertTrue(rs.next());
-                    assertEquals(3, rs.getBigDecimal(1).intValue());
+                    assertEquals(1, rs.getInt(1));
+                }
+            }
+            try (PreparedStatement ps = cn.prepareStatement("SELECT COUNT(*) FROM tramite_detalle WHERE tramite_id=?")) {
+                ps.setLong(1, pendiente.getId());
+                try (ResultSet rs = ps.executeQuery()) {
                     assertTrue(rs.next());
-                    assertEquals(2, rs.getBigDecimal(1).intValue());
+                    assertEquals(1, rs.getInt(1));
+                }
+            }
+
+            try (PreparedStatement ps = cn.prepareStatement("SELECT COUNT(*) FROM movimiento WHERE tramite_id=?")) {
+                ps.setLong(1, completado.getId());
+                try (ResultSet rs = ps.executeQuery()) {
+                    assertTrue(rs.next());
+                    assertEquals(1, rs.getInt(1));
+                }
+            }
+            try (PreparedStatement ps = cn.prepareStatement("SELECT COUNT(*) FROM movimiento WHERE tramite_id=?")) {
+                ps.setLong(1, pendiente.getId());
+                try (ResultSet rs = ps.executeQuery()) {
+                    assertTrue(rs.next());
+                    assertEquals(0, rs.getInt(1));
                 }
             }
 
@@ -136,57 +160,41 @@ class TramiteServiceTest {
                 assertTrue(rs.next());
                 assertEquals(7, rs.getBigDecimal(1).intValue());
             }
-        }
-    }
-
-    @Test
-    void rollbackPorStockInsuficiente() {
-        assertThrows(IllegalStateException.class, () ->
-                service.registrarNuevoTramite(
-                        "Retiro de insumos",
-                        "Laboratorio",
-                        "",
-                        "Depósito",
-                        List.of(new TramiteService.LineaTramite(2, 6))
-                ));
-
-        try (Connection cn = DataSourceFactory.getConnection(); Statement st = cn.createStatement()) {
-            try (ResultSet rs = st.executeQuery("SELECT COUNT(*) FROM tramite")) {
+            try (Statement st = cn.createStatement(); ResultSet rs = st.executeQuery("SELECT stock FROM insumo WHERE id = 2")) {
                 assertTrue(rs.next());
-                assertEquals(0, rs.getInt(1));
+                assertEquals(5, rs.getBigDecimal(1).intValue());
             }
-        } catch (Exception e) {
-            fail(e);
         }
     }
 
     @Test
-    void unificaLineasDuplicadas() throws Exception {
-        Long id = service.registrarNuevoTramite(
-                "Duplicados",
-                "Informes",
+    void pedidoEspecialGeneraSolicitudPendienteSinMovimientos() throws Exception {
+        TramiteService.RegistroTramite resultado = service.registrarNuevoTramite(
+                "Pedido especial",
+                "",
                 "",
                 "Mesa de entradas",
-                List.of(
-                        new TramiteService.LineaTramite(1, 2),
-                        new TramiteService.LineaTramite(1, 3)
-                )
+                List.of(TramiteService.LineaTramite.pedidoEspecial("Notebook", 1))
         );
+
+        assertEquals(1, resultado.getTramites().size());
+        Tramite especial = resultado.getTramites().get(0);
+        assertEquals("PENDIENTE", especial.getEstado());
+        assertTrue(especial.getNro().startsWith(resultado.getNumeroBase()));
 
         try (Connection cn = DataSourceFactory.getConnection()) {
             try (PreparedStatement ps = cn.prepareStatement("SELECT COUNT(*) FROM tramite_detalle WHERE tramite_id=?")) {
-                ps.setLong(1, id);
+                ps.setLong(1, especial.getId());
                 try (ResultSet rs = ps.executeQuery()) {
                     assertTrue(rs.next());
-                    assertEquals(1, rs.getInt(1));
+                    assertEquals(0, rs.getInt(1));
                 }
             }
-
-            try (PreparedStatement ps = cn.prepareStatement("SELECT cantidad FROM movimiento WHERE tramite_id=?")) {
-                ps.setLong(1, id);
+            try (PreparedStatement ps = cn.prepareStatement("SELECT COUNT(*) FROM movimiento WHERE tramite_id=?")) {
+                ps.setLong(1, especial.getId());
                 try (ResultSet rs = ps.executeQuery()) {
                     assertTrue(rs.next());
-                    assertEquals(5, rs.getBigDecimal(1).intValue());
+                    assertEquals(0, rs.getInt(1));
                 }
             }
         }

@@ -163,7 +163,7 @@ public class TramiteFrame extends BaseCrudFrame<Tramite> {
     }
 
     private void styleActionsBar() {
-        btnNuevo.setText("Registrar nueva solicitud");
+        btnNuevo.setText("Nueva solicitud");
         btnEditar.setVisible(false);
         btnBaja.setVisible(false);
 
@@ -179,7 +179,7 @@ public class TramiteFrame extends BaseCrudFrame<Tramite> {
         actionsPanel.setLayout(new FlowLayout(FlowLayout.CENTER, 12, 10));
         actionsPanel.add(btnNuevo);
 
-        JButton btnEstados = new JButton("Estados de solicitudes");
+        JButton btnEstados = new JButton("Atención de solicitudes");
         btnEstados.addActionListener(e -> onEstado());
         styleOutlineButton(btnEstados);
         actionsPanel.add(btnEstados);
@@ -274,7 +274,7 @@ public class TramiteFrame extends BaseCrudFrame<Tramite> {
         String nuevo = (String) JOptionPane.showInputDialog(this,
                 "Nuevo estado:", "Cambiar estado",
                 JOptionPane.PLAIN_MESSAGE, null,
-                new String[]{"PENDIENTE", "EN_PROCESO", "COMPLETADO", "CERRADO"},
+                new String[]{"PENDIENTE", "COMPLETADO", "RECHAZADO", "CERRADO"},
                 sel.getEstado());
         if (nuevo != null) {
             try {
