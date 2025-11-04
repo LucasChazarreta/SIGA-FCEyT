@@ -121,7 +121,7 @@ public class InformesPanel extends JPanel {
     private final JComboBox<String> filterEstado
             = new JComboBox<>(new String[]{"Todos", "Completado", "En proceso", "Pendiente"});
     private final DefaultTableModel modelTra = new DefaultTableModel(
-            new Object[]{"ID Solicitud", "Solicitud", "Fecha creación", "Última actualización", "Descripción", "Solicitante", "Estado"}, 0
+            new Object[]{"ID Solicitud", "Solicitud", "Fecha de solicitud", "Fecha de atención", "Estado"}, 0
     ) {
         @Override
         public boolean isCellEditable(int r, int c) {
@@ -130,9 +130,8 @@ public class InformesPanel extends JPanel {
     };
 
     // --- MOVIMIENTOS (similar a Solicitudes de UI) ---
-    private final JTextField filterSearchMov = new JTextField(18);
     private final DefaultTableModel modelMov = new DefaultTableModel(
-            new Object[]{"Fecha", "Tipo", "Cantidad", "Código", "Descripción", "Ubicación", "Destino", "Solicitante"}, 0
+            new Object[]{"Fecha", "Tipo", "Cantidad", "Código", "Descripción", "Destino", "Solicitante"}, 0
     ) {
         @Override
         public boolean isCellEditable(int r, int c) {
@@ -191,10 +190,7 @@ public class InformesPanel extends JPanel {
         setBorder(BorderFactory.createEmptyBorder(12, 12, 12, 12));
 
         // 1) CREAR pnlRetiros PRIMERO
-        pnlRetiros = new JPanel(new BorderLayout());
-        pnlRetiros.add(new JLabel("Salidas recientes"), BorderLayout.NORTH);
-        pnlRetiros.add(new JScrollPane(tblRetiros), BorderLayout.CENTER);
-        pnlRetiros.setBorder(BorderFactory.createEmptyBorder(6, 0, 0, 0));
+        pnlRetiros = buildRetirosPanel();
 
         add(buildHeader(), BorderLayout.NORTH);
         add(buildContentScrollable(), BorderLayout.CENTER);
@@ -489,18 +485,21 @@ public class InformesPanel extends JPanel {
         title.setForeground(BRAND);
         panel.add(title, BorderLayout.WEST);
 
-        JPanel fields = new JPanel(new FlowLayout(FlowLayout.LEFT, 16, 8));
+        JPanel fields = new JPanel(new WrapLayout(FlowLayout.LEFT, 16, 12));
         fields.setOpaque(false);
 
         styleFilterField(cbCategoria, 200);
+        cbCategoria.addActionListener(e -> runQueryInventario());
         fields.add(labeledFilterField("Categoría", cbCategoria));
 
         JComponent desdeComp = dfDesde.getComponent();
         styleFilterField(desdeComp, 160);
+        dfDesde.addChangeListener(this::runQueryInventario);
         fields.add(labeledFilterField("Desde", desdeComp));
 
         JComponent hastaComp = dfHasta.getComponent();
         styleFilterField(hastaComp, 160);
+        dfHasta.addChangeListener(this::runQueryInventario);
         fields.add(labeledFilterField("Hasta", hastaComp));
 
         styleFilterField(cbEstadoInventario, 160);
@@ -514,10 +513,6 @@ public class InformesPanel extends JPanel {
         chkSoloBajoMinimo.setOpaque(false);
         chkSoloBajoMinimo.addActionListener(e -> runQueryInventario());
         fields.add(wrapCheckbox(chkSoloBajoMinimo));
-
-        JButton apply = primaryButton("APLICAR FILTROS");
-        apply.addActionListener(e -> runQueryInventario());
-        fields.add(wrapButton(apply));
 
         panel.add(fields, BorderLayout.CENTER);
         return panel;
@@ -551,16 +546,6 @@ public class InformesPanel extends JPanel {
         return wrapper;
     }
 
-    private JPanel wrapButton(JButton button) {
-        JPanel wrapper = new JPanel();
-        wrapper.setOpaque(false);
-        wrapper.setLayout(new BoxLayout(wrapper, BoxLayout.Y_AXIS));
-        wrapper.add(Box.createVerticalStrut(16));
-        button.setAlignmentX(Component.LEFT_ALIGNMENT);
-        wrapper.add(button);
-        return wrapper;
-    }
-
     private CardPanel buildTablaPanelInventario() {
         CardPanel card = new CardPanel();
         card.setLayout(new BorderLayout(10, 10));
@@ -589,7 +574,7 @@ public class InformesPanel extends JPanel {
 
     // ==== Métricas (2 tarjetas centradas) ====
     private JComponent buildMetrics() {
-        JPanel row = new JPanel(new FlowLayout(FlowLayout.CENTER, 16, 0));
+        JPanel row = new JPanel(new WrapLayout(FlowLayout.CENTER, 16, 16));
         row.setOpaque(false);
         row.setBorder(BorderFactory.createEmptyBorder(6, 6, 12, 6));
 
@@ -600,10 +585,14 @@ public class InformesPanel extends JPanel {
         CardPanel c3 = metricCardGradient("TOTAL CON STOCK MINIMO", lblTotalStockMinimo,
                 new Color(255, 128, 92), new Color(255, 170, 120));
 
-        Dimension size = new Dimension(360, 110);
+        Dimension size = new Dimension(320, 110);
         c1.setPreferredSize(size);
         c2.setPreferredSize(size);
         c3.setPreferredSize(size);
+        Dimension maxSize = new Dimension(Integer.MAX_VALUE, 140);
+        c1.setMaximumSize(maxSize);
+        c2.setMaximumSize(maxSize);
+        c3.setMaximumSize(maxSize);
 
         row.add(c1);
         row.add(c2);
@@ -1068,7 +1057,7 @@ public class InformesPanel extends JPanel {
         lbl.setForeground(BRAND);
         panel.add(lbl, BorderLayout.WEST);
 
-        JPanel fields = new JPanel(new FlowLayout(FlowLayout.LEFT, 12, 8));
+        JPanel fields = new JPanel(new WrapLayout(FlowLayout.LEFT, 12, 12));
         fields.setOpaque(false);
 
         styleFilterField(filterSearch, 220);
@@ -1103,36 +1092,33 @@ public class InformesPanel extends JPanel {
 
         // Anchos
         TableColumnModel tcm = table.getColumnModel();
-        if (tcm.getColumnCount() >= 8) {
-            tcm.getColumn(0).setPreferredWidth(120);
-            tcm.getColumn(1).setPreferredWidth(240);
-            tcm.getColumn(2).setPreferredWidth(160);
-            tcm.getColumn(3).setPreferredWidth(170);
-            tcm.getColumn(4).setPreferredWidth(300);
-            tcm.getColumn(5).setPreferredWidth(180);
-            tcm.getColumn(6).setPreferredWidth(130);
-            tcm.getColumn(7).setPreferredWidth(180);
+        if (tcm.getColumnCount() >= 5) {
+            tcm.getColumn(0).setPreferredWidth(130);
+            tcm.getColumn(1).setPreferredWidth(260);
+            tcm.getColumn(2).setPreferredWidth(190);
+            tcm.getColumn(3).setPreferredWidth(190);
+            tcm.getColumn(4).setPreferredWidth(150);
         }
 
         JTableHeader header = table.getTableHeader();
         header.setPreferredSize(new Dimension(header.getPreferredSize().width, 46));
         header.setDefaultRenderer(new TableHeaderRenderer());
 
-        table.getColumnModel().getColumn(6).setCellRenderer(new BadgeRenderer(BadgeRenderer.Type.STATUS));
+        table.getColumnModel().getColumn(4).setCellRenderer(new BadgeRenderer(BadgeRenderer.Type.STATUS));
 
         // Zebra para el resto
         DefaultTableCellRenderer zebra = new DefaultTableCellRenderer() {
             @Override
             public Component getTableCellRendererComponent(JTable t, Object v, boolean s, boolean f, int r, int c) {
                 Component comp = super.getTableCellRendererComponent(t, v, s, f, r, c);
-                setHorizontalAlignment(CENTER);
+                setHorizontalAlignment(c == 1 ? SwingConstants.LEFT : SwingConstants.CENTER);
                 if (!s) {
                     comp.setBackground((r % 2 == 0) ? new Color(250, 252, 255) : Color.WHITE);
                 }
                 return comp;
             }
         };
-        for (int i = 0; i < 5; i++) {
+        for (int i = 0; i < 4 && i < table.getColumnCount(); i++) {
             table.getColumnModel().getColumn(i).setCellRenderer(zebra);
         }
 
@@ -1150,9 +1136,11 @@ public class InformesPanel extends JPanel {
     }
 
     private void styleFilterField(JComponent c, int w) {
-        Dimension d = new Dimension(w, 32);
-        c.setPreferredSize(d);
-        c.setMinimumSize(d);
+        Dimension preferred = new Dimension(w, 32);
+        Dimension minimum = new Dimension(Math.min(140, w), 32);
+        c.setPreferredSize(preferred);
+        c.setMinimumSize(minimum);
+        c.setMaximumSize(new Dimension(Integer.MAX_VALUE, 32));
         c.setBorder(BorderFactory.createLineBorder(CARD_BORDER));
     }
 
@@ -1170,30 +1158,36 @@ public class InformesPanel extends JPanel {
                 return;
             }
 
-            //DateTimeFormatter fmt = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+            DateTimeFormatter fmt = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
             for (Tramite t : tramites) {
+                String solicitud = obtenerNombreInsumoSolicitado(t);
+                String solicitante = (t.getSolicitante() == null || t.getSolicitante().isBlank()) ? "" : t.getSolicitante();
+                String descripcion = extraerDescripcionTramite(t);
+
                 if (!search.isEmpty()) {
                     String texto = (String.valueOf(t.getAsunto()) + " " + String.valueOf(t.getNro()) + " "
-                            + (t.getDescripcion() != null ? t.getDescripcion() : "")).toLowerCase(Locale.ROOT);
+                            + descripcion + " " + solicitud + " " + solicitante)
+                            .toLowerCase(Locale.ROOT);
                     if (!texto.contains(search)) {
                         continue;
                     }
                 }
 
                 String estado = estadoFriendly(t.getEstado());
-                if (!"Todos".equals(estadoFiltro) && !estado.equalsIgnoreCase(estadoFiltro)) {
+                if (!"Todos".equalsIgnoreCase(estadoFiltro) && !estado.equalsIgnoreCase(estadoFiltro)) {
                     continue;
                 }
 
-                //String actualizacion = t.getFecha() == null ? "-" : t.getFecha().format(fmt);
-                //String ultima = t.getFecha() == null ? "-" : t.getFecha().plusDays(1).format(fmt); // placeholder
-                String actualizacion = fmtFecha(t.getFecha());
-                String ultima = actualizacion; // o calculá algo real si tenés "updatedAt"
+                String fechaSolicitud = t.getFecha() == null ? "-" : t.getFecha().format(fmt);
+                String fechaAtencion = "-";
+                if (t.getEstado() != null) {
+                    String upper = t.getEstado().toUpperCase(Locale.ROOT);
+                    if (!upper.contains("PEND")) {
+                        fechaAtencion = fechaSolicitud;
+                    }
+                }
 
-                String descripcion = extraerDescripcionTramite(t);
-                String solicitante = (t.getSolicitante() == null || t.getSolicitante().isBlank()) ? "-" : t.getSolicitante();
-
-                modelTra.addRow(new Object[]{t.getNro(), t.getAsunto(), actualizacion, ultima, descripcion, solicitante, estado});
+                modelTra.addRow(new Object[]{t.getNro(), solicitud, fechaSolicitud, fechaAtencion, estado});
             }
         } catch (Exception ex) {
             ex.printStackTrace();
@@ -1277,6 +1271,31 @@ public class InformesPanel extends JPanel {
         return "-";
     }
 
+    private String obtenerNombreInsumoSolicitado(Tramite tramite) {
+        if (tramite == null) {
+            return "-";
+        }
+        try {
+            if (tramite.getId() != null) {
+                String nombre = traService.obtenerNombreInsumoSolicitado(tramite.getId());
+                if (nombre != null && !nombre.isBlank()) {
+                    return nombre.trim();
+                }
+            }
+        } catch (Exception ignore) {
+        }
+
+        String asunto = tramite.getAsunto();
+        if (asunto == null || asunto.isBlank()) {
+            return "-";
+        }
+        int idx = asunto.lastIndexOf(" - ");
+        if (idx >= 0 && idx + 3 < asunto.length()) {
+            return asunto.substring(idx + 3).trim();
+        }
+        return asunto.trim();
+    }
+
     private static String tryGetter(Object obj, String... getters) {
         for (String g : getters) {
             try {
@@ -1333,7 +1352,7 @@ public class InformesPanel extends JPanel {
         lbl.setForeground(BRAND);
         panel.add(lbl, BorderLayout.WEST);
 
-        JPanel fields = new JPanel(new FlowLayout(FlowLayout.LEFT, 12, 8));
+        JPanel fields = new JPanel(new WrapLayout(FlowLayout.LEFT, 12, 12));
         fields.setOpaque(false);
 
         // Usa los CAMPOS, NO crear variables locales nuevas:
@@ -1384,15 +1403,14 @@ public class InformesPanel extends JPanel {
 
         // Anchos
         TableColumnModel tcm = table.getColumnModel();
-        if (tcm.getColumnCount() >= 8) {
+        if (tcm.getColumnCount() >= 7) {
             tcm.getColumn(0).setPreferredWidth(160); // Fecha
             tcm.getColumn(1).setPreferredWidth(90);  // Tipo
             tcm.getColumn(2).setPreferredWidth(110); // Cantidad
             tcm.getColumn(3).setPreferredWidth(140); // Código
             tcm.getColumn(4).setPreferredWidth(220); // Descripción
-            tcm.getColumn(5).setPreferredWidth(160); // Ubicación
-            tcm.getColumn(6).setPreferredWidth(200); // Destino
-            tcm.getColumn(7).setPreferredWidth(180); // Solicitante
+            tcm.getColumn(5).setPreferredWidth(200); // Destino
+            tcm.getColumn(6).setPreferredWidth(180); // Solicitante
         }
 
         JTableHeader header = table.getTableHeader();
@@ -1404,14 +1422,14 @@ public class InformesPanel extends JPanel {
             @Override
             public Component getTableCellRendererComponent(JTable t, Object v, boolean s, boolean f, int r, int c) {
                 Component comp = super.getTableCellRendererComponent(t, v, s, f, r, c);
-                setHorizontalAlignment(CENTER);
+                setHorizontalAlignment(c == 4 ? SwingConstants.LEFT : CENTER);
                 if (!s) {
                     comp.setBackground((r % 2 == 0) ? new Color(250, 252, 255) : Color.WHITE);
                 }
                 return comp;
             }
         };
-        for (int i = 0; i < 7; i++) {
+        for (int i = 0; i < table.getColumnCount(); i++) {
             table.getColumnModel().getColumn(i).setCellRenderer(zebra);
         }
 
@@ -1425,6 +1443,68 @@ public class InformesPanel extends JPanel {
         scroll.setBackground(Color.WHITE);
 
         return scroll;
+    }
+
+    private JPanel buildRetirosPanel() {
+        tblRetiros.setRowHeight(40);
+        tblRetiros.setShowHorizontalLines(false);
+        tblRetiros.setShowVerticalLines(false);
+        tblRetiros.setIntercellSpacing(new Dimension(0, 0));
+        tblRetiros.setFillsViewportHeight(true);
+        tblRetiros.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+
+        JTableHeader header = tblRetiros.getTableHeader();
+        header.setPreferredSize(new Dimension(header.getPreferredSize().width, 42));
+        header.setDefaultRenderer(new TableHeaderRenderer());
+
+        TableColumnModel rcm = tblRetiros.getColumnModel();
+        if (rcm.getColumnCount() >= 4) {
+            rcm.getColumn(0).setPreferredWidth(140);
+            rcm.getColumn(1).setPreferredWidth(160);
+            rcm.getColumn(2).setPreferredWidth(260);
+            rcm.getColumn(3).setPreferredWidth(120);
+        }
+
+        DefaultTableCellRenderer zebra = new DefaultTableCellRenderer() {
+            @Override
+            public Component getTableCellRendererComponent(JTable t, Object v, boolean s, boolean f, int r, int c) {
+                Component comp = super.getTableCellRendererComponent(t, v, s, f, r, c);
+                setHorizontalAlignment(c == 2 ? SwingConstants.LEFT : SwingConstants.CENTER);
+                if (!s) {
+                    comp.setBackground((r % 2 == 0) ? new Color(250, 252, 255) : Color.WHITE);
+                }
+                return comp;
+            }
+        };
+        for (int i = 0; i < tblRetiros.getColumnCount(); i++) {
+            tblRetiros.getColumnModel().getColumn(i).setCellRenderer(zebra);
+        }
+
+        JScrollPane scroll = new JScrollPane(tblRetiros,
+                ScrollPaneConstants.VERTICAL_SCROLLBAR_AS_NEEDED,
+                ScrollPaneConstants.HORIZONTAL_SCROLLBAR_AS_NEEDED);
+        beautifyScroll(scroll);
+        scroll.setBorder(BorderFactory.createEmptyBorder());
+        scroll.getViewport().setBackground(Color.WHITE);
+
+        CardPanel card = new CardPanel();
+        card.setLayout(new BorderLayout(0, 12));
+        card.setBorder(new EmptyBorder(20, 24, 24, 24));
+
+        JLabel title = new JLabel("SALIDAS RECIENTES");
+        title.setFont(new Font("Segoe UI", Font.BOLD, 16));
+        title.setForeground(HEADER_TXT);
+
+        card.add(title, BorderLayout.NORTH);
+        card.add(scroll, BorderLayout.CENTER);
+        card.setOpaque(false);
+        card.setAlignmentX(Component.LEFT_ALIGNMENT);
+
+        JPanel wrapper = new JPanel(new BorderLayout());
+        wrapper.setOpaque(false);
+        wrapper.add(card, BorderLayout.CENTER);
+        wrapper.setBorder(new EmptyBorder(12, 0, 0, 0));
+        return wrapper;
     }
 
     private void loadTableDataMovimientos() {
@@ -1473,7 +1553,7 @@ public class InformesPanel extends JPanel {
                         ? m.getInsumo().getCodigo() : "-";
                 String desc = (m.getInsumo() != null && m.getInsumo().getDescripcion() != null)
                         ? m.getInsumo().getDescripcion() : "-";
-                String ubic = (m.getInsumo() != null && m.getInsumo().getUbicacion() != null
+                String ubicacion = (m.getInsumo() != null && m.getInsumo().getUbicacion() != null
                         && !m.getInsumo().getUbicacion().isBlank())
                         ? m.getInsumo().getUbicacion() : "-";
 
@@ -1481,7 +1561,7 @@ public class InformesPanel extends JPanel {
                         ? "-" : m.getSolicitante();
 
                 if (!search.isEmpty()) {
-                    String src = (codigo + " " + desc + " " + ubic
+                    String src = (codigo + " " + desc + " " + ubicacion
                             + " " + (m.getDestinoFuente() == null ? "" : m.getDestinoFuente())
                             + " " + solicitante)
                             .toLowerCase();
@@ -1495,7 +1575,9 @@ public class InformesPanel extends JPanel {
                 String destino = (m.getDestinoFuente() == null || m.getDestinoFuente().isBlank())
                         ? "-" : m.getDestinoFuente();
 
-                modelMov.addRow(new Object[]{fecha, m.getTipo(), cantidad, codigo, desc, ubic, destino, solicitante});
+                String destinoVisible = !destino.equals("-") ? destino : ubicacion;
+
+                modelMov.addRow(new Object[]{fecha, m.getTipo(), cantidad, codigo, desc, destinoVisible, solicitante});
             }
 
         } catch (Exception ex) {
@@ -1518,8 +1600,8 @@ public class InformesPanel extends JPanel {
             = new JComboBox<>(new String[]{"Todos", "Entrada", "Salida"});
 
     private void installFiltersMovimientos() {
-        if (filterSearchMov.getDocument() != null) {
-            filterSearchMov.getDocument().addDocumentListener(new SimpleDocumentListener() {
+        if (txtFiltroMov.getDocument() != null) {
+            txtFiltroMov.getDocument().addDocumentListener(new SimpleDocumentListener() {
                 @Override
                 public void update() {
                     loadTableDataMovimientos();
@@ -1724,17 +1806,17 @@ public class InformesPanel extends JPanel {
                 java.util.List<String[]> rows = new java.util.ArrayList<>();
                 for (int r = 0; r < modelTra.getRowCount(); r++) {
                     String nro = displayString(modelTra.getValueAt(r, 0)); // Nro Trámite
-                    String solicitante = displayString(modelTra.getValueAt(r, 5)); // Solicitante
-                    String destino = displayString(modelTra.getValueAt(r, 1)); // << Asegúrate que modelTra col 1 sea Destino en tu UI
-                    String fecha = displayString(modelTra.getValueAt(r, 2));
-                    String estado = displayString(modelTra.getValueAt(r, 6));
-                    rows.add(new String[]{nro, solicitante, destino, fecha, estado});
+                    String solicitud = displayString(modelTra.getValueAt(r, 1));
+                    String fechaSolicitud = displayString(modelTra.getValueAt(r, 2));
+                    String fechaAtencion = displayString(modelTra.getValueAt(r, 3));
+                    String estado = displayString(modelTra.getValueAt(r, 4));
+                    rows.add(new String[]{nro, solicitud, fechaSolicitud, fechaAtencion, estado});
                 }
 
                 PdfPTable table = buildStyledTable(
-                        new String[]{"Nro Trámite", "Solicitante", "Destino", "Fecha", "Estado"},
+                        new String[]{"Nro Trámite", "Solicitud", "Fecha solicitud", "Fecha atención", "Estado"},
                         rows,
-                        new float[]{2f, 3f, 3f, 2f, 2f},
+                        new float[]{2f, 3.5f, 2.4f, 2.4f, 2f},
                         new int[]{Element.ALIGN_CENTER, Element.ALIGN_LEFT, Element.ALIGN_LEFT, Element.ALIGN_CENTER, Element.ALIGN_CENTER}
                 );
                 doc.add(table);
@@ -1742,9 +1824,10 @@ public class InformesPanel extends JPanel {
                 java.util.LinkedHashMap<String, String> resumen = new java.util.LinkedHashMap<>();
                 java.util.Map<String, Integer> estados = contarEstadosTramites();
                 resumen.put("Total de solicitudes", String.valueOf(modelTra.getRowCount()));
-                resumen.put("Estado NUEVO", String.valueOf(estados.getOrDefault("NUEVO", 0)));
-                resumen.put("Estado APROBADO", String.valueOf(estados.getOrDefault("APROBADO", 0)));
-                resumen.put("Estado RECHAZADO", String.valueOf(estados.getOrDefault("RECHAZADO", 0)));
+                resumen.put("Pendientes", String.valueOf(estados.getOrDefault("Pendientes", 0)));
+                resumen.put("Completadas", String.valueOf(estados.getOrDefault("Completadas", 0)));
+                resumen.put("Rechazadas", String.valueOf(estados.getOrDefault("Rechazadas", 0)));
+                resumen.put("Alta", String.valueOf(estados.getOrDefault("Alta", 0)));
                 addSummarySection(doc, "Estadísticas", resumen);
 
                 addPdfFooter(doc);
@@ -1782,9 +1865,10 @@ public class InformesPanel extends JPanel {
                     if (insumo == null || insumo.isBlank()) {
                         insumo = "-";
                     }
-                    String ubicacion = rawString(modelMov.getValueAt(r, 5));
-                    String destino = rawString(modelMov.getValueAt(r, 6));
-                    String origenDestino = destino.isBlank() ? (ubicacion.isBlank() ? "-" : ubicacion) : destino;
+                    String origenDestino = rawString(modelMov.getValueAt(r, 5));
+                    if (origenDestino.isBlank()) {
+                        origenDestino = "-";
+                    }
 
                     String[] data = new String[]{fecha, insumo, formatDecimal(cantidad), origenDestino, (tipo.isBlank() ? "-" : tipo)};
 
@@ -2030,18 +2114,20 @@ public class InformesPanel extends JPanel {
 
     private Map<String, Integer> contarEstadosTramites() {
         Map<String, Integer> counts = new LinkedHashMap<>();
-        counts.put("NUEVO", 0);
-        counts.put("APROBADO", 0);
-        counts.put("RECHAZADO", 0);
+        counts.put("Pendientes", 0);
+        counts.put("Completadas", 0);
+        counts.put("Rechazadas", 0);
+        counts.put("Alta", 0);
 
         for (int r = 0; r < modelTra.getRowCount(); r++) {
-            String estado = rawString(modelTra.getValueAt(r, 6)).toUpperCase(Locale.ROOT);
-            if (estado.contains("NUEV")) {
-                counts.computeIfPresent("NUEVO", (k, v) -> v + 1);
-            } else if (estado.contains("APR")) {
-                counts.computeIfPresent("APROBADO", (k, v) -> v + 1);
-            } else if (estado.contains("RECH")) {
-                counts.computeIfPresent("RECHAZADO", (k, v) -> v + 1);
+            String estado = estadoFriendly(rawString(modelTra.getValueAt(r, 4)));
+            switch (estado) {
+                case "Pendiente" -> counts.computeIfPresent("Pendientes", (k, v) -> v + 1);
+                case "Completado" -> counts.computeIfPresent("Completadas", (k, v) -> v + 1);
+                case "Rechazado" -> counts.computeIfPresent("Rechazadas", (k, v) -> v + 1);
+                case "Alta" -> counts.computeIfPresent("Alta", (k, v) -> v + 1);
+                default -> {
+                }
             }
         }
         return counts;
@@ -2190,6 +2276,30 @@ public class InformesPanel extends JPanel {
             comp.setMaximumSize(size);
         }
 
+        void addChangeListener(Runnable listener) {
+            if (listener == null) {
+                return;
+            }
+            if (usesFlatPicker) {
+                comp.addPropertyChangeListener("date", evt -> listener.run());
+            } else if (comp instanceof JFormattedTextField tf) {
+                if (tf.getDocument() != null) {
+                    tf.getDocument().addDocumentListener(new SimpleDocumentListener() {
+                        @Override
+                        public void update() {
+                            listener.run();
+                        }
+                    });
+                }
+                tf.addFocusListener(new java.awt.event.FocusAdapter() {
+                    @Override
+                    public void focusLost(java.awt.event.FocusEvent e) {
+                        listener.run();
+                    }
+                });
+            }
+        }
+
         private static JFormattedTextField createMasked() {
             try {
                 MaskFormatter mf = new MaskFormatter("##/##/####");
@@ -2331,6 +2441,80 @@ public class InformesPanel extends JPanel {
         sp.getHorizontalScrollBar().setUI(uiFactory.get());
         sp.getVerticalScrollBar().setPreferredSize(new Dimension(10, 0));
         sp.getHorizontalScrollBar().setPreferredSize(new Dimension(0, 10));
+    }
+
+    /**
+     * FlowLayout que ajusta alto/ancho para distribuir componentes en varias líneas.
+     */
+    private static class WrapLayout extends FlowLayout {
+
+        WrapLayout(int align, int hgap, int vgap) {
+            super(align, hgap, vgap);
+        }
+
+        @Override
+        public Dimension preferredLayoutSize(Container target) {
+            return layoutSize(target, true);
+        }
+
+        @Override
+        public Dimension minimumLayoutSize(Container target) {
+            Dimension minimum = layoutSize(target, false);
+            minimum.width -= (getHgap() + 1);
+            return minimum;
+        }
+
+        private Dimension layoutSize(Container target, boolean preferred) {
+            synchronized (target.getTreeLock()) {
+                int targetWidth = target.getWidth();
+                if (targetWidth == 0) {
+                    targetWidth = Integer.MAX_VALUE;
+                }
+
+                Insets insets = target.getInsets();
+                int horizontalInsetsAndGap = insets.left + insets.right + (getHgap() * 2);
+                int maxWidth = targetWidth - horizontalInsetsAndGap;
+
+                Dimension dim = new Dimension(0, 0);
+                int rowWidth = 0;
+                int rowHeight = 0;
+
+                int nmembers = target.getComponentCount();
+
+                for (int i = 0; i < nmembers; i++) {
+                    Component m = target.getComponent(i);
+                    if (!m.isVisible()) {
+                        continue;
+                    }
+
+                    Dimension d = preferred ? m.getPreferredSize() : m.getMinimumSize();
+                    if (rowWidth + d.width > maxWidth) {
+                        addRow(dim, rowWidth, rowHeight);
+                        rowWidth = 0;
+                        rowHeight = 0;
+                    }
+
+                    if (rowWidth != 0) {
+                        rowWidth += getHgap();
+                    }
+                    rowWidth += d.width;
+                    rowHeight = Math.max(rowHeight, d.height);
+                }
+                addRow(dim, rowWidth, rowHeight);
+
+                dim.width += horizontalInsetsAndGap;
+                dim.height += insets.top + insets.bottom + getVgap() * 2;
+                return dim;
+            }
+        }
+
+        private void addRow(Dimension dim, int rowWidth, int rowHeight) {
+            dim.width = Math.max(dim.width, rowWidth);
+            if (dim.height > 0) {
+                dim.height += getVgap();
+            }
+            dim.height += rowHeight;
+        }
     }
 
     private static JButton primaryButton(String text) {
