@@ -37,6 +37,20 @@ public class TramiteService {
     // ==== Consultas usadas por la UI ====
     public List<Tramite> tramitesRecientes(int limit) { return tramiteDao.listRecientes(limit); }
     public List<Tramite> listarTodos() { return tramiteDao.listAll(); }
+
+    public String obtenerNombreInsumoSolicitado(Long tramiteId) {
+        if (tramiteId == null || tramiteDetalleDao == null) {
+            return null;
+        }
+        try {
+            return tramiteDetalleDao.findNombreInsumoByTramiteId(tramiteId)
+                    .map(String::trim)
+                    .filter(s -> !s.isEmpty())
+                    .orElse(null);
+        } catch (Exception e) {
+            return null;
+        }
+    }
     public void actualizarEstado(Long id, String nuevoEstado) { tramiteDao.updateEstado(id, nuevoEstado); }
 
     public List<Insumo> insumosConStockDisponible() {
