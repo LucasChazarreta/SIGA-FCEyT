@@ -445,12 +445,12 @@ public class HomePage extends JPanel {
             case "COMPLETADO":
             case "CERRADO":
                 return "Completado";
-            case "EN_PROCESO":
-                return "En proceso";
-            case "ALTA":
-                return "Alta";
             case "PENDIENTE":
                 return "Pendiente";
+            case "RECHAZADO":
+                return "Rechazado";
+            case "ALTA":
+                return "Alta";
             default:
                 return capitalize(estado);
         }

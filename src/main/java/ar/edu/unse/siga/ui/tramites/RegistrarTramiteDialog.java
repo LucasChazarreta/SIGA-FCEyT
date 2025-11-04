@@ -1,26 +1,22 @@
 package ar.edu.unse.siga.ui.tramites;
 
 import ar.edu.unse.siga.domain.Insumo;
+import ar.edu.unse.siga.domain.Ubicacion;
 import ar.edu.unse.siga.service.InventarioService;
 import ar.edu.unse.siga.service.TramiteService;
 import ar.edu.unse.siga.ui.base.Ui;
-import ar.edu.unse.siga.persistence.DataSourceFactory;
 
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
 import javax.swing.event.TableModelEvent;
 import javax.swing.event.TableModelListener;
 import javax.swing.table.AbstractTableModel;
-import javax.swing.table.DefaultTableCellRenderer;
 import javax.swing.table.TableCellEditor;
 import java.awt.*;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
-import java.sql.Connection;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
 import java.util.ArrayList;
-import java.util.LinkedHashSet;
+import java.util.Comparator;
 import java.util.List;
 
 public class RegistrarTramiteDialog extends JDialog {
@@ -47,12 +43,12 @@ public class RegistrarTramiteDialog extends JDialog {
         super(owner, "Registrar solicitud", ModalityType.APPLICATION_MODAL);
         this.tramiteService = tramiteService;
         this.inventarioService = inventarioService;
-        this.insumosDisponibles = new ArrayList<>(inventarioService.insumosConStockDisponible());
-        this.ready = !insumosDisponibles.isEmpty();
-
-        if (!ready) {
-            Ui.warn(this, "No hay insumos con stock disponible para registrar.");
-        }
+        this.insumosDisponibles = new ArrayList<>(inventarioService.listarTodos());
+        this.insumosDisponibles.removeIf(i -> i == null || (i.getEstado() != null
+                && i.getEstado().equalsIgnoreCase("INACTIVO")));
+        this.insumosDisponibles.sort(Comparator.comparing(this::labelForInsumo,
+                String.CASE_INSENSITIVE_ORDER));
+        this.ready = true;
 
         setDefaultCloseOperation(DISPOSE_ON_CLOSE);
         setLayout(new BorderLayout(10, 10));
@@ -74,29 +70,10 @@ public class RegistrarTramiteDialog extends JDialog {
         table.setAutoResizeMode(JTable.AUTO_RESIZE_ALL_COLUMNS);
         table.setFillsViewportHeight(true);
 
-        // Editor para seleccionar Insumo
-        table.getColumnModel().getColumn(0).setCellEditor(new InsumoCellEditor());
+        // Editor para seleccionar o escribir el nombre
+        table.getColumnModel().getColumn(0).setCellEditor(new NombreCellEditor());
         // Editor de cantidad
         table.getColumnModel().getColumn(2).setCellEditor(new CantidadCellEditor());
-
-        // Renderer que muestra "codigo - descripcion" para Insumo
-        table.setDefaultRenderer(Insumo.class, new DefaultTableCellRenderer() {
-            @Override public void setValue(Object value) {
-                if (value instanceof Insumo) {
-                    Insumo i = (Insumo) value;
-                    String codigo = i.getCodigo() == null ? "" : i.getCodigo().trim();
-                    String desc   = i.getDescripcion() == null ? "" : i.getDescripcion().trim();
-                    String label;
-                    if (!codigo.isEmpty() && !desc.isEmpty())      label = codigo + " - " + desc;
-                    else if (!codigo.isEmpty())                    label = codigo;
-                    else if (!desc.isEmpty())                      label = desc;
-                    else                                           label = "";
-                    setText(label);
-                } else {
-                    setText("");
-                }
-            }
-        });
 
         add(new JScrollPane(table), BorderLayout.CENTER);
 
@@ -107,8 +84,10 @@ public class RegistrarTramiteDialog extends JDialog {
 
         JPanel right = new JPanel(new FlowLayout(FlowLayout.RIGHT));
         JButton btnAgregar = new JButton("Agregar renglón");
+        JButton btnPedidoEspecial = new JButton("Agregar pedido especial");
         JButton btnQuitar = new JButton("Quitar renglón");
         right.add(btnAgregar);
+        right.add(btnPedidoEspecial);
         right.add(btnQuitar);
         right.add(btnRegistrar);
         south.add(right, BorderLayout.EAST);
@@ -118,6 +97,7 @@ public class RegistrarTramiteDialog extends JDialog {
             model.addEmptyRow();
             actualizarTotales();
         });
+        btnPedidoEspecial.addActionListener(e -> onAgregarPedidoEspecial());
         btnQuitar.addActionListener(e -> {
             int row = table.getSelectedRow();
             if (row >= 0) {
@@ -196,14 +176,25 @@ public class RegistrarTramiteDialog extends JDialog {
         }
 
         try {
-            Long id = tramiteService.registrarNuevoTramite(
+            TramiteService.RegistroTramite resultado = tramiteService.registrarNuevoTramite(
                     solicitud,
                     solicitante.isEmpty() ? null : solicitante,
                     descripcion.isEmpty() ? null : descripcion,
                     destino,
                     lineas
             );
-            Ui.info(this, "Solicitud registrada. ID: " + id);
+
+            StringBuilder info = new StringBuilder();
+            info.append("Solicitudes registradas (base ")
+                    .append(resultado.getNumeroBase())
+                    .append("):\n");
+            resultado.getTramites().forEach(t -> info.append("• #")
+                    .append(t.getNro())
+                    .append(" · ")
+                    .append(t.getEstado())
+                    .append('\n'));
+
+            Ui.info(this, info.toString());
             accepted = true;
             dispose();
         } catch (IllegalStateException ex) {
@@ -220,54 +211,76 @@ public class RegistrarTramiteDialog extends JDialog {
         lblTotales.setText(filas + " ítems · " + unidades + " unidades");
     }
 
+    private void onAgregarPedidoEspecial() {
+        String nombre = JOptionPane.showInputDialog(this,
+                "Detalle del pedido especial:",
+                "Agregar pedido especial",
+                JOptionPane.PLAIN_MESSAGE);
+        if (nombre == null) {
+            return;
+        }
+        String cleaned = nombre.trim();
+        if (cleaned.isEmpty()) {
+            Ui.warn(this, "Ingresá un nombre para el pedido especial.");
+            return;
+        }
+        model.addPedidoEspecial(cleaned);
+        actualizarTotales();
+    }
+
+    private String labelForInsumo(Insumo insumo) {
+        if (insumo == null) {
+            return "";
+        }
+        String codigo = insumo.getCodigo() == null ? "" : insumo.getCodigo().trim();
+        String desc = insumo.getDescripcion() == null ? "" : insumo.getDescripcion().trim();
+        if (!codigo.isEmpty() && !desc.isEmpty()) {
+            return codigo + " - " + desc;
+        }
+        if (!codigo.isEmpty()) {
+            return codigo;
+        }
+        return desc;
+    }
+
     private void loadDestinosPredefinidos() {
-        // Busca destinos existentes en 'movimiento.destino_fuente' para SALIDA
-        LinkedHashSet<String> set = new LinkedHashSet<>();
-        final String sql = """
-            SELECT DISTINCT destino_fuente
-            FROM movimiento
-            WHERE tipo='SALIDA' AND destino_fuente IS NOT NULL AND TRIM(destino_fuente) <> ''
-            ORDER BY destino_fuente
-            """;
-        try (Connection cn = DataSourceFactory.getConnection();
-             PreparedStatement ps = cn.prepareStatement(sql);
-             ResultSet rs = ps.executeQuery()) {
-            while (rs.next()) {
-                String d = rs.getString(1);
-                if (d != null && !d.isBlank()) set.add(d.trim());
-            }
-        } catch (Exception ignored) {
-            // si falla, seguimos con defaults
-        }
-        if (set.isEmpty()) {
-            set.add("Secretaría FCEyT");
-            set.add("Compras");
-            set.add("Finanzas");
-            set.add("Mantenimiento");
-        }
         cboDestino.removeAllItems();
-        for (String d : set) cboDestino.addItem(d);
+        if (inventarioService != null) {
+            List<Ubicacion> ubicaciones = inventarioService.listarUbicaciones();
+            ubicaciones.stream()
+                    .map(Ubicacion::getNombre)
+                    .filter(n -> n != null && !n.isBlank())
+                    .distinct()
+                    .forEach(cboDestino::addItem);
+        }
+        if (cboDestino.getItemCount() == 0) {
+            cboDestino.addItem("Secretaría FCEyT");
+            cboDestino.addItem("Compras");
+            cboDestino.addItem("Finanzas");
+            cboDestino.addItem("Mantenimiento");
+        }
         cboDestino.setSelectedIndex(0);
     }
 
     private int stockDisponible(Insumo insumo) {
-        if (insumo == null) return 0;
-        BigDecimal stock = insumo.getStockActual();
+        if (insumo == null || insumo.getId() == null || inventarioService == null) return 0;
+        BigDecimal stock = inventarioService.stockActualExacto(insumo.getId());
         if (stock == null) return 0;
-        return stock.setScale(0, RoundingMode.FLOOR).intValue();
+        return stock.setScale(0, RoundingMode.DOWN).intValue();
     }
 
     // ======= Tabla de líneas =======
     private class LineaTableModel extends AbstractTableModel {
-        private final String[] cols = {"Insumo", "Stock disponible", "Cantidad"};
+        private final String[] cols = {"Nombre", "Stock disponible", "Cantidad"};
         private final List<Fila> filas = new ArrayList<>();
 
         void addEmptyRow() {
-            if (filas.size() >= insumosDisponibles.size()) {
-                Ui.warn(RegistrarTramiteDialog.this, "Ya agregaste todos los insumos disponibles.");
-                return;
-            }
-            filas.add(new Fila(null, 1));
+            filas.add(new Fila(null, null, 1));
+            fireTableRowsInserted(filas.size() - 1, filas.size() - 1);
+        }
+
+        void addPedidoEspecial(String descripcion) {
+            filas.add(new Fila(null, descripcion, 1));
             fireTableRowsInserted(filas.size() - 1, filas.size() - 1);
         }
 
@@ -280,9 +293,18 @@ public class RegistrarTramiteDialog extends JDialog {
 
         boolean isValidRows() {
             for (Fila f : filas) {
-                if (f.insumo == null) return false;
-                if (f.cantidad <= 0) return false;
-                if (f.cantidad > stockDisponible(f.insumo)) return false;
+                if (f.esPedidoEspecial()) {
+                    if (f.especial == null || f.especial.isBlank()) {
+                        return false;
+                    }
+                } else {
+                    if (f.insumo == null) {
+                        return false;
+                    }
+                }
+                if (f.cantidad <= 0) {
+                    return false;
+                }
             }
             return true;
         }
@@ -290,8 +312,13 @@ public class RegistrarTramiteDialog extends JDialog {
         List<TramiteService.LineaTramite> toLineas() {
             List<TramiteService.LineaTramite> list = new ArrayList<>();
             for (Fila f : filas) {
-                if (f.insumo != null && f.cantidad > 0) {
-                    list.add(new TramiteService.LineaTramite(f.insumo.getId(), f.cantidad));
+                if (f.cantidad <= 0) {
+                    continue;
+                }
+                if (f.esPedidoEspecial()) {
+                    list.add(TramiteService.LineaTramite.pedidoEspecial(f.especial, f.cantidad));
+                } else if (f.insumo != null) {
+                    list.add(TramiteService.LineaTramite.deInsumo(f.insumo.getId(), labelForInsumo(f.insumo), f.cantidad));
                 }
             }
             return list;
@@ -303,55 +330,82 @@ public class RegistrarTramiteDialog extends JDialog {
             return sum;
         }
 
+        boolean isPedidoEspecial(int row) {
+            if (row < 0 || row >= filas.size()) return false;
+            return filas.get(row).esPedidoEspecial();
+        }
+
+        String getEspecialDescripcion(int row) {
+            if (row < 0 || row >= filas.size()) return "";
+            String texto = filas.get(row).especial;
+            return texto == null ? "" : texto;
+        }
+
+        Insumo getInsumo(int row) {
+            if (row < 0 || row >= filas.size()) return null;
+            return filas.get(row).insumo;
+        }
+
         @Override public int getRowCount() { return filas.size(); }
         @Override public int getColumnCount() { return cols.length; }
         @Override public String getColumnName(int column) { return cols[column]; }
+        @Override public Class<?> getColumnClass(int columnIndex) {
+            return switch (columnIndex) {
+                case 2 -> Integer.class;
+                default -> String.class;
+            };
+        }
 
         @Override
         public Object getValueAt(int rowIndex, int columnIndex) {
             Fila f = filas.get(rowIndex);
-            switch (columnIndex) {
-                case 0: return f.insumo;
-                case 1: return f.insumo == null ? 0 : stockDisponible(f.insumo);
-                case 2: return f.cantidad;
-            }
-            return null;
+            return switch (columnIndex) {
+                case 0 -> f.esPedidoEspecial() ? f.especial : labelForInsumo(f.insumo);
+                case 1 -> f.esPedidoEspecial() ? "-" : String.valueOf(stockDisponible(f.insumo));
+                case 2 -> f.cantidad;
+                default -> null;
+            };
         }
 
         @Override
-        public boolean isCellEditable(int rowIndex, int columnIndex) { return columnIndex != 1; }
+        public boolean isCellEditable(int rowIndex, int columnIndex) {
+            return columnIndex != 1;
+        }
 
         @Override
         public void setValueAt(Object aValue, int rowIndex, int columnIndex) {
             Fila f = filas.get(rowIndex);
-            if (columnIndex == 0 && aValue instanceof Insumo) {
-                Insumo nuevo = (Insumo) aValue;
-                // evitar duplicados
-                for (int i = 0; i < filas.size(); i++) {
-                    if (i != rowIndex && filas.get(i).insumo != null
-                            && filas.get(i).insumo.getId().equals(nuevo.getId())) {
-                        Ui.warn(RegistrarTramiteDialog.this, "Ese insumo ya fue agregado.");
-                        fireTableRowsUpdated(rowIndex, rowIndex);
+            if (columnIndex == 0) {
+                if (aValue instanceof Insumo) {
+                    Insumo nuevo = (Insumo) aValue;
+                    for (int i = 0; i < filas.size(); i++) {
+                        if (i != rowIndex && filas.get(i).insumo != null
+                                && filas.get(i).insumo.getId().equals(nuevo.getId())) {
+                            Ui.warn(RegistrarTramiteDialog.this, "Ese insumo ya fue agregado.");
+                            fireTableRowsUpdated(rowIndex, rowIndex);
+                            return;
+                        }
+                    }
+                    f.insumo = nuevo;
+                    f.especial = null;
+                    if (f.cantidad <= 0) f.cantidad = 1;
+                    fireTableRowsUpdated(rowIndex, rowIndex);
+                } else if (aValue != null) {
+                    String texto = String.valueOf(aValue).trim();
+                    if (texto.isEmpty()) {
+                        Ui.warn(RegistrarTramiteDialog.this, "Ingresá un nombre válido.");
                         return;
                     }
+                    f.especial = texto;
+                    f.insumo = null;
+                    if (f.cantidad <= 0) f.cantidad = 1;
+                    fireTableRowsUpdated(rowIndex, rowIndex);
                 }
-                int max = stockDisponible(nuevo);
-                if (max <= 0) {
-                    Ui.warn(RegistrarTramiteDialog.this, "El insumo seleccionado no tiene stock disponible.");
-                    return;
-                }
-                f.insumo = nuevo;
-                if (f.cantidad <= 0) f.cantidad = 1;
-                fireTableRowsUpdated(rowIndex, rowIndex);
             } else if (columnIndex == 2) {
                 try {
                     int val = Integer.parseInt(String.valueOf(aValue));
                     if (val <= 0) {
                         Ui.warn(RegistrarTramiteDialog.this, "Cantidad inválida.");
-                        return;
-                    }
-                    if (f.insumo != null && val > stockDisponible(f.insumo)) {
-                        Ui.warn(RegistrarTramiteDialog.this, "No hay stock suficiente.");
                         return;
                     }
                     f.cantidad = val;
@@ -364,45 +418,72 @@ public class RegistrarTramiteDialog extends JDialog {
 
         class Fila {
             Insumo insumo;
+            String especial;
             int cantidad;
-            Fila(Insumo i, int c) { this.insumo = i; this.cantidad = c; }
+            Fila(Insumo i, String especial, int c) { this.insumo = i; this.especial = especial; this.cantidad = c; }
+            boolean esPedidoEspecial() { return especial != null && !especial.isBlank(); }
         }
     }
 
     // ======= Editores =======
-    private class InsumoCellEditor extends AbstractCellEditor implements TableCellEditor {
+    private class NombreCellEditor extends AbstractCellEditor implements TableCellEditor {
         private final JComboBox<Insumo> combo = new JComboBox<>();
-        public InsumoCellEditor() {
+        private final JTextField textField = new JTextField();
+        private boolean modoEspecial = false;
+
+        public NombreCellEditor() {
             for (Insumo i : insumosDisponibles) combo.addItem(i);
-            // Renderer del combo: "codigo - descripcion"
             combo.setRenderer(new DefaultListCellRenderer() {
                 @Override
                 public Component getListCellRendererComponent(JList<?> list, Object value, int index, boolean isSelected, boolean cellHasFocus) {
                     Component c = super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus);
                     if (value instanceof Insumo) {
-                        Insumo i = (Insumo) value;
-                        String codigo = i.getCodigo() == null ? "" : i.getCodigo().trim();
-                        String desc   = i.getDescripcion() == null ? "" : i.getDescripcion().trim();
-                        String label = (!codigo.isEmpty() && !desc.isEmpty()) ? (codigo + " - " + desc)
-                                     : (!codigo.isEmpty() ? codigo : desc);
-                        setText(label);
+                        setText(labelForInsumo((Insumo) value));
                     }
                     return c;
                 }
             });
+            textField.setBorder(BorderFactory.createEmptyBorder(0, 6, 0, 6));
         }
-        @Override public Object getCellEditorValue() { return combo.getSelectedItem(); }
+
+        @Override public Object getCellEditorValue() {
+            if (modoEspecial) {
+                return textField.getText();
+            }
+            return combo.getSelectedItem();
+        }
+
         @Override public Component getTableCellEditorComponent(JTable table, Object value, boolean isSelected, int row, int column) {
-            if (value instanceof Insumo) combo.setSelectedItem(value);
+            modoEspecial = model.isPedidoEspecial(row);
+            if (modoEspecial) {
+                textField.setText(model.getEspecialDescripcion(row));
+                SwingUtilities.invokeLater(textField::selectAll);
+                return textField;
+            }
+            Insumo actual = model.getInsumo(row);
+            if (actual != null) {
+                combo.setSelectedItem(actual);
+            }
             return combo;
         }
     }
 
     private class CantidadCellEditor extends AbstractCellEditor implements TableCellEditor {
         private final JTextField field = new JTextField();
+
+        private CantidadCellEditor() {
+            field.setHorizontalAlignment(JTextField.RIGHT);
+            field.setBorder(BorderFactory.createEmptyBorder(0, 6, 0, 6));
+            field.setForeground(Color.BLACK);
+            field.setBackground(Color.WHITE);
+            field.setCaretColor(Color.BLACK);
+        }
+
         @Override public Object getCellEditorValue() { return field.getText(); }
+
         @Override public Component getTableCellEditorComponent(JTable table, Object value, boolean isSelected, int row, int column) {
             field.setText(value == null ? "1" : String.valueOf(value));
+            SwingUtilities.invokeLater(field::selectAll);
             return field;
         }
     }

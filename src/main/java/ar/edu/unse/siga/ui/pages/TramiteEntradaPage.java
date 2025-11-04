@@ -44,7 +44,7 @@ public class TramiteEntradaPage extends JPanel {
     // --- Filtros de la tabla ---
     private final JTextField filterSearch = new JTextField(18);
     private final JComboBox<String> filterEstado = new JComboBox<>(
-            new String[]{"Todos", "Completado", "En proceso", "Pendiente", "Nuevo"}
+            new String[]{"Todos", "Completado", "Pendiente", "Rechazado"}
     );
 
     private final CardLayout cardLayout = new CardLayout();
@@ -55,7 +55,7 @@ public class TramiteEntradaPage extends JPanel {
     // Tabla (solo columna Estado editable)
     private final JTable table = new JTable(new DefaultTableModel(
             new Object[][]{},
-            new String[]{"ID Solicitud", "Solicitud", "Fecha creación", "Última actualización", "Descripcion", "Estado"}
+            new String[]{"ID Solicitud", "Solicitud", "Fecha de solicitud", "Fecha de atención", "Descripción", "Estado"}
     )) {
         @Override
         public boolean isCellEditable(int row, int column) {
@@ -96,7 +96,7 @@ public class TramiteEntradaPage extends JPanel {
         SwingUtilities.invokeLater(() -> {
             try {
                 if (table.getColumnCount() > 5) {
-                    String[] estados = {"PENDIENTE", "EN PROCESO", "COMPLETADO"};
+                    String[] estados = {"PENDIENTE", "COMPLETADO", "RECHAZADO"};
                     JComboBox<String> comboEstado = new JComboBox<>(estados);
                     table.getColumnModel().getColumn(5).setCellEditor(new DefaultCellEditor(comboEstado));
                     if (table.getRowHeight() < 28) table.setRowHeight(28);
@@ -116,9 +116,9 @@ public class TramiteEntradaPage extends JPanel {
                 try {
                     String elegido = String.valueOf(table.getValueAt(row, col)).trim().toUpperCase(Locale.ROOT);
                     String canon = switch (elegido) {
-                        case "EN PROCESO" -> "EN_PROCESO";
                         case "COMPLETADO" -> "COMPLETADO";
                         case "PENDIENTE"  -> "PENDIENTE";
+                        case "RECHAZADO" -> "RECHAZADO";
                         default -> elegido;
                     };
 
@@ -153,8 +153,8 @@ public class TramiteEntradaPage extends JPanel {
         header.add(title, BorderLayout.WEST);
 
         ButtonGroup tabs = new ButtonGroup();
-        tabRegistrar = tabButton("Registrar nueva solicitud");
-        tabActivos   = tabButton("Estados de solicitudes");
+        tabRegistrar = tabButton("Nueva solicitud");
+        tabActivos   = tabButton("Atención de solicitudes");
         tabs.add(tabRegistrar);
         tabs.add(tabActivos);
         tabRegistrar.setSelected(true);
@@ -216,7 +216,7 @@ public class TramiteEntradaPage extends JPanel {
         gbc.gridy = 0;
         gbc.anchor = GridBagConstraints.WEST;
         gbc.insets = new Insets(0, 0, 16, 0);
-        JLabel title = new JLabel("Registrar nueva solicitud");
+        JLabel title = new JLabel("Nueva solicitud");
         title.setFont(new Font("Segoe UI", Font.BOLD, 18));
         title.setForeground(new Color(54, 92, 190));
         panel.add(title, gbc);
@@ -240,7 +240,7 @@ public class TramiteEntradaPage extends JPanel {
         gbc.weighty = 1;
         panel.add(description, gbc);
 
-        JButton btn = primaryButton("Registrar nueva solicitud");
+        JButton btn = primaryButton("Nueva solicitud");
         btn.addActionListener(e -> openRegistrarDialog());
         btn.setAlignmentX(Component.LEFT_ALIGNMENT);
 
@@ -331,8 +331,9 @@ public class TramiteEntradaPage extends JPanel {
                 String badgeTxt = estadoFriendly(t.getEstado());
                 Color badgeColor = switch (badgeTxt.toLowerCase(Locale.ROOT)) {
                     case "completado" -> new Color(73, 198, 154);
-                    case "en proceso" -> new Color(86, 127, 255);
-                    default -> new Color(255, 170, 70);
+                    case "rechazado" -> new Color(225, 95, 95);
+                    case "pendiente" -> new Color(255, 170, 70);
+                    default -> new Color(86, 127, 255);
                 };
 
                 Component item = recentItem(solicitudTxt, estado, badgeTxt, badgeColor);
@@ -443,12 +444,18 @@ public class TramiteEntradaPage extends JPanel {
                     continue;
                 }
 
-                String fecha = t.getFecha() != null ? t.getFecha().format(fmt) : "-";
-                String ultima = t.getFecha() != null ? t.getFecha().format(fmt) : "-"; // si tenés un campo real, usalo acá
+                String fechaSolicitud = t.getFecha() != null ? t.getFecha().format(fmt) : "-";
+                String fechaAtencion = "-";
+                if (t.getEstado() != null) {
+                    String upper = t.getEstado().toUpperCase(Locale.ROOT);
+                    if (!"PENDIENTE".equals(upper)) {
+                        fechaAtencion = fechaSolicitud;
+                    }
+                }
                 String descripcion = (t.getDescripcion() == null || t.getDescripcion().isBlank()) ? "-" : t.getDescripcion();
                 String estado = estadoFriendly(t.getEstado());
 
-                model.addRow(new Object[]{ t.getNro(), t.getAsunto(), fecha, ultima, descripcion, estado });
+                model.addRow(new Object[]{ t.getNro(), t.getAsunto(), fechaSolicitud, fechaAtencion, descripcion, estado });
 
                 currentRows.add(t);
             }
@@ -489,9 +496,9 @@ public class TramiteEntradaPage extends JPanel {
         if (estado == null) return "Pendiente";
         return switch (estado.toUpperCase(Locale.ROOT)) {
             case "COMPLETADO", "CERRADO" -> "Completado";
-            case "EN_PROCESO" -> "En proceso";
-            case "ALTA" -> "Alta";
             case "PENDIENTE" -> "Pendiente";
+            case "RECHAZADO" -> "Rechazado";
+            case "ALTA" -> "Alta";
             default -> capitalize(estado);
         };
     }
@@ -597,9 +604,10 @@ public class TramiteEntradaPage extends JPanel {
                 else                                    base = new Color(200, 210, 230);
             } else {
                 if (normalized.contains("complet"))     base = new Color(73, 198, 154);
-                else if (normalized.contains("proceso"))base = new Color(86, 127, 255);
+                else if (normalized.contains("rechaz")) base = new Color(225, 95, 95);
+                else if (normalized.contains("pend"))  base = new Color(255, 188, 75);
                 else if (normalized.contains("alta"))   base = new Color(255, 120, 102);
-                else                                     base = new Color(255, 188, 75);
+                else                                     base = new Color(86, 127, 255);
             }
 
             if (isSelected) {
