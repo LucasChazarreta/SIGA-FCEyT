@@ -49,7 +49,7 @@ public class InventoryMovementsPage extends JPanel {
         var header = new JPanel(new BorderLayout());
         header.setOpaque(false);
 
-        var title = new JLabel("Registrar movimiento");
+        var title = new JLabel("Registrar entrada");
         title.setFont(title.getFont().deriveFont(Font.BOLD, 26f));
         title.setForeground(new Color(28, 66, 148));
         header.add(title, BorderLayout.WEST);
@@ -99,7 +99,7 @@ public class InventoryMovementsPage extends JPanel {
         JPanel north = new JPanel();
         north.setOpaque(false);
         north.setLayout(new BoxLayout(north, BoxLayout.Y_AXIS));
-        north.add(sectionTitle("Seleccionar insumo"));
+        north.add(sectionTitle("Búsqueda por nombre"));
         north.add(Box.createVerticalStrut(8));
 
         JPanel searchPanel = new JPanel(new BorderLayout(8, 0));
@@ -154,7 +154,7 @@ public class InventoryMovementsPage extends JPanel {
                     }
                 } else {
                     setActionsEnabled(false);
-                    taSeleccion.setText("Seleccioná un insumo");
+                    taSeleccion.setText("Seleccioná un elemento");
                     historialModel.clear();
                     if (resumenColorNormal != null) taSeleccion.setForeground(resumenColorNormal);
                 }
@@ -169,7 +169,7 @@ public class InventoryMovementsPage extends JPanel {
         CardPanel card = new CardPanel();
         card.setLayout(new BorderLayout(10, 10));
 
-        card.add(sectionTitle("Insumo seleccionado"), BorderLayout.NORTH);
+        card.add(sectionTitle("Elemento seleccionado"), BorderLayout.NORTH);
 
         taSeleccion.setOpaque(false);
         taSeleccion.setWrapStyleWord(true);
@@ -177,6 +177,7 @@ public class InventoryMovementsPage extends JPanel {
         taSeleccion.setEditable(false);
         taSeleccion.setFont(taSeleccion.getFont().deriveFont(Font.BOLD, 14f));
         taSeleccion.setBorder(new EmptyBorder(8, 8, 8, 8));
+        taSeleccion.setText("Seleccioná un elemento");
 
         var scroll = new JScrollPane(taSeleccion);
         scroll.setBorder(null);
