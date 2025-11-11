@@ -90,6 +90,13 @@ public class TramiteEntradaPage extends JPanel {
         installEstadoListener();
     }
 
+    public void refreshAll() {
+        SwingUtilities.invokeLater(() -> {
+            loadTableData();
+            recargarTramitesRecientesSidebar();
+        });
+    }
+
     /* ====================  Estado editable (editor + listener)  ==================== */
 
     private void installEstadoEditor() {

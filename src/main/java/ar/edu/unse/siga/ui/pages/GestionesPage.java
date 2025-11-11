@@ -15,6 +15,8 @@ import ar.edu.unse.siga.ui.usuarios.UsuarioFormDialog;
 
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
+import javax.swing.border.LineBorder;
+import javax.swing.table.JTableHeader;
 import java.awt.*;
 import java.sql.SQLException;
 import java.util.ArrayList;
@@ -33,11 +35,15 @@ public class GestionesPage extends JPanel {
     private final UsuarioTableModel usuarioModel = new UsuarioTableModel();
     private final JTable tblUsuarios = new JTable(usuarioModel);
 
+    private static final Color BRAND = new Color(58, 96, 224);
+    private static final Color HEADER_TEXT = new Color(35, 55, 120);
+
     public GestionesPage(InventarioService inventarioService) {
         this.inventarioService = inventarioService;
 
         setOpaque(false);
-        setLayout(new BorderLayout(16, 16));
+        setLayout(new BorderLayout(20, 20));
+        setBorder(new EmptyBorder(12, 12, 12, 12));
 
         add(buildHeader(), BorderLayout.NORTH);
         add(buildContent(), BorderLayout.CENTER);
@@ -50,18 +56,39 @@ public class GestionesPage extends JPanel {
     private JComponent buildHeader() {
         JPanel header = new JPanel(new BorderLayout());
         header.setOpaque(false);
+
+        JPanel text = new JPanel();
+        text.setOpaque(false);
+        text.setLayout(new BoxLayout(text, BoxLayout.Y_AXIS));
+
         JLabel title = new JLabel("Gestiones administrativas");
-        title.setFont(title.getFont().deriveFont(Font.BOLD, 26f));
-        title.setForeground(new Color(28, 66, 148));
-        header.add(title, BorderLayout.WEST);
+        title.setFont(title.getFont().deriveFont(Font.BOLD, 32f));
+        title.setForeground(HEADER_TEXT);
+
+        JLabel subtitle = new JLabel("Administra catálogos y usuarios de apoyo del sistema");
+        subtitle.setFont(subtitle.getFont().deriveFont(Font.PLAIN, 14f));
+        subtitle.setForeground(new Color(110, 126, 165));
+
+        text.add(title);
+        text.add(Box.createVerticalStrut(4));
+        text.add(subtitle);
+
+        header.add(text, BorderLayout.WEST);
         return header;
     }
 
     private JComponent buildContent() {
         CardPanel container = new CardPanel();
-        container.setLayout(new BorderLayout(12, 12));
+        container.setLayout(new BorderLayout());
+        container.setOpaque(false);
 
         JTabbedPane tabs = new JTabbedPane();
+        tabs.setFont(tabs.getFont().deriveFont(Font.BOLD, 14f));
+        tabs.setForeground(HEADER_TEXT);
+        tabs.setOpaque(false);
+        tabs.setBackground(Color.WHITE);
+        tabs.setBorder(new EmptyBorder(12, 12, 12, 12));
+
         tabs.addTab("Categorías", buildCategoriasTab());
         tabs.addTab("Ubicaciones", buildUbicacionesTab());
         tabs.addTab("Usuarios", buildUsuariosTab());
@@ -71,84 +98,97 @@ public class GestionesPage extends JPanel {
     }
 
     private JComponent buildCategoriasTab() {
-        JPanel panel = new JPanel(new BorderLayout(8, 8));
+        CardPanel panel = new CardPanel();
+        panel.setLayout(new BorderLayout(18, 18));
         panel.setOpaque(false);
-        panel.setBorder(new EmptyBorder(12, 12, 12, 12));
+        panel.setBorder(new EmptyBorder(18, 18, 18, 18));
 
+        panel.add(sectionHeader("Catálogo de categorías", "Organiza los grupos disponibles para los insumos."), BorderLayout.NORTH);
+
+        styleTable(tblCategorias);
         tblCategorias.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
-        panel.add(new JScrollPane(tblCategorias), BorderLayout.CENTER);
+        JScrollPane scroll = tableScroll(tblCategorias);
+        panel.add(scroll, BorderLayout.CENTER);
 
-        JPanel buttons = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 0));
-        JButton btnNueva = new JButton("Nueva");
-        JButton btnRenombrar = new JButton("Renombrar");
-        JButton btnBaja = new JButton("Baja lógica");
-        JButton btnRestaurar = new JButton("Restaurar");
+        JButton btnNueva = primaryButton("Nueva");
+        JButton btnRenombrar = outlineButton("Renombrar");
+        JButton btnBaja = outlineButton("Baja lógica");
+        JButton btnRestaurar = outlineButton("Restaurar");
+
+        JPanel buttons = actionsRow(btnNueva, btnRenombrar, btnBaja, btnRestaurar);
 
         btnNueva.addActionListener(e -> onNuevaCategoria());
         btnRenombrar.addActionListener(e -> onRenombrarCategoria());
         btnBaja.addActionListener(e -> onBajaCategoria());
         btnRestaurar.addActionListener(e -> onRestaurarCategoria());
 
-        buttons.add(btnNueva);
-        buttons.add(btnRenombrar);
-        buttons.add(btnBaja);
-        buttons.add(btnRestaurar);
-        panel.add(buttons, BorderLayout.NORTH);
+        panel.add(buttons, BorderLayout.SOUTH);
 
         return panel;
     }
 
     private JComponent buildUbicacionesTab() {
-        JPanel panel = new JPanel(new BorderLayout(8, 8));
+        CardPanel panel = new CardPanel();
+        panel.setLayout(new BorderLayout(18, 18));
         panel.setOpaque(false);
-        panel.setBorder(new EmptyBorder(12, 12, 12, 12));
+        panel.setBorder(new EmptyBorder(18, 18, 18, 18));
 
+        panel.add(sectionHeader("Ubicaciones", "Gestioná los espacios físicos de almacenamiento."), BorderLayout.NORTH);
+
+        styleTable(tblUbicaciones);
         tblUbicaciones.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
-        panel.add(new JScrollPane(tblUbicaciones), BorderLayout.CENTER);
+        JScrollPane scroll = tableScroll(tblUbicaciones);
+        panel.add(scroll, BorderLayout.CENTER);
 
-        JPanel buttons = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 0));
-        JButton btnNueva = new JButton("Nueva");
-        JButton btnRenombrar = new JButton("Renombrar");
-        JButton btnBaja = new JButton("Baja lógica");
-        JButton btnRestaurar = new JButton("Restaurar");
+        JButton btnNueva = primaryButton("Nueva");
+        JButton btnRenombrar = outlineButton("Renombrar");
+        JButton btnBaja = outlineButton("Baja lógica");
+        JButton btnRestaurar = outlineButton("Restaurar");
+
+        JPanel buttons = actionsRow(btnNueva, btnRenombrar, btnBaja, btnRestaurar);
 
         btnNueva.addActionListener(e -> onNuevaUbicacion());
         btnRenombrar.addActionListener(e -> onRenombrarUbicacion());
         btnBaja.addActionListener(e -> onBajaUbicacion());
         btnRestaurar.addActionListener(e -> onRestaurarUbicacion());
 
-        buttons.add(btnNueva);
-        buttons.add(btnRenombrar);
-        buttons.add(btnBaja);
-        buttons.add(btnRestaurar);
-        panel.add(buttons, BorderLayout.NORTH);
+        panel.add(buttons, BorderLayout.SOUTH);
 
         return panel;
     }
 
     private JComponent buildUsuariosTab() {
-        JPanel panel = new JPanel(new BorderLayout(8, 8));
+        CardPanel panel = new CardPanel();
+        panel.setLayout(new BorderLayout(18, 18));
         panel.setOpaque(false);
-        panel.setBorder(new EmptyBorder(12, 12, 12, 12));
+        panel.setBorder(new EmptyBorder(18, 18, 18, 18));
 
+        panel.add(sectionHeader("Usuarios administrativos", "Gestioná los accesos del personal"), BorderLayout.NORTH);
+
+        styleTable(tblUsuarios);
         tblUsuarios.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
-        panel.add(new JScrollPane(tblUsuarios), BorderLayout.CENTER);
+        JScrollPane scroll = tableScroll(tblUsuarios);
+        panel.add(scroll, BorderLayout.CENTER);
 
-        JPanel buttons = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 0));
-        JButton btnNuevo = new JButton("Nuevo administrativo");
-        JButton btnBaja = new JButton("Dar de baja");
-        JButton btnRestaurar = new JButton("Restaurar");
+        JButton btnNuevo = primaryButton("Nuevo administrativo");
+        JButton btnBaja = outlineButton("Dar de baja");
+        JButton btnRestaurar = outlineButton("Restaurar");
+
+        JPanel buttons = actionsRow(btnNuevo, btnBaja, btnRestaurar);
 
         btnNuevo.addActionListener(e -> onNuevoAdministrativo());
         btnBaja.addActionListener(e -> onBajaUsuario());
         btnRestaurar.addActionListener(e -> onRestaurarUsuario());
 
-        buttons.add(btnNuevo);
-        buttons.add(btnBaja);
-        buttons.add(btnRestaurar);
-        panel.add(buttons, BorderLayout.NORTH);
+        panel.add(buttons, BorderLayout.SOUTH);
 
         return panel;
+    }
+
+    public void refreshData() {
+        loadCategorias();
+        loadUbicaciones();
+        loadUsuarios();
     }
 
     /* === Categorías === */
@@ -460,5 +500,90 @@ public class GestionesPage extends JPanel {
                 default -> "";
             };
         }
+    }
+
+    private JPanel sectionHeader(String title, String subtitle) {
+        JPanel header = new JPanel();
+        header.setOpaque(false);
+        header.setLayout(new BoxLayout(header, BoxLayout.Y_AXIS));
+
+        JLabel lblTitle = new JLabel(title);
+        lblTitle.setFont(lblTitle.getFont().deriveFont(Font.BOLD, 18f));
+        lblTitle.setForeground(HEADER_TEXT);
+
+        JLabel lblSubtitle = new JLabel(subtitle);
+        lblSubtitle.setFont(lblSubtitle.getFont().deriveFont(Font.PLAIN, 13f));
+        lblSubtitle.setForeground(new Color(110, 126, 165));
+
+        header.add(lblTitle);
+        header.add(Box.createVerticalStrut(4));
+        header.add(lblSubtitle);
+        return header;
+    }
+
+    private void styleTable(JTable table) {
+        table.setRowHeight(36);
+        table.setIntercellSpacing(new Dimension(0, 6));
+        table.setShowHorizontalLines(true);
+        table.setShowVerticalLines(false);
+        table.setGridColor(new Color(230, 235, 250));
+        table.setFillsViewportHeight(true);
+        table.setFont(table.getFont().deriveFont(Font.PLAIN, 13f));
+        table.setSelectionBackground(new Color(210, 222, 255));
+        table.setSelectionForeground(HEADER_TEXT);
+
+        JTableHeader header = table.getTableHeader();
+        header.setReorderingAllowed(false);
+        header.setFont(header.getFont().deriveFont(Font.BOLD, 13f));
+        header.setOpaque(true);
+        header.setBackground(new Color(242, 246, 255));
+        header.setForeground(HEADER_TEXT);
+        header.setBorder(new EmptyBorder(12, 12, 12, 12));
+    }
+
+    private JScrollPane tableScroll(JTable table) {
+        JScrollPane scroll = new JScrollPane(table);
+        scroll.setBorder(BorderFactory.createCompoundBorder(
+                new LineBorder(new Color(225, 230, 246), 1, true),
+                new EmptyBorder(0, 0, 0, 0)
+        ));
+        scroll.getViewport().setBackground(Color.WHITE);
+        scroll.setOpaque(false);
+        return scroll;
+    }
+
+    private JPanel actionsRow(JButton... buttons) {
+        JPanel row = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 0));
+        row.setOpaque(false);
+        for (JButton b : buttons) {
+            row.add(b);
+        }
+        return row;
+    }
+
+    private JButton primaryButton(String text) {
+        JButton b = new JButton(text);
+        b.setFocusPainted(false);
+        b.setBackground(BRAND);
+        b.setForeground(Color.WHITE);
+        b.setBorder(BorderFactory.createCompoundBorder(
+                new LineBorder(new Color(42, 80, 190), 1, true),
+                new EmptyBorder(10, 20, 10, 20)
+        ));
+        b.putClientProperty("JButton.buttonType", "roundRect");
+        return b;
+    }
+
+    private JButton outlineButton(String text) {
+        JButton b = new JButton(text);
+        b.setFocusPainted(false);
+        b.setBackground(Color.WHITE);
+        b.setForeground(BRAND.darker());
+        b.setBorder(BorderFactory.createCompoundBorder(
+                new LineBorder(new Color(194, 206, 255), 1, true),
+                new EmptyBorder(10, 20, 10, 20)
+        ));
+        b.putClientProperty("JButton.buttonType", "roundRect");
+        return b;
     }
 }
