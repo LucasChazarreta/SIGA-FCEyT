@@ -675,6 +675,14 @@ public class InformesPanel extends JPanel {
         }
     }
 
+    public void refreshData() {
+        reloadMetrics();
+        runQueryInventario();
+        loadTableDataTramites();
+        loadTableDataMovimientos();
+        loadRetirosRecientes();
+    }
+
     private void runQueryInventario() {
         modelInv.setRowCount(0);
         lblTotalStockMinimo.setText("0");
@@ -750,7 +758,7 @@ public class InformesPanel extends JPanel {
     }
 
     private boolean matchesEstado(Insumo insumo, String filtro) {
-        if (filtro == null || filtro.equalsIgnoreCase("Todos")) {
+        if (isTodos(filtro) || (filtro != null && filtro.trim().isEmpty())) {
             return true;
         }
         String estado = normalizeEstado(insumo.getEstado());
@@ -764,14 +772,15 @@ public class InformesPanel extends JPanel {
     }
 
     private boolean matchesTipo(Insumo insumo, String filtro) {
-        if (filtro == null || filtro.equalsIgnoreCase("Todos")) {
+        if (isTodos(filtro) || (filtro != null && filtro.trim().isEmpty())) {
             return true;
         }
+        String criterio = filtro.trim().toUpperCase(Locale.ROOT);
         String tipo = normalizeTipo(insumo.getTipo());
-        if (filtro.equalsIgnoreCase("Insumos")) {
+        if (criterio.startsWith("INS")) {
             return "INSUMO".equals(tipo);
         }
-        if (filtro.equalsIgnoreCase("Bienes")) {
+        if (criterio.startsWith("BIE")) {
             return "BIEN".equals(tipo);
         }
         return true;
@@ -847,8 +856,8 @@ public class InformesPanel extends JPanel {
                 .map(r -> normalizeTipo(r.insumo.getTipo()))
                 .collect(Collectors.toCollection(LinkedHashSet::new));
 
-        boolean dividirEstado = estadoSel != null && estadoSel.equalsIgnoreCase("Todos") && estados.size() > 1;
-        boolean dividirTipo = tipoSel != null && tipoSel.equalsIgnoreCase("Todos") && tipos.size() > 1;
+        boolean dividirEstado = isTodos(estadoSel) && estados.size() > 1;
+        boolean dividirTipo = isTodos(tipoSel) && tipos.size() > 1;
 
         if (dividirEstado && dividirTipo) {
             for (String estado : estados) {

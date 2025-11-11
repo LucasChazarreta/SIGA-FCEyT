@@ -118,6 +118,12 @@ public class InventoryPage extends JPanel {
         });
     }
 
+    public void refreshAll() {
+        registroPanel.refreshCombos();
+        modificarPanel.refreshData();
+        eliminarPanel.refreshData();
+    }
+
     private JToggleButton pillButton(String text) {
         JToggleButton b = new JToggleButton(text.toUpperCase());
         b.setFocusPainted(false);
