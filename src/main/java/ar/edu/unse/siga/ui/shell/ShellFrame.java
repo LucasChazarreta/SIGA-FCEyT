@@ -29,6 +29,7 @@ public class ShellFrame extends JFrame {
     private final JPanel cards = new JPanel(cardLayout);
     private final JLabel lblTitle = new JLabel("Inicio");
     private final JLabel lblUser = new JLabel();
+    private final JButton btnRefresh = createRefreshButton();
 
     // services
     private final InventarioService inventarioService;
@@ -45,6 +46,7 @@ public class ShellFrame extends JFrame {
     // mapa de clave de tarjeta -> botón del sidebar
     private final Map<String, NavButton> navByKey = new HashMap<>();
     private final ButtonGroup navGroup = new ButtonGroup();
+    private String currentKey = "home";
 
     public ShellFrame(InventarioService inv, TramiteService tra, AuthService auth) {
         super("SIGA-FCEyT");
@@ -167,7 +169,13 @@ public class ShellFrame extends JFrame {
         lblUser.setText((u != null ? u.getUsername() : "-")
                 + "  |  " + java.time.LocalDate.now().format(DateTimeFormatter.ofPattern("dd/MM/yyyy")));
         lblUser.setForeground(new Color(90, 110, 150));
-        header.add(lblUser, BorderLayout.EAST);
+        lblUser.setBorder(BorderFactory.createEmptyBorder(0, 8, 0, 0));
+
+        JPanel right = new JPanel(new FlowLayout(FlowLayout.RIGHT, 10, 0));
+        right.setOpaque(false);
+        right.add(btnRefresh);
+        right.add(lblUser);
+        header.add(right, BorderLayout.EAST);
         return header;
     }
 
@@ -274,6 +282,7 @@ public class ShellFrame extends JFrame {
     private void showCard(String key, String title) {
         cardLayout.show(cards, key);
         lblTitle.setText(title);
+        currentKey = key;
 
         // marcar seleccionado el botón correspondiente
         for (Map.Entry<String, NavButton> e : navByKey.entrySet()) {
@@ -294,5 +303,54 @@ public class ShellFrame extends JFrame {
 
     private void addPage(String key, Component c) {
         cards.add(c, key);
+    }
+
+    private JButton createRefreshButton() {
+        JButton btn = new JButton("Refrescar");
+        btn.setFocusPainted(false);
+        btn.setBackground(new Color(58, 96, 224));
+        btn.setForeground(Color.WHITE);
+        btn.setBorder(BorderFactory.createEmptyBorder(8, 18, 8, 18));
+        btn.putClientProperty("JButton.buttonType", "roundRect");
+        btn.addActionListener(e -> refreshCurrentPage());
+        return btn;
+    }
+
+    private void refreshCurrentPage() {
+        switch (currentKey) {
+            case "home" -> {
+                if (homePage != null) {
+                    homePage.refreshMetrics();
+                    homePage.recargarTramitesRecientes();
+                }
+            }
+            case "inventario" -> {
+                if (inventoryPage != null) {
+                    inventoryPage.refreshAll();
+                }
+            }
+            case "movimientos" -> {
+                if (movimientosPage != null) {
+                    movimientosPage.refreshInsumos();
+                }
+            }
+            case "tramites" -> {
+                if (tramitesPage != null) {
+                    tramitesPage.refreshAll();
+                }
+            }
+            case "reportes" -> {
+                if (informesPanel != null) {
+                    informesPanel.refreshData();
+                }
+            }
+            case "gestiones" -> {
+                if (gestionesPage != null) {
+                    gestionesPage.refreshData();
+                }
+            }
+            default -> {
+            }
+        }
     }
 }
