@@ -393,7 +393,7 @@ public class InformesPanel extends JPanel {
         ButtonGroup tabs = new ButtonGroup();
         btnInventario = pill("INVENTARIO");
         btnTramites = pill("SOLICITUDES");
-        btnMovimientos = pill("INGRESOS");
+        btnMovimientos = pill("TRANSACCIONES");
         btnInventario.setSelected(true);
         tabs.add(btnInventario);
         tabs.add(btnTramites);
@@ -1926,7 +1926,7 @@ public class InformesPanel extends JPanel {
                 resumen.put("Pendientes", String.valueOf(estados.getOrDefault("Pendientes", 0)));
                 resumen.put("Completadas", String.valueOf(estados.getOrDefault("Completadas", 0)));
                 resumen.put("Rechazadas", String.valueOf(estados.getOrDefault("Rechazadas", 0)));
-                resumen.put("Alta", String.valueOf(estados.getOrDefault("Alta", 0)));
+                //resumen.put("Alta", String.valueOf(estados.getOrDefault("Alta", 0)));
                 addSummarySection(doc, "Totales", resumen);
 
                 addPdfFooter(doc);
@@ -2044,7 +2044,7 @@ public class InformesPanel extends JPanel {
         titulo.setSpacingAfter(4f);
         doc.add(titulo);
 
-        String[] headers = new String[]{"Fecha", "Elemento", "Cantidad", "Origen/Destino"};
+        String[] headers = new String[]{"Fecha", "Elemento", "Cantidad", "Destino"};
         float[] widths = new float[]{2f, 4.2f, 1.8f, 3.2f};
         int[] aligns = new int[]{Element.ALIGN_CENTER, Element.ALIGN_LEFT, Element.ALIGN_RIGHT, Element.ALIGN_LEFT};
         doc.add(buildStyledTable(headers, entradas, widths, aligns));

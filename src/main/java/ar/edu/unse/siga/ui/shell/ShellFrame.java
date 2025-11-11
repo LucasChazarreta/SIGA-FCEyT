@@ -209,7 +209,7 @@ public class ShellFrame extends JFrame {
         NavButton bHome = nav("Inicio", "ui/icons/home.svg", "home");
         NavButton bInv = nav("Inventario", "ui/icons/inventory.svg", "inventario");
         boolean isAdmin = RoleName.isAdmin(CurrentSession.getUser());
-        NavButton bMov = isAdmin ? nav("Movimientos", "ui/icons/movements.svg", "movimientos", 1) : null;
+        NavButton bMov = isAdmin ? nav("Entradas", "ui/icons/movements.svg", "movimientos", 1) : null;
         NavButton bInf = nav("Informes", "ui/icons/reports.svg", "reportes");
         NavButton bTra = nav("Solicitudes", "ui/icons/tramites.svg", "tramites");
         NavButton bGes = isAdmin ? nav("Gestiones", "ui/icons/gestiones.svg", "gestiones") : null;
